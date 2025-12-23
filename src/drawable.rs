@@ -16,28 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use anyhow::Result;
+use embedded_graphics::{pixelcolor::Bgr888, prelude::DrawTarget};
 
-mod display;
-mod display_framebuffer;
-mod drawable;
-mod main_screen;
-
-use crate::display::Display;
-use crate::display_framebuffer::FramebufferDisplay;
-use crate::drawable::AppDrawable;
-use crate::main_screen::MainScreen;
-
-fn main() -> Result<()> {
-    let mut display = get_display()?;
-    let screen = MainScreen { };
-
-    loop {
-        screen.draw(display.draw_target())?;
-        display.flush()?;
-    }
-}
-
-fn get_display() -> Result<impl Display> {
-    Ok(FramebufferDisplay::new()?)
+// Do I really gain anything with this trait vs. using embedded_graphics::Drawable?
+pub trait AppDrawable {
+    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>;
 }

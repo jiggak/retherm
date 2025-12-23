@@ -16,10 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::convert::Infallible;
+
 use anyhow::{Result, anyhow};
-use embedded_graphics::{pixelcolor::{Bgr888, raw::ToBytes}, prelude::RgbColor};
+use embedded_graphics::{
+    pixelcolor::{Bgr888, raw::ToBytes},
+    prelude::{DrawTarget, RgbColor}
+};
 use embedded_graphics_framebuf::FrameBuf;
 use linuxfb::Framebuffer;
+
+use crate::display::Display;
 
 pub struct FramebufferDisplay {
     lfb: Framebuffer,
@@ -44,7 +51,7 @@ impl FramebufferDisplay {
         Ok(Self { lfb, buf })
     }
 
-    pub fn flush(&self) -> Result<()> {
+    fn flush(&self) -> Result<()> {
         // Map the framebuffer into memory, so we can write to it:
         let mut fb_mem = self.lfb.map()
             .or(Err(anyhow!("Error mapping fb mem")))?;
@@ -65,5 +72,15 @@ impl FramebufferDisplay {
         fb_mem[0..409600].copy_from_slice(data.as_slice());
 
         Ok(())
+    }
+}
+
+impl Display for FramebufferDisplay {
+    fn draw_target(&mut self) -> &mut impl DrawTarget<Color = Bgr888, Error = Infallible> {
+        &mut self.buf
+    }
+
+    fn flush(&self) -> Result<()> {
+        FramebufferDisplay::flush(&self)
     }
 }

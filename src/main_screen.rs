@@ -19,21 +19,17 @@
 use embedded_graphics::prelude::*;
 use embedded_graphics::{pixelcolor::Bgr888, primitives::{Circle, PrimitiveStyle}};
 
+use crate::drawable::AppDrawable;
+
 pub struct MainScreen { }
 
-impl Drawable for MainScreen {
-    // FIXME having `Bgr888` here might be a problem for running simulator
-    // I should probably make this a type alias since I will have many screens
-    type Color = Bgr888;
-    type Output = ();
-
-    fn draw<D>(&self, target: &mut D) -> Result<Self::Output, D::Error>
-        where D: DrawTarget<Color = Self::Color>
+impl AppDrawable for MainScreen {
+    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
     {
         let circle = Circle::new(Point::new(100, 100), 100)
-            .into_styled(PrimitiveStyle::with_stroke(Self::Color::BLUE, 5));
+            .into_styled(PrimitiveStyle::with_stroke(D::Color::GREEN, 5));
         circle.draw(target)?;
-
         Ok(())
     }
 }

@@ -16,28 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::convert::Infallible;
+
 use anyhow::Result;
+use embedded_graphics::{pixelcolor::Bgr888, prelude::DrawTarget};
 
-mod display;
-mod display_framebuffer;
-mod drawable;
-mod main_screen;
+pub trait Display {
+    fn draw_target(&mut self) -> &mut impl DrawTarget<Color = Bgr888, Error = Infallible>;
 
-use crate::display::Display;
-use crate::display_framebuffer::FramebufferDisplay;
-use crate::drawable::AppDrawable;
-use crate::main_screen::MainScreen;
-
-fn main() -> Result<()> {
-    let mut display = get_display()?;
-    let screen = MainScreen { };
-
-    loop {
-        screen.draw(display.draw_target())?;
-        display.flush()?;
-    }
-}
-
-fn get_display() -> Result<impl Display> {
-    Ok(FramebufferDisplay::new()?)
+    fn flush(&self) -> Result<()>;
 }
