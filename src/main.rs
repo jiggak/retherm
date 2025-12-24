@@ -18,23 +18,40 @@
 
 use anyhow::Result;
 
+mod backlight;
 mod display;
 mod display_framebuffer;
 mod drawable;
+mod event_pump;
+mod input_events;
 mod main_screen;
 
+use crate::backlight::Backlight;
 use crate::display::Display;
 use crate::display_framebuffer::FramebufferDisplay;
 use crate::drawable::AppDrawable;
+use crate::event_pump::EventPump;
+use crate::input_events::InputEvents;
 use crate::main_screen::MainScreen;
 
 fn main() -> Result<()> {
     let mut display = get_display()?;
-    let screen = MainScreen { };
+
+    let mut screen = MainScreen::new();
+
+    let backlight = Backlight::new("/sys/class/backlight/3-0036");
+    backlight.set_brightness(100)?;
+
+    let event_pump = EventPump::new();
+    let input_events = InputEvents::new()?;
+    input_events.start_polling(event_pump.sender.clone());
 
     loop {
         screen.draw(display.draw_target())?;
         display.flush()?;
+
+        let event = event_pump.wait_event()?;
+        screen.handle_event(&event);
     }
 }
 

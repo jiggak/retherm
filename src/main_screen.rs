@@ -20,15 +20,39 @@ use embedded_graphics::prelude::*;
 use embedded_graphics::{pixelcolor::Bgr888, primitives::{Circle, PrimitiveStyle}};
 
 use crate::drawable::AppDrawable;
+use crate::event_pump::Event;
 
-pub struct MainScreen { }
+pub struct MainScreen {
+    colour: Bgr888
+}
+
+impl MainScreen {
+    pub fn new() -> Self {
+        Self {
+            colour: Bgr888::BLUE
+        }
+    }
+
+    pub fn handle_event(&mut self, event: &Event) {
+        match event {
+            Event::ButtonDown => {
+                if self.colour == Bgr888::BLUE {
+                    self.colour = Bgr888::RED;
+                } else {
+                    self.colour = Bgr888::BLUE;
+                }
+            },
+            _ => { }
+        }
+    }
+}
 
 impl AppDrawable for MainScreen {
     fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
         let circle = Circle::new(Point::new(100, 100), 100)
-            .into_styled(PrimitiveStyle::with_stroke(D::Color::GREEN, 5));
+            .into_styled(PrimitiveStyle::with_stroke(self.colour, 5));
         circle.draw(target)?;
         Ok(())
     }

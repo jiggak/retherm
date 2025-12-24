@@ -30,7 +30,7 @@ use crate::display::Display;
 
 pub struct FramebufferDisplay {
     lfb: Framebuffer,
-    pub buf: FrameBuf<Bgr888, [Bgr888; 320 * 320]>
+    buf: FrameBuf<Bgr888, [Bgr888; 320 * 320]>
 }
 
 impl FramebufferDisplay {
