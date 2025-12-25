@@ -35,8 +35,13 @@ pub struct FramebufferDisplay {
 
 impl FramebufferDisplay {
     pub fn new() -> Result<Self> {
-        let lfb = Framebuffer::new("/dev/fb0")
+        let mut lfb = Framebuffer::new("/dev/fb0")
             .or(Err(anyhow!("Error opening fb0")))?;
+
+        // sometimes the offset will be (0, 320) after opening fb0
+        // causing nothing to appear on screen
+        lfb.set_offset(0, 0)
+            .or(Err(anyhow!("Error changing offset of fb0")))?;
 
         let (width, height) = lfb.get_size();
         let (width, height) = (width as usize, height as usize);
@@ -54,7 +59,7 @@ impl FramebufferDisplay {
     fn flush(&self) -> Result<()> {
         // Map the framebuffer into memory, so we can write to it:
         let mut fb_mem = self.lfb.map()
-            .or(Err(anyhow!("Error mapping fb mem")))?;
+            .or(Err(anyhow!("Error mapping fb0 mem")))?;
 
         // FIXME is there a cleaner way to do this without building a new vector?
         let data: Vec<u8> = self.buf.data.iter()
