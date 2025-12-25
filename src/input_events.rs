@@ -20,6 +20,7 @@ use std::{sync::mpsc::Sender, thread, time::Duration};
 
 use anyhow::Result;
 use evdev::{Device, EventSummary, KeyCode};
+use throttle::Throttle;
 
 use crate::event_pump::Event;
 
@@ -43,6 +44,17 @@ impl InputEvents {
 
     pub fn start_polling(mut self, sender: Sender<Event>) {
         thread::spawn(move || {
+            // Slowing down the rate of dial events has a better UX feel IMO
+            // I can't help but wonder if I should apply the throttle to all
+            // events, and remove the loop delay. This feels like it would be
+            // bad for the CPU let it go full bore. Maybe tokio is the answer
+            // with IO waiting? Maybe turn on blocking and create separate
+            // threads for the two inputs?
+            // I also wonder if buffering the events and dispatching an event
+            // a sum of the movement in the buffer might be helpful. The event
+            // consumer would know if the user moved the dial quicker.
+            let mut dial_throttle = Throttle::new(Duration::from_millis(40), 1);
+
             loop {
                 // TODO handle send() error by breaking loop?
 
@@ -64,8 +76,9 @@ impl InputEvents {
                         // println!("dial event {:?}", e);
                         match e.destructure() {
                             EventSummary::RelativeAxis(_, _, value) => {
-
-                                sender.send(Event::Dial(value)).unwrap();
+                                if dial_throttle.accept().is_ok() {
+                                    sender.send(Event::Dial(value)).unwrap();
+                                }
                             },
                             _ => { }
                         }

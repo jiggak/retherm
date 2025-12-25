@@ -25,14 +25,16 @@ mod drawable;
 mod event_pump;
 mod input_events;
 mod main_screen;
+mod sound;
 
 use crate::backlight::Backlight;
 use crate::display::Display;
 use crate::display_framebuffer::FramebufferDisplay;
 use crate::drawable::AppDrawable;
-use crate::event_pump::EventPump;
+use crate::event_pump::{Event, EventPump};
 use crate::input_events::InputEvents;
 use crate::main_screen::MainScreen;
+use crate::sound::Sound;
 
 fn main() -> Result<()> {
     let mut display = get_display()?;
@@ -46,6 +48,8 @@ fn main() -> Result<()> {
     let input_events = InputEvents::new()?;
     input_events.start_polling(event_pump.sender.clone());
 
+    let mut sounds = Sound::new()?;
+
     loop {
         screen.draw(display.draw_target())?;
         display.flush()?;
@@ -54,6 +58,10 @@ fn main() -> Result<()> {
 
         if event.is_wakeup_event() {
             backlight_timer.reset();
+        }
+
+        if matches!(event, Event::Dial(..)) {
+            sounds.click()?;
         }
 
         screen.handle_event(&event);

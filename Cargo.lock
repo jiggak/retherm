@@ -296,6 +296,7 @@ dependencies = [
  "embedded-graphics-framebuf",
  "evdev",
  "linuxfb",
+ "throttle",
 ]
 
 [[package]]
@@ -451,6 +452,12 @@ name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "throttle"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b7d2d6a110f96a589b87d0f6c46d4048c84a01a7b81a2dcc97656694ace28b1"
 
 [[package]]
 name = "unicode-ident"
