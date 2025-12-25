@@ -24,17 +24,27 @@ use anyhow::Result;
 // for injecting events, but rather clone the sender of the channel into
 // the various threads that produce events.
 
-pub struct EventPump {
-    pub sender: Sender<Event>,
-    receiver: Receiver<Event>
-}
-
 #[derive(Debug)]
 pub enum Event {
     ButtonDown,
     Dial(i32),
     Temp,
     HVAC
+}
+
+impl Event {
+    /// Returns true if the event is one of the types that should cause device wakeup
+    pub fn is_wakeup_event(&self) -> bool {
+        match self {
+            Event::ButtonDown | Event::Dial(_) => true,
+            _ => false
+        }
+    }
+}
+
+pub struct EventPump {
+    pub sender: Sender<Event>,
+    receiver: Receiver<Event>
 }
 
 impl EventPump {

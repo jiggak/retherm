@@ -39,8 +39,8 @@ fn main() -> Result<()> {
 
     let mut screen = MainScreen::new();
 
-    let backlight = Backlight::new("/sys/class/backlight/3-0036");
-    backlight.set_brightness(100)?;
+    let backlight = Backlight::new("/sys/class/backlight/3-0036")?;
+    let mut backlight_timer = backlight.start_timeout(15);
 
     let event_pump = EventPump::new();
     let input_events = InputEvents::new()?;
@@ -51,6 +51,11 @@ fn main() -> Result<()> {
         display.flush()?;
 
         let event = event_pump.wait_event()?;
+
+        if event.is_wakeup_event() {
+            backlight_timer.reset();
+        }
+
         screen.handle_event(&event);
     }
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{sync::mpsc::Sender, thread};
+use std::{sync::mpsc::Sender, thread, time::Duration};
 
 use anyhow::Result;
 use evdev::{Device, EventSummary, KeyCode};
@@ -71,6 +71,9 @@ impl InputEvents {
                         }
                     }
                 }
+
+                // small delay to limit CPU use
+                thread::sleep(Duration::from_millis(10));
             }
         });
     }
