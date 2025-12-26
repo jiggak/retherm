@@ -78,9 +78,9 @@ impl AppWindow for SdlWindow {
         texture.with_lock(None, |dest, _| {
             for (i, p) in self.buffer.data.iter().enumerate() {
                 let offset = i*4;
-                dest[offset] = p.b();
+                dest[offset] = p.r();
                 dest[offset + 1] = p.g();
-                dest[offset + 2] = p.r();
+                dest[offset + 2] = p.b();
             }
         }).map_err(|e| anyhow!(e))?;
 
