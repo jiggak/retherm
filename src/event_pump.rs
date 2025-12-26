@@ -29,7 +29,8 @@ pub enum Event {
     ButtonDown,
     Dial(i32),
     Temp,
-    HVAC
+    HVAC,
+    Quit
 }
 
 impl Event {

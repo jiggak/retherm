@@ -19,55 +19,50 @@
 use anyhow::Result;
 
 mod backlight;
-mod display;
-mod display_framebuffer;
 mod drawable;
 mod event_pump;
 mod input_events;
 mod main_screen;
 mod sound;
+mod window;
+#[cfg(feature = "device")]
+mod window_fb;
+#[cfg(feature = "simulate")]
+mod window_sdl;
 
-use crate::backlight::Backlight;
-use crate::display::Display;
-use crate::display_framebuffer::FramebufferDisplay;
 use crate::drawable::AppDrawable;
-use crate::event_pump::{Event, EventPump};
-use crate::input_events::InputEvents;
+use crate::event_pump::Event;
 use crate::main_screen::MainScreen;
-use crate::sound::Sound;
+use crate::window::AppWindow;
 
 fn main() -> Result<()> {
-    let mut display = get_display()?;
+    let mut window = get_window()?;
 
     let mut screen = MainScreen::new();
 
-    let backlight = Backlight::new("/sys/class/backlight/3-0036")?;
-    let mut backlight_timer = backlight.start_timeout(15);
+    'running: loop {
+        screen.draw(window.draw_target())?;
+        window.flush()?;
 
-    let event_pump = EventPump::new();
-    let input_events = InputEvents::new()?;
-    input_events.start_polling(event_pump.sender.clone());
-
-    let mut sounds = Sound::new()?;
-
-    loop {
-        screen.draw(display.draw_target())?;
-        display.flush()?;
-
-        let event = event_pump.wait_event()?;
-
-        if event.is_wakeup_event() {
-            backlight_timer.reset();
-        }
-
-        if matches!(event, Event::Dial(..)) {
-            sounds.click()?;
+        let event = window.wait_event()?;
+        if matches!(event, Event::Quit) {
+            break 'running;
         }
 
         screen.handle_event(&event);
     }
+
+    Ok(())
 }
 
-fn get_display() -> Result<impl Display> {
-    Ok(FramebufferDisplay::new()?)
+#[cfg(feature = "device")]
+fn get_window() -> Result<impl AppWindow> {
+    let window = crate::window_fb::FramebufferWindow::new()?;
+    Ok(window)
+}
+
+#[cfg(feature = "simulate")]
+fn get_window() -> Result<impl AppWindow> {
+    let window = crate::window_sdl::SdlWindow::new()?;
+    Ok(window)
 }

@@ -3,10 +3,16 @@ name = "nest-app"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["simulate"]
+simulate = ["dep:sdl2"]
+device = ["dep:linuxfb"]
+
 [dependencies]
 anyhow = "1.0.100"
 embedded-graphics = "0.8.1"
 embedded-graphics-framebuf = "0.5.0"
 evdev = "0.13.2"
-linuxfb = "0.3.1"
+linuxfb = { version = "0.3.1", optional = true }
+sdl2 = { version = "0.38.0", optional = true }
 throttle = "0.1.0"

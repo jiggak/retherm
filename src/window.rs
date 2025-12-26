@@ -16,13 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::convert::Infallible;
+ use std::convert::Infallible;
 
 use anyhow::Result;
-use embedded_graphics::{pixelcolor::Bgr888, prelude::DrawTarget};
+use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 
-pub trait Display {
+use crate::event_pump::Event;
+
+pub trait AppWindow {
     fn draw_target(&mut self) -> &mut impl DrawTarget<Color = Bgr888, Error = Infallible>;
-
-    fn flush(&self) -> Result<()>;
+    fn flush(&mut self) -> Result<()>;
+    fn wait_event(&mut self) -> Result<Event>;
 }
