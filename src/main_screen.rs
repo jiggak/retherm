@@ -41,9 +41,9 @@ impl MainScreen {
         match event {
             Event::Dial(dir) => {
                 if *dir > 0 {
-                    self.gauge.inc_target_temp(-0.25);
+                    self.gauge.inc_target_temp(-0.1);
                 } else if *dir < 0 {
-                    self.gauge.inc_target_temp(0.25);
+                    self.gauge.inc_target_temp(0.1);
                 }
             },
             _ => { }
@@ -73,7 +73,8 @@ struct ThermostatGauge {
 }
 
 impl ThermostatGauge {
-    const FONT_SIZE: u32 = 120;
+    const FONT_SIZE_LG: u32 = 100;
+    const FONT_SIZE_SM: u32 = 20;
     const FONT_FG_COLOUR: Bgr888 = Bgr888::WHITE;
     const FONT_BG_COLOUR: Bgr888 = Bgr888::BLACK;
 
@@ -118,12 +119,21 @@ impl ThermostatGauge {
         (temp - self.min_temp) / (self.max_temp - self.min_temp)
     }
 
-    fn draw_temp<D>(&self, target: &mut D, center: Point) -> Result<(), D::Error>
+    fn get_arc_point(center: Point, percent: f32, radius: f32) -> Point {
+        let point_angle = Self::ARC_SWEEP_DEG * percent + Self::ARC_START_DEG;
+        let point_angle = Angle::from_degrees(point_angle);
+        center + Point::new(
+            (point_angle.to_radians().cos() * radius).round() as i32,
+            (point_angle.to_radians().sin() * radius).round() as i32
+        )
+    }
+
+    fn draw_temp_text<D>(&self, target: &mut D, center: Point) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
         // is clone() better than re-loading `Font` instance?
         let font_style = FontTextStyleBuilder::new(self.font_bold.clone())
-            .font_size(Self::FONT_SIZE)
+            .font_size(Self::FONT_SIZE_LG)
             .text_color(Self::FONT_FG_COLOUR)
             .anti_aliasing_color(Self::FONT_BG_COLOUR)
             .build();
@@ -136,6 +146,27 @@ impl ThermostatGauge {
         let text = Text::with_alignment(
             &temp,
             text_center,
+            font_style,
+            Alignment::Center
+        );
+
+        text.draw(target)?;
+
+        Ok(())
+    }
+
+    fn draw_text<D>(&self, target: &mut D, center: Point, s: String) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let font_style = FontTextStyleBuilder::new(self.font_reg.clone())
+            .font_size(Self::FONT_SIZE_SM)
+            .text_color(Self::FONT_FG_COLOUR)
+            .anti_aliasing_color(Self::FONT_BG_COLOUR)
+            .build();
+
+        let text = Text::with_alignment(
+            &s,
+            center,
             font_style,
             Alignment::Center
         );
@@ -169,12 +200,7 @@ impl ThermostatGauge {
     fn draw_arc_point<D>(&self, target: &mut D, percent: f32, center: Point, dia: u32, colour: D::Color) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let point_angle = Self::ARC_SWEEP_DEG * percent + 120.0;
-        let point_angle = Angle::from_degrees(point_angle);
-        let point_center = center + Point::new(
-            (point_angle.to_radians().cos() * (Self::ARC_DIA/2) as f32).round() as i32,
-            (point_angle.to_radians().sin() * (Self::ARC_DIA/2) as f32).round() as i32
-        );
+        let point_center = Self::get_arc_point(center, percent, (Self::ARC_DIA/2) as f32);
 
         Circle::with_center(point_center, dia)
             .into_styled(PrimitiveStyle::with_fill(colour))
@@ -192,7 +218,7 @@ impl AppDrawable for ThermostatGauge {
         let target_temp_percent = self.get_temp_percent(self.target_temp);
         let current_temp_percent = self.get_temp_percent(self.current_temp);
 
-        self.draw_temp(target, center)?;
+        self.draw_temp_text(target, center)?;
 
         // gauge background
         self.draw_arc(target, 1.0, center, Bgr888::CSS_DIM_GRAY)?;
@@ -203,6 +229,10 @@ impl AppDrawable for ThermostatGauge {
         self.draw_arc_point(target, target_temp_percent, center, Self::ARC_WIDTH, Bgr888::WHITE)?;
 
         self.draw_arc_point(target, current_temp_percent, center, 10, Bgr888::CSS_SILVER)?;
+
+        let current_temp = format!("{:.1}", self.current_temp);
+        let current_temp_center = Self::get_arc_point(center, current_temp_percent, 124.0);
+        self.draw_text(target, current_temp_center, current_temp)?;
 
         Ok(())
     }
