@@ -38,7 +38,7 @@ use crate::window::AppWindow;
 fn main() -> Result<()> {
     let mut window = get_window()?;
 
-    let mut screen = MainScreen::new();
+    let mut screen = MainScreen::new()?;
 
     'running: loop {
         screen.draw(window.draw_target())?;
