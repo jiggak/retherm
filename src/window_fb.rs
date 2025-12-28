@@ -26,7 +26,7 @@ use linuxfb::Framebuffer;
 use crate::{
     backlight::{Backlight, BacklightTimer},
     event_pump::{Event, EventPump},
-    input_events::InputEvents,
+    input_events::{start_button_events, start_dial_events},
     sound::Sound,
     window::AppWindow
 };
@@ -60,8 +60,8 @@ impl FramebufferWindow {
         let buffer = FrameBuf::new(data, width, height);
 
         let event_pump = EventPump::new();
-        let input_events = InputEvents::new()?;
-        input_events.start_polling(event_pump.sender.clone());
+        start_button_events(event_pump.sender.clone())?;
+        start_dial_events(event_pump.sender.clone())?;
 
         let backlight = Backlight::new("/sys/class/backlight/3-0036")?;
         let backlight_timer = backlight.start_timeout(15);
