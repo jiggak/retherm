@@ -16,9 +16,6 @@ struct Frame {
 }
 
 impl Frame {
-    // zero byte + 2 varint (10 bytes each)
-    const MAX_PREAMBLE_SIZE: usize = 21;
-
     pub fn decode(buffer: &mut impl Buf) -> Result<Self> {
         let byte_zero = buffer.get_u8();
         if byte_zero != 0 {
@@ -35,17 +32,117 @@ impl Frame {
 }
 
 #[derive(Debug)]
-pub enum Request {
-    Hello(HelloRequest),
-    Authentication(AuthenticationRequest),
-    Disconnect(DisconnectRequest),
-    Ping(PingRequest),
-    DeviceInfo(DeviceInfoRequest),
-    ListEntities(ListEntitiesRequest),
-    SubscribeStates(SubscribeStatesRequest),
-    SubscribeHomeassistantServices(SubscribeHomeassistantServicesRequest),
-    SubscribeHomeAssistantStates(SubscribeHomeAssistantStatesRequest),
-    ButtonCommand(ButtonCommandRequest)
+pub enum ProtoMessage {
+    HelloRequest(HelloRequest),
+    HelloResponse(HelloResponse),
+    AuthenticationRequest(AuthenticationRequest),
+    AuthenticationResponse(AuthenticationResponse),
+    DisconnectRequest(DisconnectRequest),
+    DisconnectResponse(DisconnectResponse),
+    PingRequest(PingRequest),
+    PingResponse(PingResponse),
+    DeviceInfoRequest(DeviceInfoRequest),
+    DeviceInfoResponse(DeviceInfoResponse),
+    ListEntitiesRequest(ListEntitiesRequest),
+    ListEntitiesButtonResponse(ListEntitiesButtonResponse),
+    ListEntitiesDoneResponse(ListEntitiesDoneResponse),
+    SubscribeStatesRequest(SubscribeStatesRequest),
+    SubscribeHomeassistantServicesRequest(SubscribeHomeassistantServicesRequest),
+    SubscribeHomeAssistantStatesRequest(SubscribeHomeAssistantStatesRequest),
+    ButtonCommandRequest(ButtonCommandRequest)
+}
+
+impl ProtoMessage {
+    fn message_id(&self) -> u64 {
+        match self {
+            Self::HelloRequest(_) => 1,
+            Self::HelloResponse(_) => 2,
+            Self::AuthenticationRequest(_) => 3,
+            Self::AuthenticationResponse(_) => 4,
+            Self::DisconnectRequest(_) => 5,
+            Self::DisconnectResponse(_) => 6,
+            Self::PingRequest(_) => 7,
+            Self::PingResponse(_) => 8,
+            Self::DeviceInfoRequest(_) => 9,
+            Self::DeviceInfoResponse(_) => 10,
+            Self::ListEntitiesRequest(_) => 11,
+            Self::ListEntitiesDoneResponse(_) => 19,
+            Self::ListEntitiesButtonResponse(_) => 61,
+            Self::SubscribeStatesRequest(_) => 20,
+            Self::SubscribeHomeassistantServicesRequest(_) => 34,
+            Self::SubscribeHomeAssistantStatesRequest(_) => 38,
+            Self::ButtonCommandRequest(_) => 62,
+        }
+    }
+
+    pub fn decode<B: Buf>(message_id: u64, buffer: &mut B) -> Result<Self> {
+        match message_id {
+            1 => Ok(ProtoMessage::HelloRequest(HelloRequest::decode(buffer)?)),
+            2 => Ok(ProtoMessage::HelloResponse(HelloResponse::decode(buffer)?)),
+            3 => Ok(ProtoMessage::AuthenticationRequest(AuthenticationRequest::decode(buffer)?)),
+            4 => Ok(ProtoMessage::AuthenticationResponse(AuthenticationResponse::decode(buffer)?)),
+            5 => Ok(ProtoMessage::DisconnectRequest(DisconnectRequest::decode(buffer)?)),
+            6 => Ok(ProtoMessage::DisconnectResponse(DisconnectResponse::decode(buffer)?)),
+            7 => Ok(ProtoMessage::PingRequest(PingRequest::decode(buffer)?)),
+            8 => Ok(ProtoMessage::PingResponse(PingResponse::decode(buffer)?)),
+            9 => Ok(ProtoMessage::DeviceInfoRequest(DeviceInfoRequest::decode(buffer)?)),
+            10 => Ok(ProtoMessage::DeviceInfoResponse(DeviceInfoResponse::decode(buffer)?)),
+            11 => Ok(ProtoMessage::ListEntitiesRequest(ListEntitiesRequest::decode(buffer)?)),
+            19 => Ok(ProtoMessage::ListEntitiesDoneResponse(ListEntitiesDoneResponse::decode(buffer)?)),
+            20 => Ok(ProtoMessage::SubscribeStatesRequest(SubscribeStatesRequest::decode(buffer)?)),
+            34 => Ok(ProtoMessage::SubscribeHomeassistantServicesRequest(SubscribeHomeassistantServicesRequest::decode(buffer)?)),
+            38 => Ok(ProtoMessage::SubscribeHomeAssistantStatesRequest(SubscribeHomeAssistantStatesRequest::decode(buffer)?)),
+            61 => Ok(ProtoMessage::ListEntitiesButtonResponse(ListEntitiesButtonResponse::decode(buffer)?)),
+            62 => Ok(ProtoMessage::ButtonCommandRequest(ButtonCommandRequest::decode(buffer)?)),
+            _ => Err(anyhow!("Unhandled message id {}", message_id))
+        }
+    }
+}
+
+pub trait MessageId {
+    fn message_id() -> u64;
+}
+
+impl MessageId for HelloResponse {
+    fn message_id() -> u64 { 2 }
+}
+
+impl MessageId for AuthenticationResponse {
+    fn message_id() -> u64 { 4 }
+}
+
+impl MessageId for DisconnectResponse {
+    fn message_id() -> u64 { 6 }
+}
+
+impl MessageId for PingResponse {
+    fn message_id() -> u64 { 8 }
+}
+
+impl MessageId for DeviceInfoResponse {
+    fn message_id() -> u64 { 10 }
+}
+
+impl MessageId for ListEntitiesDoneResponse {
+    fn message_id() -> u64 { 19 }
+}
+
+impl MessageId for ListEntitiesButtonResponse {
+    fn message_id() -> u64 { 61 }
+}
+
+fn encode_frame<M, B>(message: &M, buffer: &mut B) -> Result<()>
+    where M: Message + MessageId, B: BufMut
+{
+    let message_id = M::message_id();
+    let message_len = message.encoded_len();
+
+    buffer.put_u8(0u8);
+    encode_varint(message_len as u64, buffer);
+    encode_varint(message_id, buffer);
+    message.encode(buffer)?;
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -62,7 +159,7 @@ pub struct Response<M> {
 // Given type that impl Message trait, get message ID
 // * new trait with message_id() impl (no &self arg)
 
-pub fn read_request<R>(stream: &mut R) -> Result<Request>
+pub fn read_request<R>(stream: &mut R) -> Result<ProtoMessage>
     where R: BufRead
 {
     let buf = stream.fill_buf()?;
@@ -77,7 +174,7 @@ pub fn read_request<R>(stream: &mut R) -> Result<Request>
 
     let message_size = frame.message_size as usize;
 
-    let buffer = if message_size > 0 {
+    let mut buffer = if message_size > 0 {
         let buf = stream.fill_buf()?;
         if buf.len() < message_size {
             return Err(anyhow!("Buffer underrun; buf {}, message {}", buf.len(), message_size));
@@ -90,37 +187,17 @@ pub fn read_request<R>(stream: &mut R) -> Result<Request>
 
     println!("Message buffer {} - {:02x?}", buffer.len(), &buffer[..]);
 
-    let result = match frame.type_id {
-        1 => Ok(Request::Hello(HelloRequest::decode(buffer)?)),
-        3 => Ok(Request::Authentication(AuthenticationRequest::decode(buffer)?)),
-        5 => Ok(Request::Disconnect(DisconnectRequest::decode(buffer)?)),
-        7 => Ok(Request::Ping(PingRequest::decode(buffer)?)),
-        9 => Ok(Request::DeviceInfo(DeviceInfoRequest::decode(buffer)?)),
-        11 => Ok(Request::ListEntities(ListEntitiesRequest::decode(buffer)?)),
-        20 => Ok(Request::SubscribeStates(SubscribeStatesRequest::decode(buffer)?)),
-        34 => Ok(Request::SubscribeHomeassistantServices(SubscribeHomeassistantServicesRequest::decode(buffer)?)),
-        38 => Ok(Request::SubscribeHomeAssistantStates(SubscribeHomeAssistantStatesRequest::decode(buffer)?)),
-        62 => Ok(Request::ButtonCommand(ButtonCommandRequest::decode(buffer)?)),
-        _ => Err(anyhow!("Unhandled message id {}", frame.type_id))
-    };
-
+    let message = ProtoMessage::decode(frame.type_id, &mut buffer)?;
     stream.consume(message_size);
 
-    result
+    Ok(message)
 }
 
-pub fn send_response<S, M>(stream: &mut S, response: Response<M>) -> Result<()>
-    where S: Write, M: Message
+pub fn send_response<S, M>(stream: &mut S, message: &M) -> Result<()>
+    where S: Write, M: Message + MessageId
 {
     let mut buffer = BytesMut::with_capacity(512);
-
-    let message = response.message;
-    let data_len = message.encoded_len() as u64;
-
-    buffer.put_u8(0u8);
-    encode_varint(data_len, &mut buffer);
-    encode_varint(response.type_id, &mut buffer);
-    message.encode(&mut buffer)?;
+    encode_frame(message, &mut buffer)?;
 
     let buf = buffer.freeze();
     let sz = stream.write(&buf)?;

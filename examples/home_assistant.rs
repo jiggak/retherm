@@ -1,7 +1,7 @@
 use std::{io::BufReader, net::{TcpListener, TcpStream}};
 
 use anyhow::Result;
-use esphome_api::{Request, Response, proto::*, read_request, send_response};
+use esphome_api::{ProtoMessage, proto::*, read_request, send_response};
 
 fn main() -> Result<()> {
     println!("Create listener");
@@ -31,84 +31,66 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
         let mut stream = reader.get_ref();
 
         match request {
-            Request::Hello(_) => {
-                send_response(&mut stream, Response {
-                    type_id: 2,
-                    message: HelloResponse {
-                        api_version_major: 1,
-                        api_version_minor: 13,
-                        server_info: "Nest App".to_string(),
-                        name: "Nest Thermostat".to_string()
-                    }
+            ProtoMessage::HelloRequest(_) => {
+                send_response(&mut stream, &HelloResponse {
+                    api_version_major: 1,
+                    api_version_minor: 13,
+                    server_info: "Nest App".to_string(),
+                    name: "Nest Thermostat".to_string()
                 })?;
             }
-            Request::Authentication(_) => {
-                send_response(&mut stream, Response {
-                    type_id: 4,
-                    message: AuthenticationResponse {
-                        invalid_password: false
-                    }
+            ProtoMessage::AuthenticationRequest(_) => {
+                send_response(&mut stream, &AuthenticationResponse {
+                    invalid_password: false
                 })?;
             }
-            Request::Disconnect(_) => {
-                send_response(&mut stream, Response {
-                    type_id: 6,
-                    message: DisconnectResponse { }
-                })?;
+            ProtoMessage::DisconnectRequest(_) => {
+                send_response(&mut stream, &DisconnectResponse { })?;
                 break;
             }
-            Request::Ping(_) => {
-                send_response(&mut stream, Response {
-                    type_id: 8,
-                    message: PingResponse { }
+            ProtoMessage::PingRequest(_) => {
+                send_response(&mut stream, &PingResponse { })?;
+            }
+            ProtoMessage::DeviceInfoRequest(_) => {
+                send_response(&mut stream, &DeviceInfoResponse {
+                    uses_password: false,
+                    name: "Nest Thermostat".to_string(),
+                    mac_address: "00:00:00:00:00:01".to_string(),
+                    esphome_version: "2025.12.2".to_string(),
+                    compilation_time: "".to_string(),
+                    model: "Nest Thermostat".to_string(),
+                    has_deep_sleep: false,
+                    // When I used values for project_*, HA would not show
+                    // any entities for the device
+                    project_name: "".to_string(),
+                    project_version: "".to_string(),
+                    webserver_port: 0,
+                    legacy_bluetooth_proxy_version: 0,
+                    bluetooth_proxy_feature_flags: 0,
+                    manufacturer: "Josh".to_string(),
+                    friendly_name: "Nest App".to_string(),
+                    legacy_voice_assistant_version: 0,
+                    voice_assistant_feature_flags: 0,
+                    suggested_area: "".to_string(),
+                    bluetooth_mac_address: "".to_string(),
+                    api_encryption_supported: false,
+                    devices: vec![],
+                    areas: vec![],
+                    area: None,
+                    zwave_proxy_feature_flags: 0,
+                    zwave_home_id: 0
                 })?;
             }
-            Request::DeviceInfo(_) => {
-                send_response(&mut stream, Response {
-                    type_id: 10,
-                    message: DeviceInfoResponse {
-                        uses_password: false,
-                        name: "Nest Thermostat".to_string(),
-                        mac_address: "00:00:00:00:00:01".to_string(),
-                        esphome_version: "2025.12.2".to_string(),
-                        compilation_time: "".to_string(),
-                        model: "Nest Thermostat".to_string(),
-                        has_deep_sleep: false,
-                        // When I used values for project_*, HA would not show
-                        // any entities for the device
-                        project_name: "".to_string(),
-                        project_version: "".to_string(),
-                        webserver_port: 0,
-                        legacy_bluetooth_proxy_version: 0,
-                        bluetooth_proxy_feature_flags: 0,
-                        manufacturer: "Josh".to_string(),
-                        friendly_name: "Nest App".to_string(),
-                        legacy_voice_assistant_version: 0,
-                        voice_assistant_feature_flags: 0,
-                        suggested_area: "".to_string(),
-                        bluetooth_mac_address: "".to_string(),
-                        api_encryption_supported: false,
-                        devices: vec![],
-                        areas: vec![],
-                        area: None,
-                        zwave_proxy_feature_flags: 0,
-                        zwave_home_id: 0
-                    }
-                })?;
-            }
-            Request::ListEntities(_) => {
-                send_response(&mut stream, Response {
-                    type_id: 61,
-                    message: ListEntitiesButtonResponse {
-                        object_id: "test_button_object_id".to_string(),
-                        key: 0,
-                        name: "Test Button".to_string(),
-                        icon: "mdi:test-button-icon".to_string(),
-                        disabled_by_default: false,
-                        entity_category: EntityCategory::None as i32,
-                        device_class: "test_button_device_class".to_string(),
-                        device_id: 0
-                    }
+            ProtoMessage::ListEntitiesRequest(_) => {
+                send_response(&mut stream, &ListEntitiesButtonResponse {
+                    object_id: "test_button_object_id".to_string(),
+                    key: 0,
+                    name: "Test Button".to_string(),
+                    icon: "mdi:test-button-icon".to_string(),
+                    disabled_by_default: false,
+                    entity_category: EntityCategory::None as i32,
+                    device_class: "test_button_device_class".to_string(),
+                    device_id: 0
                 })?;
 
                 // send_response(&mut stream, Response {
@@ -141,12 +123,9 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
                 //     }
                 // })?;
 
-                send_response(&mut stream, Response {
-                    type_id: 19,
-                    message: ListEntitiesDoneResponse { }
-                })?;
+                send_response(&mut stream, &ListEntitiesDoneResponse { })?;
             }
-            Request::SubscribeStates(_) => {
+            ProtoMessage::SubscribeStatesRequest(_) => {
                 // send_response(&mut stream, Response {
                 //     type_id: 25,
                 //     message: SensorStateResponse {
@@ -157,15 +136,10 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
                 //     }
                 // })?;
             }
-            Request::SubscribeHomeassistantServices(_) => {
-                // ignore ?
-            }
-            Request::SubscribeHomeAssistantStates(_) => {
-                // ignore ?
-            }
-            Request::ButtonCommand(cmd) => {
+            ProtoMessage::ButtonCommandRequest(cmd) => {
                 println!("Button id:{} key:{}", cmd.device_id, cmd.key)
             }
+            _ => { }
         }
     }
 
