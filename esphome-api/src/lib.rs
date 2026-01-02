@@ -1,6 +1,9 @@
 pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/esphome.rs"));
+    include!(concat!(env!("OUT_DIR"), "/esphome_proto.rs"));
 }
+
+include!(concat!(env!("OUT_DIR"), "/message_ids.rs"));
+include!(concat!(env!("OUT_DIR"), "/proto_message.rs"));
 
 use std::io::{BufRead, Write};
 
@@ -31,89 +34,8 @@ impl Frame {
     }
 }
 
-#[derive(Debug)]
-pub enum ProtoMessage {
-    HelloRequest(HelloRequest),
-    HelloResponse(HelloResponse),
-    AuthenticationRequest(AuthenticationRequest),
-    AuthenticationResponse(AuthenticationResponse),
-    DisconnectRequest(DisconnectRequest),
-    DisconnectResponse(DisconnectResponse),
-    PingRequest(PingRequest),
-    PingResponse(PingResponse),
-    DeviceInfoRequest(DeviceInfoRequest),
-    DeviceInfoResponse(DeviceInfoResponse),
-    ListEntitiesRequest(ListEntitiesRequest),
-    ListEntitiesButtonResponse(ListEntitiesButtonResponse),
-    ListEntitiesDoneResponse(ListEntitiesDoneResponse),
-    SubscribeStatesRequest(SubscribeStatesRequest),
-    SubscribeHomeassistantServicesRequest(SubscribeHomeassistantServicesRequest),
-    SubscribeHomeAssistantStatesRequest(SubscribeHomeAssistantStatesRequest),
-    ButtonCommandRequest(ButtonCommandRequest)
-}
-
-impl ProtoMessage {
-    pub fn decode<B: Buf>(message_id: u64, buffer: &mut B) -> Result<Self> {
-        match message_id {
-            1 => Ok(ProtoMessage::HelloRequest(HelloRequest::decode(buffer)?)),
-            HelloResponse::ID =>
-                Ok(ProtoMessage::HelloResponse(HelloResponse::decode(buffer)?)),
-            3 => Ok(ProtoMessage::AuthenticationRequest(AuthenticationRequest::decode(buffer)?)),
-            AuthenticationResponse::ID =>
-                Ok(ProtoMessage::AuthenticationResponse(AuthenticationResponse::decode(buffer)?)),
-            5 => Ok(ProtoMessage::DisconnectRequest(DisconnectRequest::decode(buffer)?)),
-            DisconnectResponse::ID =>
-                Ok(ProtoMessage::DisconnectResponse(DisconnectResponse::decode(buffer)?)),
-            7 => Ok(ProtoMessage::PingRequest(PingRequest::decode(buffer)?)),
-            PingResponse::ID =>
-                Ok(ProtoMessage::PingResponse(PingResponse::decode(buffer)?)),
-            9 => Ok(ProtoMessage::DeviceInfoRequest(DeviceInfoRequest::decode(buffer)?)),
-            DeviceInfoResponse::ID =>
-                Ok(ProtoMessage::DeviceInfoResponse(DeviceInfoResponse::decode(buffer)?)),
-            11 => Ok(ProtoMessage::ListEntitiesRequest(ListEntitiesRequest::decode(buffer)?)),
-            ListEntitiesDoneResponse::ID =>
-                Ok(ProtoMessage::ListEntitiesDoneResponse(ListEntitiesDoneResponse::decode(buffer)?)),
-            20 => Ok(ProtoMessage::SubscribeStatesRequest(SubscribeStatesRequest::decode(buffer)?)),
-            34 => Ok(ProtoMessage::SubscribeHomeassistantServicesRequest(SubscribeHomeassistantServicesRequest::decode(buffer)?)),
-            38 => Ok(ProtoMessage::SubscribeHomeAssistantStatesRequest(SubscribeHomeAssistantStatesRequest::decode(buffer)?)),
-            ListEntitiesButtonResponse::ID =>
-                Ok(ProtoMessage::ListEntitiesButtonResponse(ListEntitiesButtonResponse::decode(buffer)?)),
-            62 => Ok(ProtoMessage::ButtonCommandRequest(ButtonCommandRequest::decode(buffer)?)),
-            _ => Err(anyhow!("Unhandled message id {}", message_id))
-        }
-    }
-}
-
 pub trait MessageId {
     const ID: u64;
-}
-
-impl MessageId for HelloResponse {
-    const ID: u64 = 2;
-}
-
-impl MessageId for AuthenticationResponse {
-    const ID: u64 = 4;
-}
-
-impl MessageId for DisconnectResponse {
-    const ID: u64 = 6;
-}
-
-impl MessageId for PingResponse {
-    const ID: u64 = 8;
-}
-
-impl MessageId for DeviceInfoResponse {
-    const ID: u64 = 10;
-}
-
-impl MessageId for ListEntitiesDoneResponse {
-    const ID: u64 = 19;
-}
-
-impl MessageId for ListEntitiesButtonResponse {
-    const ID: u64 = 61;
 }
 
 fn encode_message<M, B>(message: &M, buffer: &mut B) -> Result<()>
