@@ -1,0 +1,12 @@
+[package]
+name = "esphome-api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+prost = "0.14.1"
+
+[build-dependencies]
+prost-build = "0.14.1"
+regex = "1.12.2"

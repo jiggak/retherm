@@ -205,6 +205,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "esphome-api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "prost",
+ "prost-build",
+ "regex",
+]
+
+[[package]]
 name = "evdev"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -406,10 +416,9 @@ dependencies = [
  "embedded-graphics",
  "embedded-graphics-framebuf",
  "embedded-ttf",
+ "esphome-api",
  "evdev",
  "linuxfb",
- "prost",
- "prost-build",
  "rusttype",
  "sdl2",
  "throttle",
