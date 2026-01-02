@@ -42,14 +42,14 @@ fn extract_messages<P: AsRef<Path>>(proto_file: P) -> Result<Vec<(String, i32)>>
 
     let re = Regex::new(
         r"message\s+(\w+)\s*\{[^}]*?option\s*\(id\)\s*=\s*(\d+);"
-    ).unwrap();
+    )?;
 
     let mut messages = vec![];
 
     for cap in re.captures_iter(&input) {
         let name = &cap[1];
         let id = &cap[2];
-        messages.push((name.to_string(), id.parse().unwrap()));
+        messages.push((name.to_string(), id.parse()?));
     }
 
     Ok(messages)
