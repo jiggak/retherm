@@ -1,7 +1,7 @@
 use std::{io::BufReader, net::{TcpListener, TcpStream}};
 
 use anyhow::Result;
-use esphome_api::{ProtoMessage, proto::*, read_request, send_response};
+use esphome_api::{proto::*, ProtoMessage, read_message, write_message};
 
 fn main() -> Result<()> {
     println!("Create listener");
@@ -25,14 +25,14 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
         // stop resisting tokio.
         // e.g. stream.read_buf(&mut message_buffer)?;
 
-        let request = read_request(&mut reader)?;
+        let request = read_message(&mut reader)?;
         println!("Request: {:?}", request);
 
         let mut stream = reader.get_ref();
 
         match request {
             ProtoMessage::HelloRequest(_) => {
-                send_response(&mut stream, &HelloResponse {
+                write_message(&mut stream, &HelloResponse {
                     api_version_major: 1,
                     api_version_minor: 13,
                     server_info: "Nest App".to_string(),
@@ -40,19 +40,19 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
                 })?;
             }
             ProtoMessage::AuthenticationRequest(_) => {
-                send_response(&mut stream, &AuthenticationResponse {
+                write_message(&mut stream, &AuthenticationResponse {
                     invalid_password: false
                 })?;
             }
             ProtoMessage::DisconnectRequest(_) => {
-                send_response(&mut stream, &DisconnectResponse { })?;
+                write_message(&mut stream, &DisconnectResponse { })?;
                 break;
             }
             ProtoMessage::PingRequest(_) => {
-                send_response(&mut stream, &PingResponse { })?;
+                write_message(&mut stream, &PingResponse { })?;
             }
             ProtoMessage::DeviceInfoRequest(_) => {
-                send_response(&mut stream, &DeviceInfoResponse {
+                write_message(&mut stream, &DeviceInfoResponse {
                     uses_password: false,
                     name: "Nest Thermostat".to_string(),
                     mac_address: "00:00:00:00:00:01".to_string(),
@@ -82,7 +82,7 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
                 })?;
             }
             ProtoMessage::ListEntitiesRequest(_) => {
-                send_response(&mut stream, &ListEntitiesButtonResponse {
+                write_message(&mut stream, &ListEntitiesButtonResponse {
                     object_id: "test_button_object_id".to_string(),
                     key: 0,
                     name: "Test Button".to_string(),
@@ -93,7 +93,7 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
                     device_id: 0
                 })?;
 
-                // send_response(&mut stream, Response {
+                // write_message(&mut stream, Response {
                 //     type_id: 12,
                 //     message: ListEntitiesBinarySensorResponse {
                 //         object_id: "test_sensor_object_id".to_string(),
@@ -108,7 +108,7 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
                 //     }
                 // })?;
 
-                // send_response(&mut stream, Response {
+                // write_message(&mut stream, Response {
                 //     type_id: 17,
                 //     message: ListEntitiesSwitchResponse {
                 //         object_id: "test_switch_object_id".to_string(),
@@ -123,10 +123,10 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
                 //     }
                 // })?;
 
-                send_response(&mut stream, &ListEntitiesDoneResponse { })?;
+                write_message(&mut stream, &ListEntitiesDoneResponse { })?;
             }
             ProtoMessage::SubscribeStatesRequest(_) => {
-                // send_response(&mut stream, Response {
+                // write_message(&mut stream, Response {
                 //     type_id: 25,
                 //     message: SensorStateResponse {
                 //         key: 0,
@@ -135,9 +135,6 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
                 //         device_id: 0
                 //     }
                 // })?;
-            }
-            ProtoMessage::ButtonCommandRequest(cmd) => {
-                println!("Button id:{} key:{}", cmd.device_id, cmd.key)
             }
             _ => { }
         }
