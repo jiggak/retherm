@@ -69,6 +69,10 @@ pub fn read_message<R>(stream: &mut R) -> Result<ProtoMessage>
     where R: BufRead
 {
     let buf = stream.fill_buf()?;
+    if buf.len() == 0 {
+        return Err(anyhow!("Read zero bytes expecting frame"));
+    }
+
     let mut buffer = Bytes::copy_from_slice(buf);
     println!("Frame buffer {} - {:02x?}", buf.len(), buf);
 

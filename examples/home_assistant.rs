@@ -1,11 +1,12 @@
 use std::io::Write;
 
 use anyhow::Result;
-use esphome_api::{proto::*, server::{DefaultRequestHandler, RequestHandler, start_server}};
+use esphome_api::{proto::*, server::{ConnectStatus, DefaultRequestHandler, RequestHandler, start_server}};
 
 fn main() -> Result<()> {
     let handler = DefaultRequestHandler {
-        delegate: MyRequestHandler { }
+        delegate: MyRequestHandler { },
+        password: None
     };
     start_server(handler)?;
 
@@ -15,7 +16,7 @@ fn main() -> Result<()> {
 struct MyRequestHandler;
 
 impl RequestHandler for MyRequestHandler {
-    fn handle_request<S: Write>(&self, message: &ProtoMessage, stream: &mut S) -> Result<()> {
+    fn handle_request<S: Write>(&self, message: &ProtoMessage, stream: &mut S) -> Result<ConnectStatus> {
         match message {
             ProtoMessage::ListEntitiesRequest(_) => {
                 write_message(stream, &ListEntitiesButtonResponse {
@@ -29,9 +30,11 @@ impl RequestHandler for MyRequestHandler {
                     device_id: 0
                 })?;
 
-                write_message(stream, &ListEntitiesDoneResponse { })
+                write_message(stream, &ListEntitiesDoneResponse { })?;
             }
-            _ => { Ok(()) }
+            _ => { }
         }
+
+        Ok(ConnectStatus::Continue)
     }
 }

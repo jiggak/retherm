@@ -22,39 +22,64 @@ use anyhow::Result;
 
 use crate::proto::*;
 
+pub enum ConnectStatus {
+    Continue,
+    Disconnect
+}
+
 pub trait RequestHandler {
-    fn handle_request<S: Write>(&self, message: &ProtoMessage, stream: &mut S) -> Result<()>;
+    fn handle_request<S: Write>(&self, message: &ProtoMessage, stream: &mut S) -> Result<ConnectStatus>;
 }
 
 pub struct DefaultRequestHandler<D> {
-    pub delegate: D
+    pub delegate: D,
+
+    pub password: Option<String>
 }
 
 impl<D: RequestHandler> RequestHandler for DefaultRequestHandler<D> {
-    fn handle_request<S: Write>(&self, message: &ProtoMessage, stream: &mut S) -> Result<()> {
+    fn handle_request<S: Write>(&self, message: &ProtoMessage, stream: &mut S) -> Result<ConnectStatus> {
         match message {
             ProtoMessage::HelloRequest(_) => {
                 write_message(stream, &HelloResponse {
+                    // Mirrored API version from HA 2025.12.3
+                    // This seems reasonable since that's what I'm developing against
                     api_version_major: 1,
                     api_version_minor: 13,
+                    // I don't see server_info or name in HA dashboard anywhere
                     server_info: "My Server Info".to_string(),
                     name: "My Server Name".to_string()
-                })
+                })?;
+                Ok(ConnectStatus::Continue)
             }
-            ProtoMessage::AuthenticationRequest(_) => {
+            ProtoMessage::AuthenticationRequest(req) => {
+                let invalid_password = if let Some(password) = &self.password {
+                    *password != req.password
+                } else {
+                    false
+                };
+
                 write_message(stream, &AuthenticationResponse {
-                    invalid_password: false
-                })
+                    invalid_password: invalid_password
+                })?;
+
+                if invalid_password {
+                    Ok(ConnectStatus::Disconnect)
+                } else {
+                    Ok(ConnectStatus::Continue)
+                }
             }
             ProtoMessage::DisconnectRequest(_) => {
-                write_message(stream, &DisconnectResponse { })
+                write_message(stream, &DisconnectResponse { })?;
+                Ok(ConnectStatus::Disconnect)
             }
             ProtoMessage::PingRequest(_) => {
-                write_message(stream, &PingResponse { })
+                write_message(stream, &PingResponse { })?;
+                Ok(ConnectStatus::Continue)
             }
             ProtoMessage::DeviceInfoRequest(_) => {
                 write_message(stream, &DeviceInfoResponse {
-                    uses_password: false,
+                    uses_password: self.password.is_some(),
                     name: "My Device Name".to_string(),
                     mac_address: "00:00:00:00:00:01".to_string(),
                     esphome_version: "2025.12.2".to_string(),
@@ -80,7 +105,8 @@ impl<D: RequestHandler> RequestHandler for DefaultRequestHandler<D> {
                     area: None,
                     zwave_proxy_feature_flags: 0,
                     zwave_home_id: 0
-                })
+                })?;
+                Ok(ConnectStatus::Continue)
             }
             _ => self.delegate.handle_request(message, stream)
         }
@@ -115,8 +141,8 @@ fn handle_connection<H: RequestHandler>(handler: &H, stream: TcpStream) -> Resul
 
         let mut stream = reader.get_ref();
 
-        handler.handle_request(&request, &mut stream)?;
-        if matches!(request, ProtoMessage::DisconnectRequest(_)) {
+        let status = handler.handle_request(&request, &mut stream)?;
+        if matches!(status, ConnectStatus::Disconnect) {
             break;
         }
     }
