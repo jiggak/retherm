@@ -1,7 +1,5 @@
-use std::io::Write;
-
 use anyhow::Result;
-use esphome_api::{proto::*, server::{ConnectStatus, DefaultRequestHandler, RequestHandler, start_server}};
+use esphome_api::{proto::*, server::{DefaultRequestHandler, RequestHandler, ResponseStatus, start_server}};
 
 fn main() -> Result<()> {
     let handler = DefaultRequestHandler {
@@ -16,10 +14,14 @@ fn main() -> Result<()> {
 struct MyRequestHandler;
 
 impl RequestHandler for MyRequestHandler {
-    fn handle_request<S: Write>(&self, message: &ProtoMessage, stream: &mut S) -> Result<ConnectStatus> {
+    fn handle_request<W: MessageWriter>(
+        &self,
+        message: &ProtoMessage,
+        writer: &mut W
+    ) -> Result<ResponseStatus> {
         match message {
             ProtoMessage::ListEntitiesRequest(_) => {
-                write_message(stream, &ListEntitiesButtonResponse {
+                writer.write(&ListEntitiesButtonResponse {
                     object_id: "test_button_object_id".to_string(),
                     key: 0,
                     name: "Test Button".to_string(),
@@ -30,11 +32,11 @@ impl RequestHandler for MyRequestHandler {
                     device_id: 0
                 })?;
 
-                write_message(stream, &ListEntitiesDoneResponse { })?;
+                writer.write(&ListEntitiesDoneResponse { })?;
             }
             _ => { }
         }
 
-        Ok(ConnectStatus::Continue)
+        Ok(ResponseStatus::Continue)
     }
 }

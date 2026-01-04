@@ -119,12 +119,12 @@ fn generate_proto_message_enum(messages: &Vec<(String, i32)>) -> TokenStream {
 
     let decode = quote! {
         impl ProtoMessage {
-            pub fn decode<B: Buf>(message_id: u64, buffer: &mut B) -> Result<Self> {
+            pub fn decode<B: prost::bytes::Buf>(message_id: u64, buffer: &mut B) -> Result<Self, prost::DecodeError> {
                 match message_id {
                     #(
                         #message_names::ID => Ok(ProtoMessage::#message_names(#message_names::decode(buffer)?)),
                     )*
-                    _ => Err(anyhow!("Unhandled message id {}", message_id))
+                    _ => Err(prost::DecodeError::new(format!("Unhandled message id {message_id}")))
                 }
             }
         }

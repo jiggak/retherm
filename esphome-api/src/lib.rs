@@ -18,3 +18,5 @@
 
 pub mod server;
 pub mod proto;
+mod proto_encrypted;
+mod proto_plaintext;
