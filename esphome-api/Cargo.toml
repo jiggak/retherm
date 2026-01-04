@@ -5,7 +5,10 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
+base64 = "0.22.1"
 prost = "0.14.1"
+snow = "0.10.0"
+thiserror = "2.0.17"
 
 [build-dependencies]
 anyhow = "1.0.100"
