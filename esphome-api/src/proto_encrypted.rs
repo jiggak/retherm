@@ -19,7 +19,6 @@
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream};
 
 use anyhow::{Result, anyhow};
-use base64::prelude::*;
 use prost::{Message, bytes::{Buf, BufMut, Bytes, BytesMut}};
 use snow::TransportState;
 
@@ -30,22 +29,21 @@ pub struct EncryptedMessageStream {
     codec: TransportState
 }
 
+// References for the encrypted connection setup:
+// https://developers.esphome.io/architecture/api/protocol_details/
+// https://ubihome.github.io/esphome-native-api/native_api/encryption/
+
 impl EncryptedMessageStream {
-
-    // References for the encrypted connection setup:
-    // https://developers.esphome.io/architecture/api/protocol_details/
-    // https://ubihome.github.io/esphome-native-api/native_api/encryption/
-
     pub fn init(
-        mut reader: BufReader<TcpStream>, key: &str, node_name: &str, mac_addr: &str
+        mut reader: BufReader<TcpStream>,
+        key: &[u8; 32],
+        node_name: &str,
+        mac_addr: &str
     ) -> Result<Option<Self>> {
-        let noise_psk = BASE64_STANDARD.decode(key)?;
-        let noise_psk: [u8; 32] = noise_psk.try_into().unwrap();
-
         let mut noise = snow::Builder::new("Noise_NNpsk0_25519_ChaChaPoly_SHA256".parse()?)
             // do I need prologue?
             .prologue(b"NoiseAPIInit\0\0")?
-            .psk(0, &noise_psk)?
+            .psk(0, &key)?
             .build_responder()?;
 
         let frame1 = match read_encrypted_frame(&mut reader) {
@@ -105,7 +103,7 @@ impl MessageReader for EncryptedMessageStream {
         let mut buffer = Bytes::copy_from_slice(&buffer[..len]);
 
         let message_type = buffer.get_u16() as u64;
-        let message_size = buffer.get_u16();
+        let _message_size = buffer.get_u16();
 
         Ok(ProtoMessage::decode(message_type, &mut buffer)?)
     }

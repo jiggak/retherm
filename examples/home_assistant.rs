@@ -1,11 +1,22 @@
 use anyhow::Result;
-use esphome_api::{proto::*, server::{DefaultRequestHandler, RequestHandler, ResponseStatus, start_server}};
+use esphome_api::{proto::*, server::{DefaultHandler, RequestHandler, ResponseStatus, SecurityMode, start_server}};
 
 fn main() -> Result<()> {
-    let handler = DefaultRequestHandler {
+    let handler = DefaultHandler {
         delegate: MyRequestHandler { },
-        password: None
+        security: SecurityMode::encryption(
+            "jfD5V1SMKAPXNC8+d6BvE1EGBHJbyw2dSc0Q+ymNMhU=",
+            "hallway-thermostat",
+            "01:02:03:04:05:06"
+        )?,
+        server_info: "Nest App 0.0.1".to_string(),
+        node_name: "hallway-thermostat".to_string(),
+        friendly_name: "Hallway Thermostat".to_string(),
+        manufacturer: "Nest".to_string(),
+        model: "Gen2 Thermostat".to_string(),
+        mac_address: "01:02:03:04:05:06".to_string()
     };
+
     start_server(handler)?;
 
     Ok(())
