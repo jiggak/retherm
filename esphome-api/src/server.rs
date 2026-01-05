@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{io::BufReader, net::{TcpListener, TcpStream}};
+use std::{io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs}};
 
 use base64::prelude::*;
 use anyhow::{Result, anyhow};
@@ -166,8 +166,10 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
     }
 }
 
-pub fn start_server<S: Server>(server: S) -> Result<()> {
-    let listener = TcpListener::bind("0.0.0.0:6053")?;
+pub fn start_server<A, S>(addr: A, server: S) -> Result<()>
+    where A: ToSocketAddrs, S: Server
+{
+    let listener = TcpListener::bind(addr)?;
 
     println!("Listen for incoming");
     for stream in listener.incoming() {
