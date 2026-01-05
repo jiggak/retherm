@@ -1,0 +1,21 @@
+[package]
+name = "esphome-api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+base64 = "0.22.1"
+prost = "0.14.1"
+snow = "0.10.0"
+thiserror = "2.0.17"
+
+[build-dependencies]
+anyhow = "1.0.100"
+convert_case = "0.10.0"
+prettyplease = "0.2.37"
+proc-macro2 = "1.0.104"
+prost-build = "0.14.1"
+quote = "1.0.42"
+regex = "1.12.2"
+syn = "2.0.112"
