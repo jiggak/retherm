@@ -51,3 +51,22 @@ pub trait MessageWriter {
     fn write<M>(&mut self, message: &M) -> Result<()>
         where M: Message + MessageId;
 }
+
+pub struct ClimateFeature;
+
+// Not currently exposed in api.proto
+// https://github.com/esphome/esphome/blob/2025.12.4/esphome/components/climate/climate_mode.h#L104
+impl ClimateFeature {
+    /// Reporting current temperature is supported
+    pub const SUPPORTS_CURRENT_TEMPERATURE: u32 = 1 << 0;
+    /// Setting two target temperatures is supported (used in conjunction with CLIMATE_MODE_HEAT_COOL)
+    pub const SUPPORTS_TWO_POINT_TARGET_TEMPERATURE: u32 = 1 << 1;
+    /// Single-point mode is NOT supported (UI always displays two handles, setting 'target_temperature' is not supported)
+    pub const REQUIRES_TWO_POINT_TARGET_TEMPERATURE: u32 = 1 << 2;
+    /// Reporting current humidity is supported
+    pub const SUPPORTS_CURRENT_HUMIDITY: u32 = 1 << 3;
+    /// Setting a target humidity is supported
+    pub const SUPPORTS_TARGET_HUMIDITY: u32 = 1 << 4;
+    /// Reporting current climate action is supported
+    pub const SUPPORTS_ACTION: u32 = 1 << 5;
+}
