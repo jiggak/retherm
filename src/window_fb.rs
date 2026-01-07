@@ -25,8 +25,7 @@ use linuxfb::Framebuffer;
 
 use crate::{
     backlight::{Backlight, BacklightTimer},
-    event_pump::{Event, EventPump},
-    input_events::{start_button_events, start_dial_events},
+    events::{Event, EventHandler},
     sound::Sound,
     window::AppWindow
 };
@@ -34,7 +33,6 @@ use crate::{
 pub struct FramebufferWindow {
     fb_dev: Framebuffer,
     buffer: FrameBuf<Bgr888, [Bgr888; 320 * 320]>,
-    event_pump: EventPump,
     backlight_timer: BacklightTimer,
     sounds: Sound
 }
@@ -59,16 +57,12 @@ impl FramebufferWindow {
         let data = [Bgr888::WHITE; 320 * 320];
         let buffer = FrameBuf::new(data, width, height);
 
-        let event_pump = EventPump::new();
-        start_button_events(event_pump.sender.clone())?;
-        start_dial_events(event_pump.sender.clone())?;
-
         let backlight = Backlight::new("/sys/class/backlight/3-0036")?;
         let backlight_timer = backlight.start_timeout(15);
 
         let sounds = Sound::new()?;
 
-        Ok(Self { fb_dev, buffer, event_pump, backlight_timer, sounds })
+        Ok(Self { fb_dev, buffer, backlight_timer, sounds })
     }
 
     fn flush(&self) -> Result<()> {
@@ -99,10 +93,10 @@ impl AppWindow for FramebufferWindow {
     fn flush(&mut self) -> Result<()> {
         FramebufferWindow::flush(self)
     }
+}
 
-    fn wait_event(&mut self) -> Result<Event> {
-        let event = self.event_pump.wait_event()?;
-
+impl EventHandler for FramebufferWindow {
+    fn handle_event(&mut self, event: &Event) -> Result<()> {
         if event.is_wakeup_event() {
             self.backlight_timer.reset();
         }
@@ -111,6 +105,6 @@ impl AppWindow for FramebufferWindow {
             self.sounds.click()?;
         }
 
-        Ok(event)
+        Ok(())
     }
 }

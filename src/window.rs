@@ -21,10 +21,7 @@
 use anyhow::Result;
 use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 
-use crate::event_pump::Event;
-
 pub trait AppWindow {
     fn draw_target(&mut self) -> &mut impl DrawTarget<Color = Bgr888, Error = Infallible>;
     fn flush(&mut self) -> Result<()>;
-    fn wait_event(&mut self) -> Result<Event>;
 }

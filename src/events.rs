@@ -20,10 +20,6 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::Result;
 
-// If I understand correctly, I don't want to have a method in EventPump
-// for injecting events, but rather clone the sender of the channel into
-// the various threads that produce events.
-
 #[derive(Debug)]
 pub enum Event {
     ButtonDown,
@@ -43,18 +39,43 @@ impl Event {
     }
 }
 
-pub struct EventPump {
-    pub sender: Sender<Event>,
+pub trait EventSender {
+    fn send_event(&self, event: Event) -> Result<()>;
+}
+
+pub trait EventHandler {
+    fn handle_event(&mut self, event: &Event) -> Result<()>;
+}
+
+pub trait EventSource {
+    fn wait_event(&mut self) -> Result<Event>;
+    fn event_sender(&self) -> impl EventSender + Send + 'static;
+}
+
+pub struct DefaultEventSource {
+    sender: Sender<Event>,
     receiver: Receiver<Event>
 }
 
-impl EventPump {
+impl DefaultEventSource {
     pub fn new() -> Self {
         let (sender, receiver) = channel();
         Self { sender, receiver }
     }
+}
 
-    pub fn wait_event(&self) -> Result<Event> {
+impl EventSource for DefaultEventSource {
+    fn wait_event(&mut self) -> Result<Event> {
         Ok(self.receiver.recv()?)
+    }
+
+    fn event_sender(&self) -> impl EventSender + 'static {
+        self.sender.clone()
+    }
+}
+
+impl EventSender for Sender<Event> {
+    fn send_event(&self, event: Event) -> Result<()> {
+        Ok(self.send(event)?)
     }
 }

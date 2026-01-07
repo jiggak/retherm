@@ -23,18 +23,18 @@ use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 use embedded_graphics_framebuf::FrameBuf;
 use sdl2::{
     EventPump,
-    event::Event as SdlEvent,
+    EventSubsystem,
+    event::{Event as SdlEvent, EventSender as SdlEventSender},
     pixels::PixelFormatEnum,
     render::Canvas,
     video::Window
 };
 
-use crate::{event_pump::Event, window::AppWindow};
+use crate::{events::{Event, EventHandler, EventSender, EventSource}, window::AppWindow};
 
 pub struct SdlWindow {
     window_canvas: Canvas<Window>,
-    buffer: FrameBuf<Bgr888, [Bgr888; 320 * 320]>,
-    event_pump: EventPump
+    buffer: FrameBuf<Bgr888, [Bgr888; 320 * 320]>
 }
 
 impl SdlWindow {
@@ -55,11 +55,8 @@ impl SdlWindow {
         let data = [Bgr888::WHITE; 320 * 320];
         let buffer = FrameBuf::new(data, 320, 320);
 
-        let event_pump = sdl_context.event_pump()
-            .map_err(|e| anyhow!(e))?;
-
         Ok(
-            Self { window_canvas, buffer, event_pump }
+            Self { window_canvas, buffer }
         )
     }
 }
@@ -91,13 +88,68 @@ impl AppWindow for SdlWindow {
 
         Ok(())
     }
+}
 
+impl EventHandler for SdlWindow {
+    fn handle_event(&mut self, _event: &Event) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub struct SdlEventSource {
+    event_pump: EventPump,
+    sdl_events: EventSubsystem
+}
+
+impl SdlEventSource {
+    pub fn new() -> Result<Self> {
+        let sdl_context = sdl2::init()
+            .map_err(|e| anyhow!(e))?;
+
+        let event_pump = sdl_context.event_pump()
+            .map_err(|e| anyhow!(e))?;
+
+        let sdl_events = sdl_context.event()
+            .map_err(|e| anyhow!(e))?;
+
+        sdl_events.register_custom_event::<Event>()
+            .map_err(|e| anyhow!(e))?;
+
+        Ok(
+            Self {
+                event_pump,
+                sdl_events
+            }
+        )
+    }
+}
+
+impl EventSource for SdlEventSource {
     fn wait_event(&mut self) -> Result<Event> {
         match self.event_pump.wait_event() {
             SdlEvent::Quit { .. } => Ok(Event::Quit),
             SdlEvent::MouseButtonDown { .. } => Ok(Event::ButtonDown),
             SdlEvent::MouseWheel { y, .. } => Ok(Event::Dial(y)),
-            _ => self.wait_event()
+            sdl_event => {
+                if sdl_event.is_user_event() {
+                    let event = sdl_event.as_user_event_type::<Event>().unwrap();
+                    Ok(event)
+                } else {
+                    // Unhandled event: wait again until expected event occurs
+                    self.wait_event()
+                }
+            }
         }
+    }
+
+    fn event_sender(&self) -> impl EventSender + 'static {
+        self.sdl_events.event_sender()
+    }
+}
+
+impl EventSender for SdlEventSender {
+    fn send_event(&self, event: Event) -> Result<()> {
+        self.push_custom_event(event)
+            .map_err(|e| anyhow!(e))
     }
 }

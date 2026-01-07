@@ -20,7 +20,7 @@ use anyhow::Result;
 
 mod backlight;
 mod drawable;
-mod event_pump;
+mod events;
 mod input_events;
 mod main_screen;
 mod sound;
@@ -31,38 +31,69 @@ mod window_fb;
 mod window_sdl;
 
 use crate::drawable::AppDrawable;
-use crate::event_pump::Event;
+use crate::events::{Event, EventHandler, EventSource};
 use crate::main_screen::MainScreen;
 use crate::window::AppWindow;
 
 fn main() -> Result<()> {
+    let mut event_source = get_event_source()?;
     let mut window = get_window()?;
-
     let mut screen = MainScreen::new()?;
+
+    start_threads(&event_source)?;
+
+    // let mut handlers: Vec<&mut dyn EventHandler> = vec![
+    //     &mut window, &mut screen
+    // ];
 
     'running: loop {
         screen.draw(window.draw_target())?;
         window.flush()?;
 
-        let event = window.wait_event()?;
+        let event = event_source.wait_event()?;
         if matches!(event, Event::Quit) {
             break 'running;
         }
 
-        screen.handle_event(&event);
+        window.handle_event(&event)?;
+        screen.handle_event(&event)?;
+
+        // for handler in handlers.iter_mut() {
+        //     handler.handle_event(&event);
+        // }
     }
 
     Ok(())
 }
 
 #[cfg(feature = "device")]
-fn get_window() -> Result<impl AppWindow> {
-    let window = crate::window_fb::FramebufferWindow::new()?;
-    Ok(window)
+fn get_window() -> Result<crate::window_fb::FramebufferWindow> {
+    crate::window_fb::FramebufferWindow::new()
+}
+
+#[cfg(feature = "device")]
+fn get_event_source() -> Result<impl EventSource> {
+    Ok(crate::events::DefaultEventSource::new())
+}
+
+#[cfg(feature = "device")]
+fn start_threads<E: EventSource>(events: &E) -> Result<()> {
+    crate::input_events::start_button_events(events.event_sender())?;
+    crate::input_events::start_dial_events(events.event_sender())?;
+    Ok(())
 }
 
 #[cfg(feature = "simulate")]
-fn get_window() -> Result<impl AppWindow> {
-    let window = crate::window_sdl::SdlWindow::new()?;
-    Ok(window)
+fn get_window() -> Result<crate::window_sdl::SdlWindow> {
+    crate::window_sdl::SdlWindow::new()
+}
+
+#[cfg(feature = "simulate")]
+fn get_event_source() -> Result<impl EventSource> {
+    crate::window_sdl::SdlEventSource::new()
+}
+
+#[cfg(feature = "simulate")]
+fn start_threads<E: EventSource>(_events: &E) -> Result<()> {
+    Ok(())
 }

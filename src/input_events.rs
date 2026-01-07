@@ -16,15 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{sync::mpsc::Sender, thread, time::Duration};
+use std::{thread, time::Duration};
 
 use anyhow::Result;
 use evdev::{Device, EventSummary, KeyCode};
 use throttle::Throttle;
 
-use crate::event_pump::Event;
+use crate::events::{Event, EventSender};
 
-pub fn start_button_events(sender: Sender<Event>) -> Result<()> {
+pub fn start_button_events<S>(sender: S) -> Result<()>
+    where S: EventSender + Send + 'static
+{
     let mut device = Device::open("/dev/input/event2")?;
 
     thread::spawn(move || {
@@ -34,7 +36,7 @@ pub fn start_button_events(sender: Sender<Event>) -> Result<()> {
                 match e.destructure() {
                     // value 1 = down, followed by value 0 = up
                     EventSummary::Key(_, KeyCode::KEY_POWER, 1) => {
-                        sender.send(Event::ButtonDown).unwrap();
+                        sender.send_event(Event::ButtonDown).unwrap();
                     },
                     _ => { }
                 }
@@ -45,7 +47,9 @@ pub fn start_button_events(sender: Sender<Event>) -> Result<()> {
     Ok(())
 }
 
-pub fn start_dial_events(sender: Sender<Event>) -> Result<()> {
+pub fn start_dial_events<S>(sender: S) -> Result<()>
+    where S: EventSender + Send + 'static
+{
     let mut device = Device::open("/dev/input/event1")?;
 
     thread::spawn(move || {
@@ -62,7 +66,7 @@ pub fn start_dial_events(sender: Sender<Event>) -> Result<()> {
                     match e.destructure() {
                         EventSummary::RelativeAxis(_, _, value) => {
                             if dial_throttle.accept().is_ok() {
-                                sender.send(Event::Dial(value)).unwrap();
+                                sender.send_event(Event::Dial(value)).unwrap();
                             }
                         },
                         _ => { }
