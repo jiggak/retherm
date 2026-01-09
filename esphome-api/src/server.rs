@@ -60,26 +60,19 @@ impl SecurityMode {
     }
 }
 
-pub trait Server: RequestHandler {
-    fn security(&self) -> &SecurityMode;
-}
-
 pub struct DefaultHandler<D> {
     pub delegate: D,
 
+    // As of 2026.1.0 password auth is removed
+    // Remove security from handler once password auth is removed
     pub security: SecurityMode,
+
     pub server_info: String,
     pub node_name: String,
     pub friendly_name: String,
     pub manufacturer: String,
     pub model: String,
     pub mac_address: String
-}
-
-impl<D: RequestHandler> Server for DefaultHandler<D> {
-    fn security(&self) -> &SecurityMode {
-        &self.security
-    }
 }
 
 impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
@@ -97,7 +90,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                     api_version_major: 1,
                     api_version_minor: 13,
                     // I don't see server_info or name in HA dashboard anywhere
-                    server_info: "My Server Info".to_string(),
+                    server_info: self.server_info.to_string(),
                     name: self.node_name.clone(),
                 })?;
                 Ok(ResponseStatus::Continue)
@@ -166,17 +159,24 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
     }
 }
 
-pub fn start_server<A, S>(addr: A, server: S) -> Result<()>
-    where A: ToSocketAddrs, S: Server
+pub fn start_server<A, H>(addr: A, security: &SecurityMode, handler: &H) -> Result<()>
+    where A: ToSocketAddrs, H: RequestHandler
 {
     let listener = TcpListener::bind(addr)?;
 
     println!("Listen for incoming");
     for stream in listener.incoming() {
-        println!("Connection established");
         let stream = stream?;
 
-        handle_connection(server.security(), &server, stream)?;
+        println!("Connection established");
+        let result = handle_connection(security, handler, stream);
+        if let Err(error) = result {
+            match error.downcast_ref::<ProtoError>() {
+                // allow handshake disconnect to re-connect
+                Some(ProtoError::HandshakeDisconnect) => continue,
+                _ => return Err(error)
+            }
+        }
     }
 
     Ok(())
@@ -190,12 +190,8 @@ fn handle_connection<H: RequestHandler>(
     let reader = BufReader::new(stream);
 
     if let SecurityMode::Encrypted { key, node_name, mac_addr } = security {
-        let init = EncryptedMessageStream::init(reader, key, node_name, mac_addr)?;
-        if let Some(stream) = init {
-            message_loop(stream, handler)
-        } else { // init() returns None when it needs to gracefully disconnect
-            Ok(())
-        }
+        let stream = EncryptedMessageStream::init(reader, key, node_name, mac_addr)?;
+        message_loop(stream, handler)
     } else {
         let stream = PlaintextMessageStream::new(reader);
         message_loop(stream, handler)
@@ -203,11 +199,11 @@ fn handle_connection<H: RequestHandler>(
 }
 
 fn message_loop<S, H>(mut stream: S, handler: &H) -> Result<()>
-    where S: MessageReader + MessageWriter, H: RequestHandler
+    where S: MessageStream, H: RequestHandler
 {
     loop {
         let request = stream.read()?;
-        println!("Request: {:?}", request);
+        println!("Request {:?}", request);
 
         let status = handler.handle_request(&request, &mut stream)?;
         if matches!(status, ResponseStatus::Disconnect) {

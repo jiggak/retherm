@@ -18,11 +18,11 @@
 
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream};
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use prost::{Message, bytes::{Buf, BufMut, Bytes, BytesMut}};
 use snow::TransportState;
 
-use crate::proto::{MessageId, MessageReader, MessageWriter, ProtoError, ProtoMessage};
+use crate::proto::{MessageId, MessageReader, MessageStream, MessageWriter, ProtoError, ProtoMessage};
 
 pub struct EncryptedMessageStream {
     reader: BufReader<TcpStream>,
@@ -39,7 +39,7 @@ impl EncryptedMessageStream {
         key: &[u8; 32],
         node_name: &str,
         mac_addr: &str
-    ) -> Result<Option<Self>> {
+    ) -> Result<Self> {
         let mut noise = snow::Builder::new("Noise_NNpsk0_25519_ChaChaPoly_SHA256".parse()?)
             // do I need prologue?
             .prologue(b"NoiseAPIInit\0\0")?
@@ -49,16 +49,14 @@ impl EncryptedMessageStream {
         let frame1 = match read_encrypted_frame(&mut reader) {
             Err(ProtoError::InvalidIndicator(1, 0)) => {
                 write_handshake_reject(&mut reader.get_ref(), "Bad indicator byte")?;
-                println!("Sent invalid frame to client... disconnect");
-                return Ok(None);
+                Err(ProtoError::HandshakeDisconnect)
             }
             r => r
         }?;
 
         // First frame is NOISE_HELLO; zero length
-        println!("Frame1 {:02x?}", &frame1[..]);
         if frame1.len() > 0 {
-            return Err(anyhow!("I expected first frame after connect to be zero length"));
+            return Err(ProtoError::ExpectedNoiseHello.into());
         }
 
         write_hello_frame(&mut reader.get_ref(), node_name, mac_addr)?;
@@ -71,27 +69,26 @@ impl EncryptedMessageStream {
         match noise.read_message(&frame2[1..], &mut buffer) {
             Err(snow::Error::Decrypt) => {
                 write_handshake_reject(&mut reader.get_ref(), "Handshake MAC failure")?;
-                println!("Sent handshake failed to client... disconnect");
-                return Ok(None);
+                Err(ProtoError::HandshakeDisconnect)
             }
-            r => r
+            r => r.map_err(|e| ProtoError::from(e))
         }?;
 
         // let mut buffer = BytesMut::new();
         let len = noise.write_message(&[], &mut buffer)?;
-        println!("Noise write {}", len);
 
         let mut payload = vec![0x00];
         payload.extend_from_slice(&buffer[..len]);
 
         write_encrypted_frame(&mut reader.get_ref(), &payload)?;
-        println!("Sent handshake success");
 
         let codec = noise.into_transport_mode()?;
 
-        Ok(Some(Self { reader, codec }))
+        Ok(Self { reader, codec })
     }
 }
+
+impl MessageStream for EncryptedMessageStream { }
 
 impl MessageReader for EncryptedMessageStream {
     fn read(&mut self) -> Result<ProtoMessage, ProtoError> {
@@ -117,7 +114,6 @@ impl MessageWriter for EncryptedMessageStream {
         encode_message(message, &mut message_buffer)?;
 
         let buf = message_buffer.freeze();
-        println!("Message for write {} - {:02x?}", buf.len(), &buf[..]);
 
         let mut buffer = vec![0u8; 512];
         let len = self.codec.write_message(&buf, &mut buffer)?;
@@ -148,7 +144,6 @@ fn read_encrypted_frame<R: BufRead>(stream: &mut R) -> Result<Bytes, ProtoError>
     }
 
     let mut buffer = Bytes::copy_from_slice(buf);
-    println!("Frame buffer {} - {:02x?}", buf.len(), buf);
 
     let byte_zero = buffer.get_u8();
     if byte_zero != 1 {
@@ -178,7 +173,6 @@ fn write_encrypted_frame<S: Write>(stream: &mut S, payload: &[u8]) -> Result<()>
 
     let buf = buffer.freeze();
     stream.write_all(&buf)?;
-    println!("Write frame {} - {:02x?}", buf.len(), &buf[..]);
 
     Ok(())
 }

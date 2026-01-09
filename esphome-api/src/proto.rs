@@ -40,7 +40,11 @@ pub enum ProtoError {
     #[error("Error decoding protobuf message")]
     DecodeError(#[from] DecodeError),
     #[error("Error in noise decode or encode")]
-    CodecError(#[from] snow::Error)
+    CodecError(#[from] snow::Error),
+    #[error("Handshake disconnected")]
+    HandshakeDisconnect,
+    #[error("Expected NOISE_HELLO frame")]
+    ExpectedNoiseHello
 }
 
 pub trait MessageReader {
@@ -51,6 +55,8 @@ pub trait MessageWriter {
     fn write<M>(&mut self, message: &M) -> Result<()>
         where M: Message + MessageId;
 }
+
+pub trait MessageStream: MessageReader + MessageWriter { }
 
 pub struct ClimateFeature;
 

@@ -17,7 +17,7 @@ fn main() -> Result<()> {
         mac_address: "01:02:03:04:05:06".to_string()
     };
 
-    start_server("0.0.0.0:6053", handler)?;
+    start_server("0.0.0.0:6053",&handler.security, &handler)?;
 
     Ok(())
 }

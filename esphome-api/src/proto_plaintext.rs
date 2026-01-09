@@ -21,7 +21,7 @@ use std::{io::{BufRead, BufReader, Write}, net::TcpStream};
 use anyhow::Result;
 use prost::{Message, bytes::{Buf, BufMut, Bytes, BytesMut}, encoding::{decode_varint, encode_varint}};
 
-use crate::proto::{MessageId, MessageReader, MessageWriter, ProtoError, ProtoMessage};
+use crate::proto::{MessageId, MessageReader, MessageStream, MessageWriter, ProtoError, ProtoMessage};
 
 pub struct PlaintextMessageStream {
     reader: BufReader<TcpStream>
@@ -33,6 +33,8 @@ impl PlaintextMessageStream {
     }
 }
 
+impl MessageStream for PlaintextMessageStream { }
+
 impl MessageReader for PlaintextMessageStream {
     fn read(&mut self) -> Result<ProtoMessage, ProtoError> {
         let buf = self.reader.fill_buf()?;
@@ -41,7 +43,6 @@ impl MessageReader for PlaintextMessageStream {
         }
 
         let mut buffer = Bytes::copy_from_slice(buf);
-        println!("Frame buffer {} - {:02x?}", buf.len(), buf);
 
         let byte_zero = buffer.get_u8();
         if byte_zero != 0 {
@@ -52,8 +53,6 @@ impl MessageReader for PlaintextMessageStream {
         let message_type = decode_varint(&mut buffer)?;
 
         let bytes_used = buf.len() - buffer.remaining();
-        println!("Frame size:{} type:{} bytes_used:{}", message_size, message_type, bytes_used);
-
         self.reader.consume(bytes_used);
 
         let mut buffer = if message_size > 0 {
@@ -66,8 +65,6 @@ impl MessageReader for PlaintextMessageStream {
         } else {
             Bytes::new()
         };
-
-        println!("Message buffer {} - {:02x?}", buffer.len(), &buffer[..]);
 
         let message = ProtoMessage::decode(message_type, &mut buffer)?;
         self.reader.consume(message_size);
@@ -85,7 +82,6 @@ impl MessageWriter for PlaintextMessageStream {
 
         let buf = buffer.freeze();
         self.reader.get_ref().write_all(&buf)?;
-        println!("Write frame {} - {:02x?}", buf.len(), &buf[..]);
 
         Ok(())
     }
