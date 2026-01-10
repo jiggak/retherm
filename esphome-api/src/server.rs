@@ -36,36 +36,52 @@ pub trait RequestHandler {
     ) -> Result<ResponseStatus>;
 }
 
-// https://esphome.io/components/api/
-
-pub enum SecurityMode {
-    Encrypted {
-        key: [u8; 32],
-        node_name: String,
-        mac_addr: String
-    },
-    Password(String),
-    None
+pub trait MessageStreamFactory<S> {
+    fn new_stream(&self, stream: TcpStream) -> Result<S>;
 }
 
-impl SecurityMode {
-    pub fn encryption(key: &str, node_name: &str, mac_addr: &str) -> Result<SecurityMode> {
+pub struct PlaintextMessageStreamFactory;
+
+impl PlaintextMessageStreamFactory {
+    pub fn new() -> Self { Self }
+}
+
+impl MessageStreamFactory<PlaintextMessageStream> for PlaintextMessageStreamFactory {
+    fn new_stream(&self, stream: TcpStream) -> Result<PlaintextMessageStream> {
+        Ok(PlaintextMessageStream::new(BufReader::new(stream)))
+    }
+}
+
+pub struct EncryptedMessageStreamFactory {
+    key: [u8; 32],
+    node_name: String,
+    mac_addr: String
+}
+
+impl EncryptedMessageStreamFactory {
+    pub fn new(key: &str, node_name: &str, mac_addr: &str) -> Result<Self> {
         let key_bytes = BASE64_STANDARD.decode(key)?;
         let key: [u8; 32] = key_bytes.try_into()
             .map_err(|_| anyhow!("Key must be 32 bytes"))?;
-        Ok(SecurityMode::Encrypted {
-            key, node_name: node_name.to_string(),
+
+        Ok(Self {
+            key,
+            node_name: node_name.to_string(),
             mac_addr: mac_addr.to_string()
         })
     }
 }
 
+impl MessageStreamFactory<EncryptedMessageStream> for EncryptedMessageStreamFactory {
+    fn new_stream(&self, stream: TcpStream) -> Result<EncryptedMessageStream> {
+        let reader = BufReader::new(stream);
+        let stream = EncryptedMessageStream::init(reader, &self.key, &self.node_name, &self.mac_addr)?;
+        Ok(stream)
+    }
+}
+
 pub struct DefaultHandler<D> {
     pub delegate: D,
-
-    // As of 2026.1.0 password auth is removed
-    // Remove security from handler once password auth is removed
-    pub security: SecurityMode,
 
     pub server_info: String,
     pub node_name: String,
@@ -96,18 +112,14 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                 Ok(ResponseStatus::Continue)
             }
             ProtoMessage::AuthenticationRequest(req) => {
-                let invalid_password = match &self.security {
-                    SecurityMode::Password(password) =>
-                        *password != req.password
-                    ,
-                    _ => false
-                };
+                // As of HA 2026.1.0 password auth is removed
+                // Apparently, these messages will no longer be used
 
                 writer.write(&AuthenticationResponse {
-                    invalid_password: invalid_password
+                    invalid_password: false
                 })?;
 
-                if invalid_password {
+                if false { // Disconnect when password invalid
                     Ok(ResponseStatus::Disconnect)
                 } else {
                     Ok(ResponseStatus::Continue)
@@ -123,7 +135,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
             }
             ProtoMessage::DeviceInfoRequest(_) => {
                 writer.write(&DeviceInfoResponse {
-                    uses_password: matches!(self.security, SecurityMode::Password(_)),
+                    uses_password: false,
                     name: self.node_name.clone(),
                     mac_address: self.mac_address.clone(),
                     // aioesphomeapi version for HA 2025.12.3 is 42.9.0
@@ -159,8 +171,8 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
     }
 }
 
-pub fn start_server<A, H>(addr: A, security: &SecurityMode, handler: &H) -> Result<()>
-    where A: ToSocketAddrs, H: RequestHandler
+pub fn start_server<A, F, S, H>(addr: A, stream_factory: &F, handler: &H) -> Result<()>
+    where A: ToSocketAddrs, H: RequestHandler, S: MessageStream, F: MessageStreamFactory<S>
 {
     let listener = TcpListener::bind(addr)?;
 
@@ -169,33 +181,20 @@ pub fn start_server<A, H>(addr: A, security: &SecurityMode, handler: &H) -> Resu
         let stream = stream?;
 
         println!("Connection established");
-        let result = handle_connection(security, handler, stream);
-        if let Err(error) = result {
-            match error.downcast_ref::<ProtoError>() {
-                // allow handshake disconnect to re-connect
-                Some(ProtoError::HandshakeDisconnect) => continue,
-                _ => return Err(error)
+
+        match stream_factory.new_stream(stream) {
+            Ok(stream) => message_loop(stream, handler)?,
+            Err(error) => {
+                match error.downcast_ref::<ProtoError>() {
+                    // allow handshake disconnect to re-connect
+                    Some(ProtoError::HandshakeDisconnect) => continue,
+                    _ => return Err(error)
+                }
             }
         }
     }
 
     Ok(())
-}
-
-fn handle_connection<H: RequestHandler>(
-    security: &SecurityMode,
-    handler: &H,
-    stream: TcpStream
-) -> Result<()> {
-    let reader = BufReader::new(stream);
-
-    if let SecurityMode::Encrypted { key, node_name, mac_addr } = security {
-        let stream = EncryptedMessageStream::init(reader, key, node_name, mac_addr)?;
-        message_loop(stream, handler)
-    } else {
-        let stream = PlaintextMessageStream::new(reader);
-        message_loop(stream, handler)
-    }
 }
 
 fn message_loop<S, H>(mut stream: S, handler: &H) -> Result<()>
