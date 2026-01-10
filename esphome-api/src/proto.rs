@@ -57,7 +57,9 @@ pub trait MessageWriter {
         where M: Message + MessageId;
 }
 
-pub trait MessageStream: MessageReader + MessageWriter { }
+pub trait MessageStream: MessageReader + MessageWriter {
+    fn clone(&self) -> Self;
+}
 
 pub struct ClimateFeature;
 

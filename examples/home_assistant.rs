@@ -1,3 +1,5 @@
+use std::{io, sync::mpsc::channel, thread};
+
 use anyhow::Result;
 use esphome_api::{proto::*, server::{DefaultHandler, EncryptedMessageStreamFactory, RequestHandler, ResponseStatus, start_server}};
 
@@ -17,7 +19,44 @@ fn main() -> Result<()> {
         "hallway-thermostat",
         "01:02:03:04:05:06"
     )?;
-    start_server("0.0.0.0:6053", &stream_factory, &handler)?;
+
+    let (stream_sender, stream_receiver) = channel();
+
+    thread::spawn(move || {
+        start_server("0.0.0.0:6053", &stream_factory, stream_sender, &handler).unwrap();
+    });
+
+    let mut message_stream: Option<_> = None;
+
+    loop {
+        println!("Enter current temp to send");
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+
+        if input.trim() == "" {
+            break;
+        }
+
+        let temp: f32 = input.trim().parse()?;
+
+        let mut message = ClimateStateResponse::default();
+        message.set_action(ClimateAction::Idle);
+        message.set_fan_mode(ClimateFanMode::ClimateFanAuto);
+        message.set_mode(ClimateMode::Heat);
+        message.current_temperature = temp;
+        message.target_temperature = 19.5;
+
+        // get most recently sent stream
+        while let Ok(msg) = stream_receiver.try_recv() {
+            message_stream = msg;
+        };
+
+        if let Some(stream) = message_stream.as_mut() {
+            stream.write(&message)?;
+        } else {
+            println!("Message stream not ready");
+        }
+    }
 
     Ok(())
 }

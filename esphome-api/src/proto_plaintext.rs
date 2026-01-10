@@ -32,7 +32,12 @@ impl PlaintextMessageStream {
     }
 }
 
-impl MessageStream for PlaintextMessageStream { }
+impl MessageStream for PlaintextMessageStream {
+    fn clone(&self) -> Self {
+        let stream = self.reader.get_ref().try_clone().unwrap();
+        PlaintextMessageStream { reader: BufReader::new(stream) }
+    }
+}
 
 impl MessageReader for PlaintextMessageStream {
     fn read(&mut self) -> Result<ProtoMessage, ProtoError> {

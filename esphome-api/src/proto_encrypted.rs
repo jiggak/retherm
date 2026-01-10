@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{io::{BufRead, BufReader, Write}, net::TcpStream};
+use std::{io::{BufRead, BufReader, Write}, net::TcpStream, sync::{Arc, Mutex}};
 
 use prost::{Message, bytes::{Buf, BufMut, Bytes, BytesMut}};
 use snow::TransportState;
@@ -25,7 +25,7 @@ use crate::proto::{MessageId, MessageReader, MessageStream, MessageWriter, Proto
 
 pub struct EncryptedMessageStream {
     reader: BufReader<TcpStream>,
-    codec: TransportState
+    codec: Arc<Mutex<TransportState>>
 }
 
 // References for the encrypted connection setup:
@@ -82,19 +82,26 @@ impl EncryptedMessageStream {
         write_encrypted_frame(&mut reader.get_ref(), &payload)?;
 
         let codec = noise.into_transport_mode()?;
+        let codec = Arc::new(Mutex::new(codec));
 
         Ok(Self { reader, codec })
     }
 }
 
-impl MessageStream for EncryptedMessageStream { }
+impl MessageStream for EncryptedMessageStream {
+    fn clone(&self) -> Self {
+        let stream = self.reader.get_ref().try_clone().unwrap();
+        let codec = self.codec.clone();
+        Self { reader: BufReader::new(stream), codec }
+    }
+}
 
 impl MessageReader for EncryptedMessageStream {
     fn read(&mut self) -> Result<ProtoMessage, ProtoError> {
         let frame = read_encrypted_frame(&mut self.reader)?;
 
         let mut buffer = vec![0u8; 512];
-        let len = self.codec.read_message(&frame, &mut buffer)?;
+        let len = self.codec.lock().unwrap().read_message(&frame, &mut buffer)?;
 
         let mut buffer = Bytes::copy_from_slice(&buffer[..len]);
 
@@ -115,7 +122,7 @@ impl MessageWriter for EncryptedMessageStream {
         let buf = message_buffer.freeze();
 
         let mut buffer = vec![0u8; 512];
-        let len = self.codec.write_message(&buf, &mut buffer)?;
+        let len = self.codec.lock().unwrap().write_message(&buf, &mut buffer)?;
 
         write_encrypted_frame(&mut self.reader.get_ref(), &buffer[..len])?;
 

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs}};
+use std::{io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs}, sync::mpsc::Sender};
 
 use anyhow::{Result, anyhow};
 use base64::prelude::*;
@@ -155,7 +155,12 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
     }
 }
 
-pub fn start_server<A, F, S, H>(addr: A, stream_factory: &F, handler: &H) -> Result<()>
+pub fn start_server<A, F, S, H>(
+    addr: A,
+    stream_factory: &F,
+    stream_sender: Sender<Option<S>>,
+    handler: &H
+) -> Result<()>
     where A: ToSocketAddrs, H: RequestHandler, S: MessageStream, F: MessageStreamFactory<S>
 {
     let listener = TcpListener::bind(addr)?;
@@ -167,7 +172,12 @@ pub fn start_server<A, F, S, H>(addr: A, stream_factory: &F, handler: &H) -> Res
         println!("Connection established");
 
         match stream_factory.setup_stream(stream) {
-            Ok(stream) => message_loop(stream, handler)?,
+            Ok(stream) => {
+                let write_stream = stream.clone();
+                stream_sender.send(Some(write_stream)).unwrap();
+                message_loop(stream, handler)?;
+                stream_sender.send(None).unwrap();
+            },
             // allow handshake disconnect to re-connect
             Err(ProtoError::HandshakeDisconnect) => continue,
             Err(error) => Err(error)?
@@ -182,7 +192,7 @@ fn message_loop<S, H>(mut stream: S, handler: &H) -> Result<()>
 {
     loop {
         let request = stream.read()?;
-        println!("Request {:?}", request);
+        // println!("Request {:?}", request);
 
         let status = handler.handle_request(&request, &mut stream)?;
         if matches!(status, ResponseStatus::Disconnect) {
