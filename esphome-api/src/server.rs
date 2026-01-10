@@ -126,44 +126,28 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                 }
             }
             ProtoMessage::DisconnectRequest(_) => {
-                writer.write(&DisconnectResponse { })?;
+                writer.write(&DisconnectResponse::default())?;
                 Ok(ResponseStatus::Disconnect)
             }
             ProtoMessage::PingRequest(_) => {
-                writer.write(&PingResponse { })?;
+                writer.write(&PingResponse::default())?;
                 Ok(ResponseStatus::Continue)
             }
             ProtoMessage::DeviceInfoRequest(_) => {
-                writer.write(&DeviceInfoResponse {
-                    uses_password: false,
-                    name: self.node_name.clone(),
-                    mac_address: self.mac_address.clone(),
-                    // aioesphomeapi version for HA 2025.12.3 is 42.9.0
-                    // This shows as "Firmware" under device info in HA
-                    esphome_version: "42.9.0".to_string(),
-                    compilation_time: "".to_string(),
-                    model: self.model.to_string(),
-                    has_deep_sleep: false,
-                    // When I used values for project_*, HA would not show
-                    // any entities for the device
-                    project_name: "".to_string(),
-                    project_version: "".to_string(),
-                    webserver_port: 0,
-                    #[allow(deprecated)] legacy_bluetooth_proxy_version: 0,
-                    bluetooth_proxy_feature_flags: 0,
-                    manufacturer: self.manufacturer.clone(),
-                    friendly_name: self.friendly_name.clone(),
-                    #[allow(deprecated)] legacy_voice_assistant_version: 0,
-                    voice_assistant_feature_flags: 0,
-                    suggested_area: "".to_string(),
-                    bluetooth_mac_address: "".to_string(),
-                    api_encryption_supported: false,
-                    devices: vec![],
-                    areas: vec![],
-                    area: None,
-                    zwave_proxy_feature_flags: 0,
-                    zwave_home_id: 0
-                })?;
+                // When I used values for response.project_*, HA would not show
+                // any entities for the device
+                let mut response = DeviceInfoResponse::default();
+
+                response.name = self.node_name.clone();
+                response.model = self.model.to_string();
+                response.mac_address = self.mac_address.clone();
+                response.manufacturer = self.manufacturer.clone();
+                response.friendly_name = self.friendly_name.clone();
+                // aioesphomeapi version for HA 2025.12.3 is 42.9.0
+                // This shows as "Firmware" under device info in HA
+                response.esphome_version = "42.9.0".to_string();
+
+                writer.write(&response)?;
                 Ok(ResponseStatus::Continue)
             }
             message => self.delegate.handle_request(message, writer)
