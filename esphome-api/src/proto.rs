@@ -52,8 +52,7 @@ pub trait MessageReader {
 }
 
 pub trait MessageWriter {
-    fn write<M>(&mut self, message: &M) -> Result<()>
-        where M: Message + MessageId;
+    fn write(&mut self, message: &ProtoMessage) -> Result<()>;
 }
 
 pub trait MessageStream: MessageReader + MessageWriter { }

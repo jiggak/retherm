@@ -83,7 +83,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
     ) -> Result<ResponseStatus> {
         match message {
             ProtoMessage::HelloRequest(_) => {
-                writer.write(&HelloResponse {
+                writer.write(&ProtoMessage::HelloResponse(HelloResponse {
                     // HA 2025.12.3 is what I'm using for development
                     // It reports 1.13, so it probably makes sense to mirror it?
                     // aioesphomeapi/connection.py confirms this version too
@@ -92,7 +92,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                     // I don't see server_info or name in HA dashboard anywhere
                     server_info: self.server_info.to_string(),
                     name: self.node_name.clone(),
-                })?;
+                }))?;
                 Ok(ResponseStatus::Continue)
             }
             ProtoMessage::AuthenticationRequest(req) => {
@@ -103,9 +103,9 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                     _ => false
                 };
 
-                writer.write(&AuthenticationResponse {
+                writer.write(&ProtoMessage::AuthenticationResponse(AuthenticationResponse {
                     invalid_password: invalid_password
-                })?;
+                }))?;
 
                 if invalid_password {
                     Ok(ResponseStatus::Disconnect)
@@ -114,15 +114,15 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                 }
             }
             ProtoMessage::DisconnectRequest(_) => {
-                writer.write(&DisconnectResponse { })?;
+                writer.write(&ProtoMessage::DisconnectResponse(DisconnectResponse {}))?;
                 Ok(ResponseStatus::Disconnect)
             }
             ProtoMessage::PingRequest(_) => {
-                writer.write(&PingResponse { })?;
+                writer.write(&ProtoMessage::PingResponse(PingResponse {}))?;
                 Ok(ResponseStatus::Continue)
             }
             ProtoMessage::DeviceInfoRequest(_) => {
-                writer.write(&DeviceInfoResponse {
+                writer.write(&ProtoMessage::DeviceInfoResponse(DeviceInfoResponse {
                     uses_password: matches!(self.security, SecurityMode::Password(_)),
                     name: self.node_name.clone(),
                     mac_address: self.mac_address.clone(),
@@ -151,7 +151,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                     area: None,
                     zwave_proxy_feature_flags: 0,
                     zwave_home_id: 0
-                })?;
+                }))?;
                 Ok(ResponseStatus::Continue)
             }
             message => self.delegate.handle_request(message, writer)
@@ -169,6 +169,7 @@ pub fn start_server<A, H>(addr: A, security: &SecurityMode, handler: &H) -> Resu
         let stream = stream?;
 
         println!("Connection established");
+
         let result = handle_connection(security, handler, stream);
         if let Err(error) = result {
             match error.downcast_ref::<ProtoError>() {
