@@ -18,8 +18,8 @@
 
 use std::{io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs}};
 
-use base64::prelude::*;
 use anyhow::{Result, anyhow};
+use base64::prelude::*;
 
 use crate::{proto::*, proto_encrypted::EncryptedMessageStream, proto_plaintext::PlaintextMessageStream};
 
@@ -37,7 +37,7 @@ pub trait RequestHandler {
 }
 
 pub trait MessageStreamFactory<S> {
-    fn new_stream(&self, stream: TcpStream) -> Result<S>;
+    fn setup_stream(&self, stream: TcpStream) -> Result<S, ProtoError>;
 }
 
 pub struct PlaintextMessageStreamFactory;
@@ -47,7 +47,7 @@ impl PlaintextMessageStreamFactory {
 }
 
 impl MessageStreamFactory<PlaintextMessageStream> for PlaintextMessageStreamFactory {
-    fn new_stream(&self, stream: TcpStream) -> Result<PlaintextMessageStream> {
+    fn setup_stream(&self, stream: TcpStream) -> Result<PlaintextMessageStream, ProtoError> {
         Ok(PlaintextMessageStream::new(BufReader::new(stream)))
     }
 }
@@ -73,7 +73,7 @@ impl EncryptedMessageStreamFactory {
 }
 
 impl MessageStreamFactory<EncryptedMessageStream> for EncryptedMessageStreamFactory {
-    fn new_stream(&self, stream: TcpStream) -> Result<EncryptedMessageStream> {
+    fn setup_stream(&self, stream: TcpStream) -> Result<EncryptedMessageStream, ProtoError> {
         let reader = BufReader::new(stream);
         let stream = EncryptedMessageStream::init(reader, &self.key, &self.node_name, &self.mac_addr)?;
         Ok(stream)
@@ -111,7 +111,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                 })?;
                 Ok(ResponseStatus::Continue)
             }
-            ProtoMessage::AuthenticationRequest(req) => {
+            ProtoMessage::AuthenticationRequest(_) => {
                 // As of HA 2026.1.0 password auth is removed
                 // Apparently, these messages will no longer be used
 
@@ -182,15 +182,11 @@ pub fn start_server<A, F, S, H>(addr: A, stream_factory: &F, handler: &H) -> Res
 
         println!("Connection established");
 
-        match stream_factory.new_stream(stream) {
+        match stream_factory.setup_stream(stream) {
             Ok(stream) => message_loop(stream, handler)?,
-            Err(error) => {
-                match error.downcast_ref::<ProtoError>() {
-                    // allow handshake disconnect to re-connect
-                    Some(ProtoError::HandshakeDisconnect) => continue,
-                    _ => return Err(error)
-                }
-            }
+            // allow handshake disconnect to re-connect
+            Err(ProtoError::HandshakeDisconnect) => continue,
+            Err(error) => Err(error)?
         }
     }
 

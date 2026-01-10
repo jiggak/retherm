@@ -20,8 +20,7 @@ include!(concat!(env!("OUT_DIR"), "/esphome_proto.rs"));
 include!(concat!(env!("OUT_DIR"), "/message_ids.rs"));
 include!(concat!(env!("OUT_DIR"), "/proto_message.rs"));
 
-use anyhow::Result;
-use prost::{DecodeError, Message};
+use prost::Message;
 
 pub trait MessageId {
     const ID: u64;
@@ -29,8 +28,8 @@ pub trait MessageId {
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProtoError {
-    #[error("Error reading from stream")]
-    ReadError(#[from] std::io::Error),
+    #[error("Error reading or writing to network stream")]
+    IoError(#[from] std::io::Error),
     #[error("Read zero bytes expecting frame")]
     ReadZero,
     #[error("Expected first byte of frame to be {0}, found {1}")]
@@ -38,9 +37,11 @@ pub enum ProtoError {
     #[error("Buffer underrun; buf {0}, message {1}")]
     BufferUnderrun(usize, usize),
     #[error("Error decoding protobuf message")]
-    DecodeError(#[from] DecodeError),
+    ProtobufDecode(#[from] prost::DecodeError),
+    #[error("Error encoding protobuf message")]
+    ProtobufEncode(#[from] prost::EncodeError),
     #[error("Error in noise decode or encode")]
-    CodecError(#[from] snow::Error),
+    NoiseEncryption(#[from] snow::Error),
     #[error("Handshake disconnected")]
     HandshakeDisconnect,
     #[error("Expected NOISE_HELLO frame")]
@@ -52,7 +53,7 @@ pub trait MessageReader {
 }
 
 pub trait MessageWriter {
-    fn write<M>(&mut self, message: &M) -> Result<()>
+    fn write<M>(&mut self, message: &M) -> Result<(), ProtoError>
         where M: Message + MessageId;
 }
 

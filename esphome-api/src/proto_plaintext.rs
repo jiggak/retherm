@@ -18,7 +18,6 @@
 
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream};
 
-use anyhow::Result;
 use prost::{Message, bytes::{Buf, BufMut, Bytes, BytesMut}, encoding::{decode_varint, encode_varint}};
 
 use crate::proto::{MessageId, MessageReader, MessageStream, MessageWriter, ProtoError, ProtoMessage};
@@ -74,7 +73,7 @@ impl MessageReader for PlaintextMessageStream {
 }
 
 impl MessageWriter for PlaintextMessageStream {
-    fn write<M>(&mut self, message: &M) -> Result<()>
+    fn write<M>(&mut self, message: &M) -> Result<(), ProtoError>
         where M: Message + MessageId
     {
         let mut buffer = BytesMut::with_capacity(512);
@@ -87,7 +86,7 @@ impl MessageWriter for PlaintextMessageStream {
     }
 }
 
-fn encode_message<M, B>(message: &M, buffer: &mut B) -> Result<()>
+fn encode_message<M, B>(message: &M, buffer: &mut B) -> Result<(), ProtoError>
     where M: Message + MessageId, B: BufMut
 {
     let message_id = M::ID;

@@ -18,7 +18,6 @@
 
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream};
 
-use anyhow::Result;
 use prost::{Message, bytes::{Buf, BufMut, Bytes, BytesMut}};
 use snow::TransportState;
 
@@ -39,7 +38,7 @@ impl EncryptedMessageStream {
         key: &[u8; 32],
         node_name: &str,
         mac_addr: &str
-    ) -> Result<Self> {
+    ) -> Result<Self, ProtoError> {
         let mut noise = snow::Builder::new("Noise_NNpsk0_25519_ChaChaPoly_SHA256".parse()?)
             // do I need prologue?
             .prologue(b"NoiseAPIInit\0\0")?
@@ -107,7 +106,7 @@ impl MessageReader for EncryptedMessageStream {
 }
 
 impl MessageWriter for EncryptedMessageStream {
-    fn write<M>(&mut self, message: &M) -> Result<()>
+    fn write<M>(&mut self, message: &M) -> Result<(), ProtoError>
         where M: Message + MessageId
     {
         let mut message_buffer = BytesMut::with_capacity(512);
@@ -124,7 +123,7 @@ impl MessageWriter for EncryptedMessageStream {
     }
 }
 
-fn encode_message<M, B>(message: &M, buffer: &mut B) -> Result<()>
+fn encode_message<M, B>(message: &M, buffer: &mut B) -> Result<(), ProtoError>
     where M: Message + MessageId, B: BufMut
 {
     let message_id = M::ID as u16;
@@ -164,7 +163,7 @@ fn read_encrypted_frame<R: BufRead>(stream: &mut R) -> Result<Bytes, ProtoError>
     Ok(buffer)
 }
 
-fn write_encrypted_frame<S: Write>(stream: &mut S, payload: &[u8]) -> Result<()> {
+fn write_encrypted_frame<S: Write>(stream: &mut S, payload: &[u8]) -> Result<(), ProtoError> {
     let mut buffer = BytesMut::new();
 
     buffer.put_u8(1);
@@ -177,14 +176,14 @@ fn write_encrypted_frame<S: Write>(stream: &mut S, payload: &[u8]) -> Result<()>
     Ok(())
 }
 
-fn write_handshake_reject<S: Write>(stream: &mut S, reason: &str) -> Result<()> {
+fn write_handshake_reject<S: Write>(stream: &mut S, reason: &str) -> Result<(), ProtoError> {
     let mut payload = vec![0x01];
     payload.extend_from_slice(reason.as_bytes());
 
     write_encrypted_frame(stream, payload.as_slice())
 }
 
-fn write_hello_frame<S: Write>(stream: &mut S,  node_name: &str, mac_addr: &str) -> Result<()> {
+fn write_hello_frame<S: Write>(stream: &mut S,  node_name: &str, mac_addr: &str) -> Result<(), ProtoError> {
     let mut payload = vec![0x01];
     payload.extend_from_slice(node_name.as_bytes());
     payload.push(0);
