@@ -23,17 +23,19 @@ use embedded_graphics::{
 use embedded_ttf::FontTextStyleBuilder;
 use rusttype::Font;
 
-use crate::{drawable::AppDrawable, events::EventHandler};
+use crate::{drawable::AppDrawable, events::{EventHandler, EventSender, EventSource}};
 use crate::events::Event;
 
 pub struct MainScreen {
-    gauge: ThermostatGauge
+    gauge: ThermostatGauge,
+    event_sender: Box<dyn EventSender>
 }
 
 impl MainScreen {
-    pub fn new() -> Result<Self> {
+    pub fn new<E: EventSource>(events: &E) -> Result<Self> {
         Ok(Self {
-            gauge: ThermostatGauge::new()?
+            gauge: ThermostatGauge::new()?,
+            event_sender: Box::new(events.event_sender())
         })
     }
 }
@@ -44,8 +46,10 @@ impl EventHandler for MainScreen {
             Event::Dial(dir) => {
                 if *dir > 0 {
                     self.gauge.inc_target_temp(-0.1);
+                    self.event_sender.send_event(Event::Temp(self.gauge.target_temp))?;
                 } else if *dir < 0 {
                     self.gauge.inc_target_temp(0.1);
+                    self.event_sender.send_event(Event::Temp(self.gauge.target_temp))?;
                 }
             },
             _ => { }

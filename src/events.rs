@@ -24,7 +24,7 @@ use anyhow::Result;
 pub enum Event {
     ButtonDown,
     Dial(i32),
-    Temp,
+    Temp(f32),
     HVAC,
     Quit
 }

@@ -171,17 +171,17 @@ pub fn start_server<A, F, S, H>(
 
         println!("Connection established");
 
-        match stream_factory.setup_stream(stream) {
-            Ok(stream) => {
-                let write_stream = stream.clone();
-                stream_sender.send(Some(write_stream)).unwrap();
-                message_loop(stream, handler)?;
-                stream_sender.send(None).unwrap();
-            },
+        let message_stream = match stream_factory.setup_stream(stream) {
             // allow handshake disconnect to re-connect
             Err(ProtoError::HandshakeDisconnect) => continue,
-            Err(error) => Err(error)?
-        }
+            Err(error) => Err(error)?,
+            Ok(stream) => stream
+        };
+
+        let write_stream = message_stream.clone();
+        stream_sender.send(Some(write_stream)).unwrap();
+        message_loop(message_stream, handler)?;
+        stream_sender.send(None).unwrap();
     }
 
     Ok(())
