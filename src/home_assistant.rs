@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{sync::{Arc, Mutex, mpsc::channel}, thread::{self, JoinHandle}};
+use std::{thread::{self, JoinHandle}};
 
 use anyhow::Result;
 use esphome_api::{
@@ -28,12 +28,12 @@ use esphome_api::{
 
 use crate::events::{Event, EventHandler, EventSender};
 
-pub struct HomeAssistant<S, M> {
+pub struct HomeAssistant<S> {
     event_sender: S,
-    message_sender: MessageSenderThread<M>
+    message_sender: MessageSenderThread
 }
 
-impl<S: EventSender, M: Message + MessageId + 'static> HomeAssistant<S, M> {
+impl<S: EventSender> HomeAssistant<S> {
     pub fn new(event_sender: S) -> Self {
         Self {
             event_sender,
@@ -42,7 +42,7 @@ impl<S: EventSender, M: Message + MessageId + 'static> HomeAssistant<S, M> {
     }
 
     pub fn start_listener<F, G>(&self, addr: &str, stream_factory: F) -> JoinHandle<Result<()>>
-        where F: MessageStreamProvider<G>, G: MessageStream
+        where F: MessageStreamProvider<G> + Send + 'static, G: MessageStream + Send + 'static
     {
         let addr = addr.to_string();
 
@@ -64,7 +64,7 @@ impl<S: EventSender, M: Message + MessageId + 'static> HomeAssistant<S, M> {
     }
 }
 
-impl<S: EventSender, M: Message + MessageId + 'static> EventHandler for HomeAssistant<S, M> {
+impl<S: EventSender> EventHandler for HomeAssistant<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         if let Event::Temp(temp) = event {
             let mut message = ClimateStateResponse::default();
@@ -73,14 +73,14 @@ impl<S: EventSender, M: Message + MessageId + 'static> EventHandler for HomeAssi
             message.set_mode(ClimateMode::Heat);
             message.current_temperature = *temp;
             message.target_temperature = 19.5;
-            self.message_sender.send_message(message)?;
+            self.message_sender.send_message(ProtoMessage::ClimateStateResponse(message))?;
         }
         // receive specific event, send message to HA client
         Ok(())
     }
 }
 
-impl<S: EventSender, M: Message + MessageId> RequestHandler for HomeAssistant<S, M> {
+impl<S: EventSender> RequestHandler for HomeAssistant<S> {
     fn handle_request<W: MessageWriter>(
         &self,
         message: &ProtoMessage,
@@ -109,9 +109,10 @@ impl<S: EventSender, M: Message + MessageId> RequestHandler for HomeAssistant<S,
                     ClimateFeature::SUPPORTS_CURRENT_TEMPERATURE |
                     ClimateFeature::SUPPORTS_ACTION;
 
-                writer.write(&message)?;
+                writer.write(&ProtoMessage::ListEntitiesClimateResponse(message))?;
 
-                writer.write(&ListEntitiesDoneResponse::default())?;
+                let message = ListEntitiesDoneResponse::default();
+                writer.write(&ProtoMessage::ListEntitiesDoneResponse(message))?;
             }
             ProtoMessage::SubscribeStatesRequest(_) => {
                 let mut state = ClimateStateResponse::default();
@@ -121,7 +122,7 @@ impl<S: EventSender, M: Message + MessageId> RequestHandler for HomeAssistant<S,
                 state.current_temperature = 20.0;
                 state.target_temperature = 19.5;
 
-                writer.write(&state)?;
+                writer.write(&ProtoMessage::ClimateStateResponse(state))?;
             }
             ProtoMessage::ClimateCommandRequest(_cmd) => {
                 self.event_sender.send_event(Event::HVAC)?;
@@ -164,9 +165,10 @@ impl RequestHandler for MyHandler {
                     ClimateFeature::SUPPORTS_CURRENT_TEMPERATURE |
                     ClimateFeature::SUPPORTS_ACTION;
 
-                writer.write(&message)?;
+                writer.write(&ProtoMessage::ListEntitiesClimateResponse(message))?;
 
-                writer.write(&ListEntitiesDoneResponse::default())?;
+                let message = ListEntitiesDoneResponse::default();
+                writer.write(&ProtoMessage::ListEntitiesDoneResponse(message))?;
             }
             ProtoMessage::SubscribeStatesRequest(_) => {
                 let mut state = ClimateStateResponse::default();
@@ -176,7 +178,7 @@ impl RequestHandler for MyHandler {
                 state.current_temperature = 20.0;
                 state.target_temperature = 19.5;
 
-                writer.write(&state)?;
+                writer.write(&ProtoMessage::ClimateStateResponse(state))?;
             }
             ProtoMessage::ClimateCommandRequest(_cmd) => {
                 // self.event_sender.send_event(Event::HVAC)?;
