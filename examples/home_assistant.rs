@@ -45,7 +45,7 @@ fn main() -> Result<()> {
         message.current_temperature = temp;
         message.target_temperature = 19.5;
 
-        message_sender.send_message(message)?;
+        message_sender.send_message(ProtoMessage::ClimateStateResponse(message))?;
     }
 
     Ok(())
@@ -82,9 +82,10 @@ impl RequestHandler for MyRequestHandler {
                     ClimateFeature::SUPPORTS_CURRENT_TEMPERATURE |
                     ClimateFeature::SUPPORTS_ACTION;
 
-                writer.write(&message)?;
+                writer.write(&ProtoMessage::ListEntitiesClimateResponse(message))?;
 
-                writer.write(&ListEntitiesDoneResponse::default())?;
+                let message = ListEntitiesDoneResponse::default();
+                writer.write(&ProtoMessage::ListEntitiesDoneResponse(message))?;
             }
             ProtoMessage::SubscribeStatesRequest(_) => {
                 let mut message = ClimateStateResponse::default();
@@ -94,7 +95,7 @@ impl RequestHandler for MyRequestHandler {
                 message.current_temperature = 20.0;
                 message.target_temperature = 19.5;
 
-                writer.write(&message)?;
+                writer.write(&ProtoMessage::ClimateStateResponse(message))?;
             }
             _ => { }
         }

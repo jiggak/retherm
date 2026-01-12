@@ -18,10 +18,10 @@
 
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream, sync::{Arc, Mutex}};
 
-use prost::{Message, bytes::{Buf, BufMut, Bytes, BytesMut}};
+use prost::bytes::{Buf, BufMut, Bytes, BytesMut};
 use snow::TransportState;
 
-use crate::proto::{MessageId, MessageReader, MessageStream, MessageWriter, ProtoError, ProtoMessage};
+use crate::proto::{MessageReader, MessageStream, MessageWriter, ProtoError, ProtoMessage};
 
 pub struct EncryptedMessageStream {
     reader: BufReader<TcpStream>,
@@ -113,9 +113,7 @@ impl MessageReader for EncryptedMessageStream {
 }
 
 impl MessageWriter for EncryptedMessageStream {
-    fn write<M>(&mut self, message: &M) -> Result<(), ProtoError>
-        where M: Message + MessageId
-    {
+    fn write(&mut self, message: &ProtoMessage) -> Result<(), ProtoError> {
         let mut message_buffer = BytesMut::with_capacity(512);
         encode_message(message, &mut message_buffer)?;
 
@@ -130,10 +128,8 @@ impl MessageWriter for EncryptedMessageStream {
     }
 }
 
-fn encode_message<M, B>(message: &M, buffer: &mut B) -> Result<(), ProtoError>
-    where M: Message + MessageId, B: BufMut
-{
-    let message_id = M::ID as u16;
+fn encode_message<B: BufMut>(message: &ProtoMessage, buffer: &mut B) -> Result<(), ProtoError> {
+    let message_id = message.message_id() as u16;
     let message_len = message.encoded_len() as u16;
 
     buffer.put_u16(message_id);

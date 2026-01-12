@@ -86,28 +86,28 @@ pub trait ConnectionWatcher<S> {
 }
 
 #[derive(Clone)]
-pub struct MessageSenderThread<M> {
-    message_sender: Arc<Mutex<Option<Sender<M>>>>
+pub struct MessageSenderThread {
+    message_sender: Arc<Mutex<Option<Sender<ProtoMessage>>>>
 }
 
-impl<M: Message + MessageId + Send + 'static> MessageSenderThread<M> {
+impl MessageSenderThread {
     pub fn new() -> Self {
         Self { message_sender: Arc::new(Mutex::new(None)) }
     }
 
-    pub fn send_message(&self, message: M) -> Result<()> {
+    pub fn send_message(&self, message: ProtoMessage) -> Result<()> {
         let guard = self.message_sender.lock().unwrap();
 
         if let Some(sender) = guard.as_ref() {
             sender.send(message)?;
             Ok(())
         } else {
-            Err(anyhow!("sender not initialized"))
+            Err(anyhow!("Can't send message; not connected"))
         }
     }
 }
 
-impl<M: Message + MessageId + Send + 'static, S: MessageStream + Send + 'static> ConnectionWatcher<S> for MessageSenderThread<M> {
+impl<S: MessageStream + Send + 'static> ConnectionWatcher<S> for MessageSenderThread {
     fn connected(&self, stream: &S) -> Result<()> {
         let (tx, rx) = channel();
 
@@ -148,7 +148,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
     ) -> Result<ResponseStatus> {
         match message {
             ProtoMessage::HelloRequest(_) => {
-                writer.write(&HelloResponse {
+                writer.write(&ProtoMessage::HelloResponse(HelloResponse {
                     // HA 2025.12.3 is what I'm using for development
                     // It reports 1.13, so it probably makes sense to mirror it?
                     // aioesphomeapi/connection.py confirms this version too
@@ -157,16 +157,16 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                     // I don't see server_info or name in HA dashboard anywhere
                     server_info: self.server_info.to_string(),
                     name: self.node_name.clone(),
-                })?;
+                }))?;
                 Ok(ResponseStatus::Continue)
             }
             ProtoMessage::AuthenticationRequest(_) => {
                 // As of HA 2026.1.0 password auth is removed
                 // Apparently, these messages will no longer be used
 
-                writer.write(&AuthenticationResponse {
+                writer.write(&ProtoMessage::AuthenticationResponse(AuthenticationResponse {
                     invalid_password: false
-                })?;
+                }))?;
 
                 if false { // Disconnect when password invalid
                     Ok(ResponseStatus::Disconnect)
@@ -175,11 +175,11 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                 }
             }
             ProtoMessage::DisconnectRequest(_) => {
-                writer.write(&DisconnectResponse::default())?;
+                writer.write(&ProtoMessage::DisconnectResponse(DisconnectResponse::default()))?;
                 Ok(ResponseStatus::Disconnect)
             }
             ProtoMessage::PingRequest(_) => {
-                writer.write(&PingResponse::default())?;
+                writer.write(&ProtoMessage::PingResponse(PingResponse::default()))?;
                 Ok(ResponseStatus::Continue)
             }
             ProtoMessage::DeviceInfoRequest(_) => {
@@ -196,7 +196,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                 // This shows as "Firmware" under device info in HA
                 response.esphome_version = "42.9.0".to_string();
 
-                writer.write(&response)?;
+                writer.write(&ProtoMessage::DeviceInfoResponse(response))?;
                 Ok(ResponseStatus::Continue)
             }
             message => self.delegate.handle_request(message, writer)

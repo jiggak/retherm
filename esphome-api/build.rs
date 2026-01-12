@@ -130,8 +130,47 @@ fn generate_proto_message_enum(messages: &Vec<(String, i32)>) -> TokenStream {
         }
     };
 
+    let encode = quote! {
+        impl ProtoMessage {
+            pub fn encode<B: prost::bytes::BufMut>(&self, buffer: &mut B) -> Result<(), prost::EncodeError> {
+                match self {
+                    #(
+                        ProtoMessage::#message_names(message) => message.encode(buffer),
+                    )*
+                }
+            }
+        }
+    };
+
+    let encoded_len = quote! {
+        impl ProtoMessage {
+            pub fn encoded_len(&self) -> usize {
+                match self {
+                    #(
+                        ProtoMessage::#message_names(message) => message.encoded_len(),
+                    )*
+                }
+            }
+        }
+    };
+
+    let message_id = quote! {
+        impl ProtoMessage {
+            pub fn message_id(&self) -> u64 {
+                match self {
+                    #(
+                        ProtoMessage::#message_names(_) => #message_names::ID,
+                    )*
+                }
+            }
+        }
+    };
+
     quote! {
         #enum_def
         #decode
+        #encode
+        #encoded_len
+        #message_id
     }
 }
