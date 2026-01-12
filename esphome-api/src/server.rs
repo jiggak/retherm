@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs}, sync::mpsc::Sender};
+use std::{io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs}, sync::{Arc, Mutex, mpsc::{Sender, channel}}, thread};
 
 use anyhow::{Result, anyhow};
 use base64::prelude::*;
@@ -36,29 +36,29 @@ pub trait RequestHandler {
     ) -> Result<ResponseStatus>;
 }
 
-pub trait MessageStreamFactory<S> {
+pub trait MessageStreamProvider<S> {
     fn setup_stream(&self, stream: TcpStream) -> Result<S, ProtoError>;
 }
 
-pub struct PlaintextMessageStreamFactory;
+pub struct PlaintextStreamProvider;
 
-impl PlaintextMessageStreamFactory {
+impl PlaintextStreamProvider {
     pub fn new() -> Self { Self }
 }
 
-impl MessageStreamFactory<PlaintextMessageStream> for PlaintextMessageStreamFactory {
+impl MessageStreamProvider<PlaintextMessageStream> for PlaintextStreamProvider {
     fn setup_stream(&self, stream: TcpStream) -> Result<PlaintextMessageStream, ProtoError> {
         Ok(PlaintextMessageStream::new(BufReader::new(stream)))
     }
 }
 
-pub struct EncryptedMessageStreamFactory {
+pub struct EncryptedStreamProvider {
     key: [u8; 32],
     node_name: String,
     mac_addr: String
 }
 
-impl EncryptedMessageStreamFactory {
+impl EncryptedStreamProvider {
     pub fn new(key: &str, node_name: &str, mac_addr: &str) -> Result<Self> {
         let key_bytes = BASE64_STANDARD.decode(key)?;
         let key: [u8; 32] = key_bytes.try_into()
@@ -72,11 +72,60 @@ impl EncryptedMessageStreamFactory {
     }
 }
 
-impl MessageStreamFactory<EncryptedMessageStream> for EncryptedMessageStreamFactory {
+impl MessageStreamProvider<EncryptedMessageStream> for EncryptedStreamProvider {
     fn setup_stream(&self, stream: TcpStream) -> Result<EncryptedMessageStream, ProtoError> {
         let reader = BufReader::new(stream);
         let stream = EncryptedMessageStream::init(reader, &self.key, &self.node_name, &self.mac_addr)?;
         Ok(stream)
+    }
+}
+
+pub trait ConnectionWatcher<S> {
+    fn connected(&self, stream: &S) -> Result<()>;
+    fn disconnect(&self) -> Result<()>;
+}
+
+#[derive(Clone)]
+pub struct MessageSenderThread<M> {
+    message_sender: Arc<Mutex<Option<Sender<M>>>>
+}
+
+impl<M: Message + MessageId + Send + 'static> MessageSenderThread<M> {
+    pub fn new() -> Self {
+        Self { message_sender: Arc::new(Mutex::new(None)) }
+    }
+
+    pub fn send_message(&self, message: M) -> Result<()> {
+        let guard = self.message_sender.lock().unwrap();
+
+        if let Some(sender) = guard.as_ref() {
+            sender.send(message)?;
+            Ok(())
+        } else {
+            Err(anyhow!("sender not initialized"))
+        }
+    }
+}
+
+impl<M: Message + MessageId + Send + 'static, S: MessageStream + Send + 'static> ConnectionWatcher<S> for MessageSenderThread<M> {
+    fn connected(&self, stream: &S) -> Result<()> {
+        let (tx, rx) = channel();
+
+        *self.message_sender.lock().unwrap() = Some(tx);
+
+        let mut stream = stream.clone();
+        thread::spawn(move || {
+            while let Ok(message) = rx.recv() {
+                stream.write(&message).unwrap();
+            }
+        });
+
+        Ok(())
+    }
+
+    fn disconnect(&self) -> Result<()> {
+        *self.message_sender.lock().unwrap() = None;
+        Ok(())
     }
 }
 
@@ -155,21 +204,18 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
     }
 }
 
-pub fn start_server<A, F, S, H>(
-    addr: A,
-    stream_factory: &F,
-    stream_sender: Sender<Option<S>>,
-    handler: &H
+pub fn start_server<S>(
+    addr: impl ToSocketAddrs,
+    stream_factory: &impl MessageStreamProvider<S>,
+    watcher: &impl ConnectionWatcher<S>,
+    handler: &impl RequestHandler
 ) -> Result<()>
-    where A: ToSocketAddrs, H: RequestHandler, S: MessageStream, F: MessageStreamFactory<S>
+    where S: MessageStream
 {
     let listener = TcpListener::bind(addr)?;
 
-    println!("Listen for incoming");
     for stream in listener.incoming() {
         let stream = stream?;
-
-        println!("Connection established");
 
         let message_stream = match stream_factory.setup_stream(stream) {
             // allow handshake disconnect to re-connect
@@ -178,10 +224,11 @@ pub fn start_server<A, F, S, H>(
             Ok(stream) => stream
         };
 
-        let write_stream = message_stream.clone();
-        stream_sender.send(Some(write_stream)).unwrap();
+        watcher.connected(&message_stream)?;
+
         message_loop(message_stream, handler)?;
-        stream_sender.send(None).unwrap();
+
+        watcher.disconnect()?;
     }
 
     Ok(())
@@ -192,7 +239,6 @@ fn message_loop<S, H>(mut stream: S, handler: &H) -> Result<()>
 {
     loop {
         let request = stream.read()?;
-        // println!("Request {:?}", request);
 
         let status = handler.handle_request(&request, &mut stream)?;
         if matches!(status, ResponseStatus::Disconnect) {

@@ -1,7 +1,7 @@
-use std::{io, sync::mpsc::channel, thread};
+use std::{io, thread};
 
 use anyhow::Result;
-use esphome_api::{proto::*, server::{DefaultHandler, EncryptedMessageStreamFactory, RequestHandler, ResponseStatus, start_server}};
+use esphome_api::{proto::*, server::{DefaultHandler, EncryptedStreamProvider, MessageSenderThread, RequestHandler, ResponseStatus, start_server}};
 
 fn main() -> Result<()> {
     let handler = DefaultHandler {
@@ -14,19 +14,18 @@ fn main() -> Result<()> {
         mac_address: "01:02:03:04:05:06".to_string()
     };
 
-    let stream_factory = EncryptedMessageStreamFactory::new(
+    let stream_factory = EncryptedStreamProvider::new(
         "jfD5V1SMKAPXNC8+d6BvE1EGBHJbyw2dSc0Q+ymNMhU=",
         "hallway-thermostat",
         "01:02:03:04:05:06"
     )?;
 
-    let (stream_sender, stream_receiver) = channel();
+    let message_sender = MessageSenderThread::new();
+    let message_sender_clone = message_sender.clone();
 
     thread::spawn(move || {
-        start_server("0.0.0.0:6053", &stream_factory, stream_sender, &handler).unwrap();
+        start_server("0.0.0.0:6053", &stream_factory, &message_sender_clone, &handler).unwrap();
     });
-
-    let mut message_stream: Option<_> = None;
 
     loop {
         println!("Enter current temp to send");
@@ -46,16 +45,7 @@ fn main() -> Result<()> {
         message.current_temperature = temp;
         message.target_temperature = 19.5;
 
-        // get most recently sent stream
-        while let Ok(msg) = stream_receiver.try_recv() {
-            message_stream = msg;
-        };
-
-        if let Some(stream) = message_stream.as_mut() {
-            stream.write(&message)?;
-        } else {
-            println!("Message stream not ready");
-        }
+        message_sender.send_message(message)?;
     }
 
     Ok(())

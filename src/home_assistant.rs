@@ -22,7 +22,7 @@ use anyhow::Result;
 use esphome_api::{
     proto::*,
     server::{
-        DefaultHandler, MessageStreamFactory, RequestHandler, ResponseStatus, start_server
+        DefaultHandler, MessageSenderThread, MessageStreamProvider, RequestHandler, ResponseStatus, start_server
     }
 };
 
@@ -30,44 +30,23 @@ use crate::events::{Event, EventHandler, EventSender};
 
 pub struct HomeAssistant<S, M> {
     event_sender: S,
-    message_stream: Arc<Mutex<Option<M>>>
+    message_sender: MessageSenderThread<M>
 }
 
-impl<S: EventSender, M: MessageStream + Send + 'static> HomeAssistant<S, M> {
+impl<S: EventSender, M: Message + MessageId + 'static> HomeAssistant<S, M> {
     pub fn new(event_sender: S) -> Self {
         Self {
             event_sender,
-            message_stream: Arc::new(Mutex::new(None))
+            message_sender: MessageSenderThread::new()
         }
     }
 
-    fn send_message<A>(&self, message: &A) -> Result<()>
-        where A: Message + MessageId
-    {
-        let mut stream = self.message_stream.lock().unwrap();
-        if let Some(stream) = stream.as_mut() {
-            stream.write(message)?;
-        } else {
-            println!("Message stream is not available");
-        }
-
-        Ok(())
-    }
-
-    pub fn start_listener<F>(&self, addr: &str, stream_factory: F) -> JoinHandle<Result<()>>
-        where F: MessageStreamFactory<M> + Send + 'static
+    pub fn start_listener<F, G>(&self, addr: &str, stream_factory: F) -> JoinHandle<Result<()>>
+        where F: MessageStreamProvider<G>, G: MessageStream
     {
         let addr = addr.to_string();
 
-        let (stream_sender, stream_receiver) = channel();
-        let message_stream = self.message_stream.clone();
-
-        thread::spawn(move || {
-            while let Ok(stream) = stream_receiver.recv() {
-                let mut guard = message_stream.lock().unwrap();
-                *guard = stream;
-            }
-        });
+        let connection_watcher = self.message_sender.clone();
 
         let handler = DefaultHandler {
             delegate: MyHandler,
@@ -80,12 +59,12 @@ impl<S: EventSender, M: MessageStream + Send + 'static> HomeAssistant<S, M> {
         };
 
         thread::spawn(move || {
-            start_server(addr, &stream_factory, stream_sender, &handler)
+            start_server(addr, &stream_factory, &connection_watcher, &handler)
         })
     }
 }
 
-impl<S: EventSender, M: MessageStream + Send + 'static> EventHandler for HomeAssistant<S, M> {
+impl<S: EventSender, M: Message + MessageId + 'static> EventHandler for HomeAssistant<S, M> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         if let Event::Temp(temp) = event {
             let mut message = ClimateStateResponse::default();
@@ -94,14 +73,14 @@ impl<S: EventSender, M: MessageStream + Send + 'static> EventHandler for HomeAss
             message.set_mode(ClimateMode::Heat);
             message.current_temperature = *temp;
             message.target_temperature = 19.5;
-            self.send_message(&message)?;
+            self.message_sender.send_message(message)?;
         }
         // receive specific event, send message to HA client
         Ok(())
     }
 }
 
-impl<S: EventSender, M: MessageStream + Send + 'static> RequestHandler for HomeAssistant<S, M> {
+impl<S: EventSender, M: Message + MessageId> RequestHandler for HomeAssistant<S, M> {
     fn handle_request<W: MessageWriter>(
         &self,
         message: &ProtoMessage,
