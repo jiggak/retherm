@@ -26,7 +26,7 @@ use esphome_api::{
     }
 };
 
-use crate::events::{Event, EventHandler, EventSender};
+use crate::events::{Event, EventHandler, EventOrigin, EventSender};
 
 pub struct HomeAssistant<S> {
     event_sender: S,
@@ -66,16 +66,11 @@ impl<S: EventSender> HomeAssistant<S> {
 
 impl<S: EventSender> EventHandler for HomeAssistant<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
-        if let Event::Temp(temp) = event {
-            let mut message = ClimateStateResponse::default();
-            message.set_action(ClimateAction::Idle);
-            message.set_fan_mode(ClimateFanMode::ClimateFanAuto);
-            message.set_mode(ClimateMode::Heat);
-            message.current_temperature = *temp;
-            message.target_temperature = 19.5;
+        if let Event::Hvac { state, origin } = event && origin == &EventOrigin::Backplate {
+            let message = state.into();
             self.message_sender.send_message(ProtoMessage::ClimateStateResponse(message))?;
         }
-        // receive specific event, send message to HA client
+
         Ok(())
     }
 }
@@ -125,7 +120,7 @@ impl<S: EventSender> RequestHandler for HomeAssistant<S> {
                 writer.write(&ProtoMessage::ClimateStateResponse(state))?;
             }
             ProtoMessage::ClimateCommandRequest(_cmd) => {
-                self.event_sender.send_event(Event::HVAC)?;
+                // self.event_sender.send_event(Event::HVAC)?;
             }
             _ => { }
         }

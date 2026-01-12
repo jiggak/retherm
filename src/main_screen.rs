@@ -23,7 +23,7 @@ use embedded_graphics::{
 use embedded_ttf::FontTextStyleBuilder;
 use rusttype::Font;
 
-use crate::{drawable::AppDrawable, events::{EventHandler, EventSender, EventSource}};
+use crate::{backplate::{HvacAction, HvacMode, HvacState}, drawable::AppDrawable, events::{EventHandler, EventOrigin, EventSender, EventSource}};
 use crate::events::Event;
 
 pub struct MainScreen {
@@ -45,12 +45,17 @@ impl EventHandler for MainScreen {
         match event {
             Event::Dial(dir) => {
                 if *dir > 0 {
-                    self.gauge.inc_target_temp(-0.1);
-                    self.event_sender.send_event(Event::Temp(self.gauge.target_temp))?;
+                    if self.gauge.inc_target_temp(-0.1) {
+                        self.event_sender.send_event(self.gauge.hvac_state_event())?;
+                    }
                 } else if *dir < 0 {
-                    self.gauge.inc_target_temp(0.1);
-                    self.event_sender.send_event(Event::Temp(self.gauge.target_temp))?;
+                    if self.gauge.inc_target_temp(0.1) {
+                        self.event_sender.send_event(self.gauge.hvac_state_event())?;
+                    }
                 }
+            },
+            Event::Hvac { state, origin } if origin == &EventOrigin::Backplate => {
+                self.gauge.set_target_temp(state.target_temp);
             },
             _ => { }
         }
@@ -115,11 +120,30 @@ impl ThermostatGauge {
         })
     }
 
-    fn inc_target_temp(&mut self, inc: f32) {
+    fn inc_target_temp(&mut self, inc: f32) -> bool {
+        let old_value = self.target_temp;
         if inc < 0.0 {
             self.target_temp = self.min_temp.max(self.target_temp + inc);
         } else {
             self.target_temp = self.max_temp.min(self.target_temp + inc);
+        }
+
+        self.target_temp != old_value
+    }
+
+    fn set_target_temp(&mut self, val: f32) {
+        self.target_temp = val;
+    }
+
+    fn hvac_state_event(&self) -> Event {
+        Event::Hvac {
+            state: HvacState {
+                action: HvacAction::Idle,
+                current_temp: 20.0,
+                target_temp: self.target_temp,
+                mode: HvacMode::Heat
+            },
+            origin: EventOrigin::Interface
         }
     }
 
