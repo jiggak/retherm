@@ -53,8 +53,12 @@ fn main() -> Result<()> {
         "01:02:03:04:05:06"
     )?;
 
-    let mut home_assistant = HomeAssistant::new(event_source.event_sender());
-    home_assistant.start_listener("0.0.0.0:6053", stream_factory);
+    let mut home_assistant = HomeAssistant::new();
+    home_assistant.start_listener(
+        "0.0.0.0:6053",
+        stream_factory,
+        event_source.event_sender()
+    );
 
     let mut backplate = Backplate::new(event_source.event_sender());
 

@@ -16,12 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs}, sync::{Arc, Mutex, mpsc::{Sender, channel}}, thread};
+use std::{
+    io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs},
+    sync::{Arc, Mutex, mpsc::{Sender, channel}}, thread
+};
 
 use anyhow::{Result, anyhow};
 use base64::prelude::*;
 
-use crate::{proto::*, proto_encrypted::EncryptedMessageStream, proto_plaintext::PlaintextMessageStream};
+use crate::{
+    proto::*,
+    proto_encrypted::EncryptedMessageStream,
+    proto_plaintext::PlaintextMessageStream
+};
 
 pub enum ResponseStatus {
     Continue,

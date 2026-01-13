@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use esphome_api::proto::{ClimateAction, ClimateFanMode, ClimateMode, ClimateStateResponse};
 
 use crate::events::{Event, EventHandler, EventOrigin, EventSender};
@@ -30,12 +30,7 @@ impl<S: EventSender> Backplate<S> {
     pub fn new(event_sender: S) -> Self {
         Self {
             event_sender,
-            hvac_state: HvacState {
-                target_temp: 19.5,
-                current_temp: 20.0,
-                action: HvacAction::Idle,
-                mode: HvacMode::Heat
-            }
+            hvac_state: HvacState::default()
         }
     }
 }
@@ -54,12 +49,37 @@ impl<S: EventSender> EventHandler for Backplate<S> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct HvacState {
     pub target_temp: f32,
     pub current_temp: f32,
     pub mode: HvacMode,
     pub action: HvacAction
+}
+
+impl Default for HvacState {
+    fn default() -> Self {
+        Self {
+            target_temp: 19.5,
+            current_temp: 20.0,
+            action: HvacAction::Idle,
+            mode: HvacMode::Heat
+        }
+    }
+}
+
+impl From<HvacState> for ClimateStateResponse {
+    fn from(value: HvacState) -> Self {
+        let mut state = Self::default();
+        state.set_fan_mode(ClimateFanMode::ClimateFanAuto);
+
+        state.set_action(value.action.into());
+        state.set_mode(value.mode.into());
+        state.current_temperature = value.current_temp;
+        state.target_temperature = value.target_temp;
+
+        state
+    }
 }
 
 impl From<&HvacState> for ClimateStateResponse {
@@ -76,12 +96,25 @@ impl From<&HvacState> for ClimateStateResponse {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum HvacMode {
     Off,
     Auto,
     Heat,
     Cool
+}
+
+impl TryFrom<ClimateMode> for HvacMode {
+    type Error = anyhow::Error;
+    fn try_from(value: ClimateMode) -> Result<Self> {
+        Ok(match value {
+            ClimateMode::Off => Self::Off,
+            ClimateMode::Auto => Self::Auto,
+            ClimateMode::Heat => Self::Heat,
+            ClimateMode::Cool => Self::Cool,
+            _ => return Err(anyhow!(""))
+        })
+    }
 }
 
 impl From<HvacMode> for ClimateMode {
@@ -95,7 +128,7 @@ impl From<HvacMode> for ClimateMode {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum HvacAction {
     Idle,
     Heating,

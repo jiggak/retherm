@@ -16,40 +16,46 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{thread::{self, JoinHandle}};
+use std::{sync::{Arc, Mutex}, thread::{self, JoinHandle}};
 
 use anyhow::Result;
 use esphome_api::{
     proto::*,
     server::{
-        DefaultHandler, MessageSenderThread, MessageStreamProvider, RequestHandler, ResponseStatus, start_server
+        DefaultHandler, MessageSenderThread, MessageStreamProvider, RequestHandler,
+        ResponseStatus, start_server
     }
 };
 
-use crate::events::{Event, EventHandler, EventOrigin, EventSender};
+use crate::{backplate::HvacState, events::{Event, EventHandler, EventOrigin, EventSender}};
 
-pub struct HomeAssistant<S> {
-    event_sender: S,
-    message_sender: MessageSenderThread
+pub struct HomeAssistant {
+    message_sender: MessageSenderThread,
+    hvac_state: Arc<Mutex<HvacState>>
 }
 
-impl<S: EventSender> HomeAssistant<S> {
-    pub fn new(event_sender: S) -> Self {
+impl HomeAssistant {
+    pub fn new() -> Self {
         Self {
-            event_sender,
-            message_sender: MessageSenderThread::new()
+            message_sender: MessageSenderThread::new(),
+            hvac_state: Arc::new(Mutex::new(HvacState::default()))
         }
     }
 
-    pub fn start_listener<F, G>(&self, addr: &str, stream_factory: F) -> JoinHandle<Result<()>>
-        where F: MessageStreamProvider<G> + Send + 'static, G: MessageStream + Send + 'static
+    pub fn start_listener<S>(
+        &self,
+        addr: &str,
+        stream_factory: impl MessageStreamProvider<S> + Send + 'static,
+        event_sender: impl EventSender + Send + 'static
+    ) -> JoinHandle<Result<()>>
+        where S: MessageStream + Send + 'static
     {
         let addr = addr.to_string();
 
         let connection_watcher = self.message_sender.clone();
 
         let handler = DefaultHandler {
-            delegate: MyHandler,
+            delegate: HvacRequestHandler::new(event_sender, self.hvac_state.clone()),
             server_info: "Nest App 0.0.1".to_string(),
             node_name: "test-thermostat".to_string(),
             friendly_name: "Test Thermostat".to_string(),
@@ -64,9 +70,10 @@ impl<S: EventSender> HomeAssistant<S> {
     }
 }
 
-impl<S: EventSender> EventHandler for HomeAssistant<S> {
+impl EventHandler for HomeAssistant {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         if let Event::Hvac { state, origin } = event && origin == &EventOrigin::Backplate {
+            *self.hvac_state.lock().unwrap() = state.clone();
             let message = state.into();
             self.message_sender.send_message(ProtoMessage::ClimateStateResponse(message))?;
         }
@@ -75,63 +82,18 @@ impl<S: EventSender> EventHandler for HomeAssistant<S> {
     }
 }
 
-impl<S: EventSender> RequestHandler for HomeAssistant<S> {
-    fn handle_request<W: MessageWriter>(
-        &self,
-        message: &ProtoMessage,
-        writer: &mut W
-    ) -> Result<ResponseStatus> {
-        match message {
-            ProtoMessage::ListEntitiesRequest(_) => {
-                let mut message = ListEntitiesClimateResponse::default();
-                message.object_id = "test_climate_id".to_string();
-                message.supported_modes = vec![
-                    ClimateMode::Off as i32,
-                    ClimateMode::Heat as i32,
-                    ClimateMode::Cool as i32,
-                    ClimateMode::HeatCool as i32
-                ];
-                message.visual_min_temperature = 9.0;
-                message.visual_max_temperature = 32.0;
-                message.visual_target_temperature_step = 0.5;
-                message.visual_current_temperature_step = 0.5;
-                message.supported_fan_modes = vec![
-                    ClimateFanMode::ClimateFanOn  as i32,
-                    ClimateFanMode::ClimateFanOff as i32,
-                    ClimateFanMode::ClimateFanAuto as i32
-                ];
-                message.feature_flags =
-                    ClimateFeature::SUPPORTS_CURRENT_TEMPERATURE |
-                    ClimateFeature::SUPPORTS_ACTION;
+struct HvacRequestHandler<S> {
+    event_sender: S,
+    hvac_state: Arc<Mutex<HvacState>>
+}
 
-                writer.write(&ProtoMessage::ListEntitiesClimateResponse(message))?;
-
-                let message = ListEntitiesDoneResponse::default();
-                writer.write(&ProtoMessage::ListEntitiesDoneResponse(message))?;
-            }
-            ProtoMessage::SubscribeStatesRequest(_) => {
-                let mut state = ClimateStateResponse::default();
-                state.set_action(ClimateAction::Idle);
-                state.set_fan_mode(ClimateFanMode::ClimateFanAuto);
-                state.set_mode(ClimateMode::Heat);
-                state.current_temperature = 20.0;
-                state.target_temperature = 19.5;
-
-                writer.write(&ProtoMessage::ClimateStateResponse(state))?;
-            }
-            ProtoMessage::ClimateCommandRequest(_cmd) => {
-                // self.event_sender.send_event(Event::HVAC)?;
-            }
-            _ => { }
-        }
-
-        Ok(ResponseStatus::Continue)
+impl<S: EventSender> HvacRequestHandler<S> {
+    fn new(event_sender: S, hvac_state: Arc<Mutex<HvacState>>) -> Self {
+        Self { event_sender, hvac_state }
     }
 }
 
-struct MyHandler;
-
-impl RequestHandler for MyHandler {
+impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
     fn handle_request<W: MessageWriter>(
         &self,
         message: &ProtoMessage,
@@ -166,17 +128,21 @@ impl RequestHandler for MyHandler {
                 writer.write(&ProtoMessage::ListEntitiesDoneResponse(message))?;
             }
             ProtoMessage::SubscribeStatesRequest(_) => {
-                let mut state = ClimateStateResponse::default();
-                state.set_action(ClimateAction::Idle);
-                state.set_fan_mode(ClimateFanMode::ClimateFanAuto);
-                state.set_mode(ClimateMode::Heat);
-                state.current_temperature = 20.0;
-                state.target_temperature = 19.5;
-
-                writer.write(&ProtoMessage::ClimateStateResponse(state))?;
+                let state = self.hvac_state.lock().unwrap().clone();
+                writer.write(&ProtoMessage::ClimateStateResponse(state.into()))?;
             }
-            ProtoMessage::ClimateCommandRequest(_cmd) => {
-                // self.event_sender.send_event(Event::HVAC)?;
+            ProtoMessage::ClimateCommandRequest(cmd) => {
+                let mut state = self.hvac_state.lock().unwrap();
+                if cmd.has_mode {
+                    state.mode = cmd.mode().try_into()?;
+                }
+                if cmd.has_target_temperature {
+                    state.target_temp = cmd.target_temperature;
+                }
+                self.event_sender.send_event(Event::Hvac {
+                    state: state.clone(),
+                    origin: EventOrigin::HomeAssistant
+                })?;
             }
             _ => { }
         }

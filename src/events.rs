@@ -22,6 +22,7 @@ use anyhow::Result;
 
 use crate::backplate::HvacState;
 
+#[derive(Debug)]
 pub enum Event {
     ButtonDown,
     Dial(i32),
@@ -42,7 +43,7 @@ impl Event {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum EventOrigin {
     Interface,
     HomeAssistant,
