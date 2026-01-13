@@ -20,7 +20,7 @@ include!(concat!(env!("OUT_DIR"), "/esphome_proto.rs"));
 include!(concat!(env!("OUT_DIR"), "/message_ids.rs"));
 include!(concat!(env!("OUT_DIR"), "/proto_message.rs"));
 
-pub use prost::Message;
+use prost::Message;
 
 pub trait MessageId {
     const ID: u64;

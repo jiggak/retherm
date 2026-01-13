@@ -43,7 +43,7 @@ use crate::window::AppWindow;
 fn main() -> Result<()> {
     let mut event_source = get_event_source()?;
     let mut window = get_window()?;
-    let mut screen = MainScreen::new(&event_source)?;
+    let mut screen = MainScreen::new(event_source.event_sender())?;
 
     start_threads(&event_source)?;
 

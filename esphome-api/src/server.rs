@@ -30,17 +30,17 @@ use crate::{
     proto_plaintext::PlaintextMessageStream
 };
 
-pub enum ResponseStatus {
-    Continue,
-    Disconnect
-}
-
 pub trait RequestHandler {
     fn handle_request<W: MessageWriter>(
         &self,
         message: &ProtoMessage,
         writer: &mut W
     ) -> Result<ResponseStatus>;
+}
+
+pub enum ResponseStatus {
+    Continue,
+    Disconnect
 }
 
 pub trait MessageStreamProvider<S> {
@@ -87,7 +87,7 @@ impl MessageStreamProvider<EncryptedMessageStream> for EncryptedStreamProvider {
     }
 }
 
-pub trait ConnectionWatcher<S> {
+pub trait ConnectionObserver<S> {
     fn connected(&self, stream: &S) -> Result<()>;
     fn disconnect(&self) -> Result<()>;
 }
@@ -114,7 +114,7 @@ impl MessageSenderThread {
     }
 }
 
-impl<S: MessageStream + Send + 'static> ConnectionWatcher<S> for MessageSenderThread {
+impl<S: MessageStream + Send + 'static> ConnectionObserver<S> for MessageSenderThread {
     fn connected(&self, stream: &S) -> Result<()> {
         let (tx, rx) = channel();
 
@@ -214,7 +214,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
 pub fn start_server<S>(
     addr: impl ToSocketAddrs,
     stream_factory: &impl MessageStreamProvider<S>,
-    watcher: &impl ConnectionWatcher<S>,
+    connection_observer: &impl ConnectionObserver<S>,
     handler: &impl RequestHandler
 ) -> Result<()>
     where S: MessageStream
@@ -231,11 +231,11 @@ pub fn start_server<S>(
             Ok(stream) => stream
         };
 
-        watcher.connected(&message_stream)?;
+        connection_observer.connected(&message_stream)?;
 
         message_loop(message_stream, handler)?;
 
-        watcher.disconnect()?;
+        connection_observer.disconnect()?;
     }
 
     Ok(())

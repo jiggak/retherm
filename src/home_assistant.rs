@@ -45,14 +45,14 @@ impl HomeAssistant {
     pub fn start_listener<S>(
         &self,
         addr: &str,
-        stream_factory: impl MessageStreamProvider<S> + Send + 'static,
+        stream_provider: impl MessageStreamProvider<S> + Send + 'static,
         event_sender: impl EventSender + Send + 'static
     ) -> JoinHandle<Result<()>>
         where S: MessageStream + Send + 'static
     {
         let addr = addr.to_string();
 
-        let connection_watcher = self.message_sender.clone();
+        let connection_observer = self.message_sender.clone();
 
         let handler = DefaultHandler {
             delegate: HvacRequestHandler::new(event_sender, self.hvac_state.clone()),
@@ -65,7 +65,7 @@ impl HomeAssistant {
         };
 
         thread::spawn(move || {
-            start_server(addr, &stream_factory, &connection_watcher, &handler)
+            start_server(addr, &stream_provider, &connection_observer, &handler)
         })
     }
 }

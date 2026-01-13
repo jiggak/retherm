@@ -18,29 +18,33 @@
 
 use anyhow::{Result, anyhow};
 use embedded_graphics::{
-    pixelcolor::Bgr888, prelude::*, primitives::{Arc, Circle, PrimitiveStyle}, text::{Alignment, Text}
+    pixelcolor::Bgr888, prelude::*, primitives::{Arc, Circle, PrimitiveStyle},
+    text::{Alignment, Text}
 };
 use embedded_ttf::FontTextStyleBuilder;
 use rusttype::Font;
 
-use crate::{backplate::{HvacAction, HvacMode, HvacState}, drawable::AppDrawable, events::{EventHandler, EventOrigin, EventSender, EventSource}};
+use crate::{
+    backplate::{HvacAction, HvacMode, HvacState}, drawable::AppDrawable,
+    events::{EventHandler, EventOrigin, EventSender}
+};
 use crate::events::Event;
 
-pub struct MainScreen {
+pub struct MainScreen<S> {
     gauge: ThermostatGauge,
-    event_sender: Box<dyn EventSender>
+    event_sender: S
 }
 
-impl MainScreen {
-    pub fn new<E: EventSource>(events: &E) -> Result<Self> {
+impl<S: EventSender> MainScreen<S> {
+    pub fn new(event_sender: S) -> Result<Self> {
         Ok(Self {
             gauge: ThermostatGauge::new()?,
-            event_sender: Box::new(events.event_sender())
+            event_sender
         })
     }
 }
 
-impl EventHandler for MainScreen {
+impl<S: EventSender> EventHandler for MainScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Dial(dir) => {
@@ -64,7 +68,7 @@ impl EventHandler for MainScreen {
     }
 }
 
-impl AppDrawable for MainScreen {
+impl<S: EventSender> AppDrawable for MainScreen<S> {
     fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
