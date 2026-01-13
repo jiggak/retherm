@@ -22,12 +22,9 @@ use anyhow::{Result, anyhow};
 use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 use embedded_graphics_framebuf::FrameBuf;
 use sdl2::{
-    EventPump,
-    EventSubsystem,
+    EventPump, EventSubsystem,
     event::{Event as SdlEvent, EventSender as SdlEventSender},
-    pixels::PixelFormatEnum,
-    render::Canvas,
-    video::Window
+    keyboard::Keycode, pixels::PixelFormatEnum, render::Canvas, video::Window
 };
 
 use crate::{events::{Event, EventHandler, EventSender, EventSource}, window::AppWindow};
@@ -130,6 +127,10 @@ impl EventSource for SdlEventSource {
             SdlEvent::Quit { .. } => Ok(Event::Quit),
             SdlEvent::MouseButtonDown { .. } => Ok(Event::ButtonDown),
             SdlEvent::MouseWheel { y, .. } => Ok(Event::Dial(y)),
+            SdlEvent::KeyDown { keycode, .. }
+                if keycode == Some(Keycode::Up) => Ok(Event::Dial(-1)),
+            SdlEvent::KeyDown { keycode, .. }
+                if keycode == Some(Keycode::Down) => Ok(Event::Dial(1)),
             sdl_event => {
                 if sdl_event.is_user_event() {
                     let event = sdl_event.as_user_event_type::<Event>().unwrap();
