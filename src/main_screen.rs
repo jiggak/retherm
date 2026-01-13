@@ -18,35 +18,48 @@
 
 use anyhow::{Result, anyhow};
 use embedded_graphics::{
-    pixelcolor::Bgr888, prelude::*, primitives::{Arc, Circle, PrimitiveStyle}, text::{Alignment, Text}
+    pixelcolor::Bgr888, prelude::*, primitives::{Arc, Circle, PrimitiveStyle},
+    text::{Alignment, Text}
 };
 use embedded_ttf::FontTextStyleBuilder;
 use rusttype::Font;
 
-use crate::{drawable::AppDrawable, events::EventHandler};
+use crate::{
+    backplate::{HvacAction, HvacMode, HvacState}, drawable::AppDrawable,
+    events::{EventHandler, EventOrigin, EventSender}
+};
 use crate::events::Event;
 
-pub struct MainScreen {
-    gauge: ThermostatGauge
+pub struct MainScreen<S> {
+    gauge: ThermostatGauge,
+    event_sender: S
 }
 
-impl MainScreen {
-    pub fn new() -> Result<Self> {
+impl<S: EventSender> MainScreen<S> {
+    pub fn new(event_sender: S) -> Result<Self> {
         Ok(Self {
-            gauge: ThermostatGauge::new()?
+            gauge: ThermostatGauge::new()?,
+            event_sender
         })
     }
 }
 
-impl EventHandler for MainScreen {
+impl<S: EventSender> EventHandler for MainScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Dial(dir) => {
                 if *dir > 0 {
-                    self.gauge.inc_target_temp(-0.1);
+                    if self.gauge.inc_target_temp(-0.1) {
+                        self.event_sender.send_event(self.gauge.hvac_state_event())?;
+                    }
                 } else if *dir < 0 {
-                    self.gauge.inc_target_temp(0.1);
+                    if self.gauge.inc_target_temp(0.1) {
+                        self.event_sender.send_event(self.gauge.hvac_state_event())?;
+                    }
                 }
+            },
+            Event::Hvac { state, origin } if origin == &EventOrigin::Backplate => {
+                self.gauge.set_target_temp(state.target_temp);
             },
             _ => { }
         }
@@ -55,7 +68,7 @@ impl EventHandler for MainScreen {
     }
 }
 
-impl AppDrawable for MainScreen {
+impl<S: EventSender> AppDrawable for MainScreen<S> {
     fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
@@ -111,11 +124,30 @@ impl ThermostatGauge {
         })
     }
 
-    fn inc_target_temp(&mut self, inc: f32) {
+    fn inc_target_temp(&mut self, inc: f32) -> bool {
+        let old_value = self.target_temp;
         if inc < 0.0 {
             self.target_temp = self.min_temp.max(self.target_temp + inc);
         } else {
             self.target_temp = self.max_temp.min(self.target_temp + inc);
+        }
+
+        self.target_temp != old_value
+    }
+
+    fn set_target_temp(&mut self, val: f32) {
+        self.target_temp = val;
+    }
+
+    fn hvac_state_event(&self) -> Event {
+        Event::Hvac {
+            state: HvacState {
+                action: HvacAction::Idle,
+                current_temp: 20.0,
+                target_temp: self.target_temp,
+                mode: HvacMode::Heat
+            },
+            origin: EventOrigin::Interface
         }
     }
 

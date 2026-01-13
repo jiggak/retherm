@@ -16,17 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs}, sync::mpsc::Sender};
+use std::{
+    io::BufReader, net::{TcpListener, TcpStream, ToSocketAddrs},
+    sync::{Arc, Mutex, mpsc::{Sender, channel}}, thread
+};
 
 use anyhow::{Result, anyhow};
 use base64::prelude::*;
 
-use crate::{proto::*, proto_encrypted::EncryptedMessageStream, proto_plaintext::PlaintextMessageStream};
-
-pub enum ResponseStatus {
-    Continue,
-    Disconnect
-}
+use crate::{
+    proto::*,
+    proto_encrypted::EncryptedMessageStream,
+    proto_plaintext::PlaintextMessageStream
+};
 
 pub trait RequestHandler {
     fn handle_request<W: MessageWriter>(
@@ -36,29 +38,34 @@ pub trait RequestHandler {
     ) -> Result<ResponseStatus>;
 }
 
-pub trait MessageStreamFactory<S> {
+pub enum ResponseStatus {
+    Continue,
+    Disconnect
+}
+
+pub trait MessageStreamProvider<S> {
     fn setup_stream(&self, stream: TcpStream) -> Result<S, ProtoError>;
 }
 
-pub struct PlaintextMessageStreamFactory;
+pub struct PlaintextStreamProvider;
 
-impl PlaintextMessageStreamFactory {
+impl PlaintextStreamProvider {
     pub fn new() -> Self { Self }
 }
 
-impl MessageStreamFactory<PlaintextMessageStream> for PlaintextMessageStreamFactory {
+impl MessageStreamProvider<PlaintextMessageStream> for PlaintextStreamProvider {
     fn setup_stream(&self, stream: TcpStream) -> Result<PlaintextMessageStream, ProtoError> {
         Ok(PlaintextMessageStream::new(BufReader::new(stream)))
     }
 }
 
-pub struct EncryptedMessageStreamFactory {
+pub struct EncryptedStreamProvider {
     key: [u8; 32],
     node_name: String,
     mac_addr: String
 }
 
-impl EncryptedMessageStreamFactory {
+impl EncryptedStreamProvider {
     pub fn new(key: &str, node_name: &str, mac_addr: &str) -> Result<Self> {
         let key_bytes = BASE64_STANDARD.decode(key)?;
         let key: [u8; 32] = key_bytes.try_into()
@@ -72,11 +79,60 @@ impl EncryptedMessageStreamFactory {
     }
 }
 
-impl MessageStreamFactory<EncryptedMessageStream> for EncryptedMessageStreamFactory {
+impl MessageStreamProvider<EncryptedMessageStream> for EncryptedStreamProvider {
     fn setup_stream(&self, stream: TcpStream) -> Result<EncryptedMessageStream, ProtoError> {
         let reader = BufReader::new(stream);
         let stream = EncryptedMessageStream::init(reader, &self.key, &self.node_name, &self.mac_addr)?;
         Ok(stream)
+    }
+}
+
+pub trait ConnectionObserver<S> {
+    fn connected(&self, stream: &S) -> Result<()>;
+    fn disconnect(&self) -> Result<()>;
+}
+
+#[derive(Clone)]
+pub struct MessageSenderThread {
+    message_sender: Arc<Mutex<Option<Sender<ProtoMessage>>>>
+}
+
+impl MessageSenderThread {
+    pub fn new() -> Self {
+        Self { message_sender: Arc::new(Mutex::new(None)) }
+    }
+
+    pub fn send_message(&self, message: ProtoMessage) -> Result<()> {
+        let guard = self.message_sender.lock().unwrap();
+
+        if let Some(sender) = guard.as_ref() {
+            sender.send(message)?;
+            Ok(())
+        } else {
+            Err(anyhow!("Can't send message; not connected"))
+        }
+    }
+}
+
+impl<S: MessageStream + Send + 'static> ConnectionObserver<S> for MessageSenderThread {
+    fn connected(&self, stream: &S) -> Result<()> {
+        let (tx, rx) = channel();
+
+        *self.message_sender.lock().unwrap() = Some(tx);
+
+        let mut stream = stream.clone();
+        thread::spawn(move || {
+            while let Ok(message) = rx.recv() {
+                stream.write(&message).unwrap();
+            }
+        });
+
+        Ok(())
+    }
+
+    fn disconnect(&self) -> Result<()> {
+        *self.message_sender.lock().unwrap() = None;
+        Ok(())
     }
 }
 
@@ -99,7 +155,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
     ) -> Result<ResponseStatus> {
         match message {
             ProtoMessage::HelloRequest(_) => {
-                writer.write(&HelloResponse {
+                writer.write(&ProtoMessage::HelloResponse(HelloResponse {
                     // HA 2025.12.3 is what I'm using for development
                     // It reports 1.13, so it probably makes sense to mirror it?
                     // aioesphomeapi/connection.py confirms this version too
@@ -108,16 +164,16 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                     // I don't see server_info or name in HA dashboard anywhere
                     server_info: self.server_info.to_string(),
                     name: self.node_name.clone(),
-                })?;
+                }))?;
                 Ok(ResponseStatus::Continue)
             }
             ProtoMessage::AuthenticationRequest(_) => {
                 // As of HA 2026.1.0 password auth is removed
                 // Apparently, these messages will no longer be used
 
-                writer.write(&AuthenticationResponse {
+                writer.write(&ProtoMessage::AuthenticationResponse(AuthenticationResponse {
                     invalid_password: false
-                })?;
+                }))?;
 
                 if false { // Disconnect when password invalid
                     Ok(ResponseStatus::Disconnect)
@@ -126,11 +182,11 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                 }
             }
             ProtoMessage::DisconnectRequest(_) => {
-                writer.write(&DisconnectResponse::default())?;
+                writer.write(&ProtoMessage::DisconnectResponse(DisconnectResponse::default()))?;
                 Ok(ResponseStatus::Disconnect)
             }
             ProtoMessage::PingRequest(_) => {
-                writer.write(&PingResponse::default())?;
+                writer.write(&ProtoMessage::PingResponse(PingResponse::default()))?;
                 Ok(ResponseStatus::Continue)
             }
             ProtoMessage::DeviceInfoRequest(_) => {
@@ -147,7 +203,7 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
                 // This shows as "Firmware" under device info in HA
                 response.esphome_version = "42.9.0".to_string();
 
-                writer.write(&response)?;
+                writer.write(&ProtoMessage::DeviceInfoResponse(response))?;
                 Ok(ResponseStatus::Continue)
             }
             message => self.delegate.handle_request(message, writer)
@@ -155,33 +211,31 @@ impl<D: RequestHandler> RequestHandler for DefaultHandler<D> {
     }
 }
 
-pub fn start_server<A, F, S, H>(
-    addr: A,
-    stream_factory: &F,
-    stream_sender: Sender<Option<S>>,
-    handler: &H
+pub fn start_server<S>(
+    addr: impl ToSocketAddrs,
+    stream_factory: &impl MessageStreamProvider<S>,
+    connection_observer: &impl ConnectionObserver<S>,
+    handler: &impl RequestHandler
 ) -> Result<()>
-    where A: ToSocketAddrs, H: RequestHandler, S: MessageStream, F: MessageStreamFactory<S>
+    where S: MessageStream
 {
     let listener = TcpListener::bind(addr)?;
 
-    println!("Listen for incoming");
     for stream in listener.incoming() {
         let stream = stream?;
 
-        println!("Connection established");
-
-        match stream_factory.setup_stream(stream) {
-            Ok(stream) => {
-                let write_stream = stream.clone();
-                stream_sender.send(Some(write_stream)).unwrap();
-                message_loop(stream, handler)?;
-                stream_sender.send(None).unwrap();
-            },
+        let message_stream = match stream_factory.setup_stream(stream) {
             // allow handshake disconnect to re-connect
             Err(ProtoError::HandshakeDisconnect) => continue,
-            Err(error) => Err(error)?
-        }
+            Err(error) => Err(error)?,
+            Ok(stream) => stream
+        };
+
+        connection_observer.connected(&message_stream)?;
+
+        message_loop(message_stream, handler)?;
+
+        connection_observer.disconnect()?;
     }
 
     Ok(())
@@ -192,7 +246,6 @@ fn message_loop<S, H>(mut stream: S, handler: &H) -> Result<()>
 {
     loop {
         let request = stream.read()?;
-        // println!("Request {:?}", request);
 
         let status = handler.handle_request(&request, &mut stream)?;
         if matches!(status, ResponseStatus::Disconnect) {

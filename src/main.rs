@@ -16,11 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use anyhow::Result;
-
 mod backlight;
+mod backplate;
 mod drawable;
 mod events;
+mod home_assistant;
 mod input_events;
 mod main_screen;
 mod sound;
@@ -30,17 +30,37 @@ mod window_fb;
 #[cfg(feature = "simulate")]
 mod window_sdl;
 
+use anyhow::Result;
+use esphome_api::server::EncryptedStreamProvider;
+
+use crate::backplate::Backplate;
 use crate::drawable::AppDrawable;
 use crate::events::{Event, EventHandler, EventSource};
+use crate::home_assistant::HomeAssistant;
 use crate::main_screen::MainScreen;
 use crate::window::AppWindow;
 
 fn main() -> Result<()> {
     let mut event_source = get_event_source()?;
     let mut window = get_window()?;
-    let mut screen = MainScreen::new()?;
+    let mut screen = MainScreen::new(event_source.event_sender())?;
 
     start_threads(&event_source)?;
+
+    let stream_factory = EncryptedStreamProvider::new(
+        "jfD5V1SMKAPXNC8+d6BvE1EGBHJbyw2dSc0Q+ymNMhU=",
+        "test-thermostat",
+        "01:02:03:04:05:06"
+    )?;
+
+    let mut home_assistant = HomeAssistant::new();
+    home_assistant.start_listener(
+        "0.0.0.0:6053",
+        stream_factory,
+        event_source.event_sender()
+    );
+
+    let mut backplate = Backplate::new(event_source.event_sender());
 
     // let mut handlers: Vec<&mut dyn EventHandler> = vec![
     //     &mut window, &mut screen
@@ -57,6 +77,8 @@ fn main() -> Result<()> {
 
         window.handle_event(&event)?;
         screen.handle_event(&event)?;
+        home_assistant.handle_event(&event)?;
+        backplate.handle_event(&event)?;
 
         // for handler in handlers.iter_mut() {
         //     handler.handle_event(&event);

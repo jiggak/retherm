@@ -20,12 +20,16 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::Result;
 
+use crate::backplate::HvacState;
+
 #[derive(Debug)]
 pub enum Event {
     ButtonDown,
     Dial(i32),
-    Temp,
-    HVAC,
+    Hvac {
+        state: HvacState,
+        origin: EventOrigin
+    },
     Quit
 }
 
@@ -33,10 +37,17 @@ impl Event {
     /// Returns true if the event is one of the types that should cause device wakeup
     pub fn is_wakeup_event(&self) -> bool {
         match self {
-            Event::ButtonDown | Event::Dial(_) => true,
+            Self::ButtonDown | Self::Dial(_) => true,
             _ => false
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EventOrigin {
+    Interface,
+    HomeAssistant,
+    Backplate
 }
 
 pub trait EventSender {
