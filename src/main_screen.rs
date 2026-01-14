@@ -49,10 +49,10 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
             Event::Dial(dir) => {
                 let current_target_temp = self.gauge.hvac_state.target_temp;
                 if *dir > 0 {
-                    let temp = current_target_temp - 0.1;
+                    let temp = current_target_temp + 0.1;
                     self.event_sender.send_event(Event::SetTargetTemp(temp))?;
                 } else if *dir < 0 {
-                    let temp = current_target_temp + 0.1;
+                    let temp = current_target_temp - 0.1;
                     self.event_sender.send_event(Event::SetTargetTemp(temp))?;
                 }
             },

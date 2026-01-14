@@ -128,9 +128,9 @@ impl EventSource for SdlEventSource {
             SdlEvent::MouseButtonDown { .. } => Ok(Event::ButtonDown),
             SdlEvent::MouseWheel { y, .. } => Ok(Event::Dial(y)),
             SdlEvent::KeyDown { keycode, .. }
-                if keycode == Some(Keycode::Up) => Ok(Event::Dial(-1)),
+                if keycode == Some(Keycode::Up) => Ok(Event::Dial(1)),
             SdlEvent::KeyDown { keycode, .. }
-                if keycode == Some(Keycode::Down) => Ok(Event::Dial(1)),
+                if keycode == Some(Keycode::Down) => Ok(Event::Dial(-1)),
             sdl_event => {
                 if sdl_event.is_user_event() {
                     let event = sdl_event.as_user_event_type::<Event>().unwrap();

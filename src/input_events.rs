@@ -64,9 +64,11 @@ pub fn start_dial_events<S>(sender: S) -> Result<()>
                 for e in events {
                     // println!("dial event {:?}", e);
                     match e.destructure() {
+                        // value > 0 = counter clockwise, value < 0 clockwise
                         EventSummary::RelativeAxis(_, _, value) => {
                             if dial_throttle.accept().is_ok() {
-                                sender.send_event(Event::Dial(value)).unwrap();
+                                // invert value so clockwise is increasing
+                                sender.send_event(Event::Dial(value * -1)).unwrap();
                             }
                         },
                         _ => { }
