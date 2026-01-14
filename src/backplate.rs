@@ -19,7 +19,7 @@
 use anyhow::{Result, anyhow};
 use esphome_api::proto::{ClimateAction, ClimateFanMode, ClimateMode, ClimateStateResponse};
 
-use crate::events::{Event, EventHandler, EventOrigin, EventSender};
+use crate::events::{Event, EventHandler, EventSender};
 
 pub struct Backplate<S> {
     event_sender: S,
@@ -37,12 +37,19 @@ impl<S: EventSender> Backplate<S> {
 
 impl<S: EventSender> EventHandler for Backplate<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
-        if let Event::Hvac { state, origin } = event && origin != &EventOrigin::Backplate {
-            self.hvac_state = state.clone();
-            self.event_sender.send_event(Event::Hvac {
-                state: self.hvac_state.clone(),
-                origin: EventOrigin::Backplate
-            })?;
+        let send_state_event = match event {
+            Event::SetMode(mode) => {
+                self.hvac_state.mode = *mode;
+                true
+            }
+            Event::SetTargetTemp(temp) => {
+                self.hvac_state.set_target_temp(*temp)
+            }
+            _ => false
+        };
+
+        if send_state_event {
+            self.event_sender.send_event(Event::HvacState(self.hvac_state.clone()))?;
         }
 
         Ok(())
@@ -55,6 +62,23 @@ pub struct HvacState {
     pub current_temp: f32,
     pub mode: HvacMode,
     pub action: HvacAction
+}
+
+impl HvacState {
+    pub const MIN_TEMP: f32 = 9.0;
+    pub const MAX_TEMP: f32 = 32.0;
+
+    /// Attempt to set target temp and return `true` if successful.
+    /// Return `false` if value is outside of min/max range, or if value
+    /// equals current target temp.
+    pub fn set_target_temp(&mut self, val: f32) -> bool {
+        if val > Self::MIN_TEMP && val < Self::MAX_TEMP && val != self.target_temp {
+            self.target_temp = val;
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl Default for HvacState {
@@ -87,8 +111,8 @@ impl From<&HvacState> for ClimateStateResponse {
         let mut state = Self::default();
         state.set_fan_mode(ClimateFanMode::ClimateFanAuto);
 
-        state.set_action(value.action.clone().into());
-        state.set_mode(value.mode.clone().into());
+        state.set_action(value.action.into());
+        state.set_mode(value.mode.into());
         state.current_temperature = value.current_temp;
         state.target_temperature = value.target_temp;
 
@@ -96,7 +120,7 @@ impl From<&HvacState> for ClimateStateResponse {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum HvacMode {
     Off,
     Auto,
@@ -128,7 +152,7 @@ impl From<HvacMode> for ClimateMode {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum HvacAction {
     Idle,
     Heating,

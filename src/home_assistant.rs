@@ -27,7 +27,7 @@ use esphome_api::{
     }
 };
 
-use crate::{backplate::HvacState, events::{Event, EventHandler, EventOrigin, EventSender}};
+use crate::{backplate::HvacState, events::{Event, EventHandler, EventSender}};
 
 pub struct HomeAssistant {
     message_sender: MessageSenderThread,
@@ -72,7 +72,7 @@ impl HomeAssistant {
 
 impl EventHandler for HomeAssistant {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
-        if let Event::Hvac { state, origin } = event && origin == &EventOrigin::Backplate {
+        if let Event::HvacState(state) = event {
             *self.hvac_state.lock().unwrap() = state.clone();
             let message = state.into();
             self.message_sender.send_message(ProtoMessage::ClimateStateResponse(message))?;
@@ -109,8 +109,8 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                     ClimateMode::Cool as i32,
                     ClimateMode::HeatCool as i32
                 ];
-                message.visual_min_temperature = 9.0;
-                message.visual_max_temperature = 32.0;
+                message.visual_min_temperature = HvacState::MIN_TEMP;
+                message.visual_max_temperature = HvacState::MAX_TEMP;
                 message.visual_target_temperature_step = 0.5;
                 message.visual_current_temperature_step = 0.5;
                 message.supported_fan_modes = vec![
@@ -132,17 +132,14 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                 writer.write(&ProtoMessage::ClimateStateResponse(state.into()))?;
             }
             ProtoMessage::ClimateCommandRequest(cmd) => {
-                let mut state = self.hvac_state.lock().unwrap();
                 if cmd.has_mode {
-                    state.mode = cmd.mode().try_into()?;
+                    let mode = cmd.mode().try_into()?;
+                    self.event_sender.send_event(Event::SetMode(mode))?;
                 }
                 if cmd.has_target_temperature {
-                    state.target_temp = cmd.target_temperature;
+                    let temp = cmd.target_temperature;
+                    self.event_sender.send_event(Event::SetTargetTemp(temp))?;
                 }
-                self.event_sender.send_event(Event::Hvac {
-                    state: state.clone(),
-                    origin: EventOrigin::HomeAssistant
-                })?;
             }
             _ => { }
         }

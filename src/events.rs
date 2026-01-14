@@ -20,16 +20,15 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::Result;
 
-use crate::backplate::HvacState;
+use crate::backplate::{HvacMode, HvacState};
 
 #[derive(Debug)]
 pub enum Event {
     ButtonDown,
     Dial(i32),
-    Hvac {
-        state: HvacState,
-        origin: EventOrigin
-    },
+    SetTargetTemp(f32),
+    SetMode(HvacMode),
+    HvacState(HvacState),
     Quit
 }
 

@@ -25,10 +25,9 @@ use embedded_ttf::FontTextStyleBuilder;
 use rusttype::Font;
 
 use crate::{
-    backplate::{HvacAction, HvacMode, HvacState}, drawable::AppDrawable,
-    events::{EventHandler, EventOrigin, EventSender}
+    backplate::HvacState, drawable::AppDrawable,
+    events::{Event, EventHandler, EventSender}
 };
-use crate::events::Event;
 
 pub struct MainScreen<S> {
     gauge: ThermostatGauge,
@@ -48,18 +47,17 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Dial(dir) => {
+                let current_target_temp = self.gauge.hvac_state.target_temp;
                 if *dir > 0 {
-                    if self.gauge.inc_target_temp(-0.1) {
-                        self.event_sender.send_event(self.gauge.hvac_state_event())?;
-                    }
+                    let temp = current_target_temp - 0.1;
+                    self.event_sender.send_event(Event::SetTargetTemp(temp))?;
                 } else if *dir < 0 {
-                    if self.gauge.inc_target_temp(0.1) {
-                        self.event_sender.send_event(self.gauge.hvac_state_event())?;
-                    }
+                    let temp = current_target_temp + 0.1;
+                    self.event_sender.send_event(Event::SetTargetTemp(temp))?;
                 }
             },
-            Event::Hvac { state, origin } if origin == &EventOrigin::Backplate => {
-                self.gauge.set_target_temp(state.target_temp);
+            Event::HvacState(state) => {
+                self.gauge.hvac_state = state.clone();
             },
             _ => { }
         }
@@ -81,10 +79,7 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
 }
 
 struct ThermostatGauge {
-    target_temp: f32,
-    current_temp: f32,
-    min_temp: f32,
-    max_temp: f32,
+    hvac_state: HvacState,
     font_reg: Font<'static>,
     font_bold: Font<'static>
 }
@@ -115,45 +110,10 @@ impl ThermostatGauge {
             .ok_or(anyhow!("Invalid font data"))?;
 
         Ok(Self {
-            target_temp: 16.4,
-            current_temp: 21.0,
-            min_temp: 9.0,
-            max_temp: 32.0,
-
+            hvac_state: HvacState::default(),
             font_reg,
             font_bold
         })
-    }
-
-    fn inc_target_temp(&mut self, inc: f32) -> bool {
-        let old_value = self.target_temp;
-        if inc < 0.0 {
-            self.target_temp = self.min_temp.max(self.target_temp + inc);
-        } else {
-            self.target_temp = self.max_temp.min(self.target_temp + inc);
-        }
-
-        self.target_temp != old_value
-    }
-
-    fn set_target_temp(&mut self, val: f32) {
-        self.target_temp = val;
-    }
-
-    fn hvac_state_event(&self) -> Event {
-        Event::Hvac {
-            state: HvacState {
-                action: HvacAction::Idle,
-                current_temp: 20.0,
-                target_temp: self.target_temp,
-                mode: HvacMode::Heat
-            },
-            origin: EventOrigin::Interface
-        }
-    }
-
-    fn get_temp_percent(&self, temp: f32) -> f32 {
-        (temp - self.min_temp) / (self.max_temp - self.min_temp)
     }
 
     fn get_arc_point(center: Point, percent: f32, radius: f32) -> Point {
@@ -168,7 +128,7 @@ impl ThermostatGauge {
     fn draw_temp_text<D>(&self, target: &mut D, center: Point) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let (temp_int, temp_frac) = round_temperature(self.target_temp);
+        let (temp_int, temp_frac) = round_temperature(self.hvac_state.target_temp);
         let (temp_int_s, temp_frac_s) = (temp_int.to_string(), temp_frac.to_string());
 
         // is clone() better than re-loading `Font` instance?
@@ -277,8 +237,8 @@ impl AppDrawable for ThermostatGauge {
         where D: DrawTarget<Color = Bgr888>
     {
         let center = target.bounding_box().center();
-        let target_temp_percent = self.get_temp_percent(self.target_temp);
-        let current_temp_percent = self.get_temp_percent(self.current_temp);
+        let target_temp_percent = get_temp_percent(self.hvac_state.target_temp);
+        let current_temp_percent = get_temp_percent(self.hvac_state.current_temp);
 
         self.draw_temp_text(target, center)?;
 
@@ -292,7 +252,7 @@ impl AppDrawable for ThermostatGauge {
 
         self.draw_arc_point(target, current_temp_percent, center, 10, Bgr888::CSS_SILVER)?;
 
-        let current_temp = format!("{:.1}", self.current_temp);
+        let current_temp = format!("{:.1}", self.hvac_state.current_temp);
         let current_temp_center = Self::get_arc_point(center, current_temp_percent, 124.0);
         self.draw_sm_text(target, current_temp_center, current_temp)?;
 
@@ -307,4 +267,8 @@ fn round_temperature(value: f32) -> (i32, i32) {
     let fraction_part = (scaled % 2) * 5;
 
     (integer_part, fraction_part)
+}
+
+fn get_temp_percent(temp: f32) -> f32 {
+    (temp - HvacState::MIN_TEMP) / (HvacState::MAX_TEMP - HvacState::MIN_TEMP)
 }
