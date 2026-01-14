@@ -91,6 +91,7 @@ struct ThermostatGauge {
 
 impl ThermostatGauge {
     const FONT_SIZE_LG: u32 = 100;
+    const FONT_SIZE_MD: u32 = 40;
     const FONT_SIZE_SM: u32 = 20;
     const FONT_FG_COLOUR: Bgr888 = Bgr888::WHITE;
     const FONT_BG_COLOUR: Bgr888 = Bgr888::BLACK;
@@ -114,10 +115,10 @@ impl ThermostatGauge {
             .ok_or(anyhow!("Invalid font data"))?;
 
         Ok(Self {
-            target_temp: 16f32,
-            current_temp: 21f32,
-            min_temp: 9f32,
-            max_temp: 32f32,
+            target_temp: 16.4,
+            current_temp: 21.0,
+            min_temp: 9.0,
+            max_temp: 32.0,
 
             font_reg,
             font_bold
@@ -167,6 +168,9 @@ impl ThermostatGauge {
     fn draw_temp_text<D>(&self, target: &mut D, center: Point) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
+        let (temp_int, temp_frac) = round_temperature(self.target_temp);
+        let (temp_int_s, temp_frac_s) = (temp_int.to_string(), temp_frac.to_string());
+
         // is clone() better than re-loading `Font` instance?
         let font_style = FontTextStyleBuilder::new(self.font_bold.clone())
             .font_size(Self::FONT_SIZE_LG)
@@ -174,24 +178,46 @@ impl ThermostatGauge {
             .anti_aliasing_color(Self::FONT_BG_COLOUR)
             .build();
 
-        let temp = (self.target_temp.round() as i32).to_string();
-        let text_center = Point::new(
+        let text_pos = Point::new(
             center.x,
-            center.y - font_style.font_size as i32 / 2
+            center.y - Self::FONT_SIZE_LG as i32 / 2
         );
+
         let text = Text::with_alignment(
-            &temp,
-            text_center,
+            &temp_int_s,
+            text_pos,
             font_style,
             Alignment::Center
         );
 
         text.draw(target)?;
 
+        if temp_frac > 0 {
+            let font_style = FontTextStyleBuilder::new(self.font_bold.clone())
+                .font_size(Self::FONT_SIZE_MD)
+                .text_color(Self::FONT_FG_COLOUR)
+                .anti_aliasing_color(Self::FONT_BG_COLOUR)
+                .build();
+
+            let text_pos = Point::new(
+                center.x + (text.bounding_box().size.width / 2) as i32,
+                text_pos.y + Self::FONT_SIZE_MD as i32 / 2
+            );
+
+            let text = Text::with_alignment(
+                &temp_frac_s,
+                text_pos,
+                font_style,
+                Alignment::Left
+            );
+
+            text.draw(target)?;
+        }
+
         Ok(())
     }
 
-    fn draw_text<D>(&self, target: &mut D, center: Point, s: String) -> Result<(), D::Error>
+    fn draw_sm_text<D>(&self, target: &mut D, center: Point, s: String) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
         let font_style = FontTextStyleBuilder::new(self.font_reg.clone())
@@ -268,8 +294,17 @@ impl AppDrawable for ThermostatGauge {
 
         let current_temp = format!("{:.1}", self.current_temp);
         let current_temp_center = Self::get_arc_point(center, current_temp_percent, 124.0);
-        self.draw_text(target, current_temp_center, current_temp)?;
+        self.draw_sm_text(target, current_temp_center, current_temp)?;
 
         Ok(())
     }
+}
+
+fn round_temperature(value: f32) -> (i32, i32) {
+    let scaled = (value * 2.0).round() as i32;
+
+    let integer_part = scaled / 2;
+    let fraction_part = (scaled % 2) * 5;
+
+    (integer_part, fraction_part)
 }
