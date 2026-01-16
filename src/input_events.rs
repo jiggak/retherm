@@ -16,11 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{thread, time::Duration};
+use std::thread;
 
 use anyhow::Result;
 use evdev::{Device, EventSummary, KeyCode};
-use throttle::Throttle;
 
 use crate::events::{Event, EventSender};
 
@@ -53,12 +52,6 @@ pub fn start_dial_events<S>(sender: S) -> Result<()>
     let mut device = Device::open("/dev/input/event1")?;
 
     thread::spawn(move || {
-        // Slowing down the rate of dial events has a better UX feel IMO
-        // I also wonder if buffering the events and dispatching an event
-        // a sum of the movement in the buffer might be helpful. The event
-        // consumer would know if the user moved the dial quicker.
-        let mut dial_throttle = Throttle::new(Duration::from_millis(40), 1);
-
         loop {
             if let Ok(events) = device.fetch_events() {
                 for e in events {
@@ -66,10 +59,8 @@ pub fn start_dial_events<S>(sender: S) -> Result<()>
                     match e.destructure() {
                         // value > 0 = counter clockwise, value < 0 clockwise
                         EventSummary::RelativeAxis(_, _, value) => {
-                            if dial_throttle.accept().is_ok() {
-                                // invert value so clockwise is increasing
-                                sender.send_event(Event::Dial(value * -1)).unwrap();
-                            }
+                            // invert value so clockwise is increasing
+                            sender.send_event(Event::Dial(value * -1)).unwrap();
                         },
                         _ => { }
                     }

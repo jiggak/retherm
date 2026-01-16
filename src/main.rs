@@ -62,10 +62,6 @@ fn main() -> Result<()> {
 
     let mut backplate = Backplate::new(event_source.event_sender());
 
-    // let mut handlers: Vec<&mut dyn EventHandler> = vec![
-    //     &mut window, &mut screen
-    // ];
-
     'running: loop {
         screen.draw(window.draw_target())?;
         window.flush()?;
@@ -75,14 +71,13 @@ fn main() -> Result<()> {
             break 'running;
         }
 
-        window.handle_event(&event)?;
-        screen.handle_event(&event)?;
-        home_assistant.handle_event(&event)?;
-        backplate.handle_event(&event)?;
+        let handlers: [&mut dyn EventHandler; _] = [
+            &mut window, &mut screen, &mut home_assistant, &mut backplate
+        ];
 
-        // for handler in handlers.iter_mut() {
-        //     handler.handle_event(&event);
-        // }
+        for handler in handlers {
+            handler.handle_event(&event)?;
+        }
     }
 
     Ok(())
@@ -101,7 +96,10 @@ fn get_event_source() -> Result<impl EventSource> {
 #[cfg(feature = "device")]
 fn start_threads<E: EventSource>(events: &E) -> Result<()> {
     crate::input_events::start_button_events(events.event_sender())?;
-    crate::input_events::start_dial_events(events.event_sender())?;
+    // Slow down events from dial to make it feel less twitchy
+    // And spam the event loop less
+    let dial_event_sender = crate::events::ThrottledEventSender::new(events.event_sender(), 40, 1);
+    crate::input_events::start_dial_events(dial_event_sender)?;
     Ok(())
 }
 

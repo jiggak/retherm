@@ -16,9 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::{cell::RefCell, sync::mpsc::{Receiver, Sender, channel}, time::Duration};
 
 use anyhow::Result;
+use throttle::Throttle;
 
 use crate::backplate::{HvacMode, HvacState};
 
@@ -87,5 +88,31 @@ impl EventSource for DefaultEventSource {
 impl EventSender for Sender<Event> {
     fn send_event(&self, event: Event) -> Result<()> {
         Ok(self.send(event)?)
+    }
+}
+
+pub struct ThrottledEventSender<S> {
+    event_sender: S,
+    throttle: RefCell<Throttle>
+}
+
+impl<S: EventSender> ThrottledEventSender<S> {
+    /// Accept up to `threshold` events, every `timeout_ms`
+    pub fn new(event_sender: S, timeout_ms: u64, threshold: usize) -> Self {
+        let timeout = Duration::from_millis(timeout_ms);
+        Self {
+            event_sender,
+            throttle: RefCell::new(Throttle::new(timeout, threshold))
+        }
+    }
+}
+
+impl<S: EventSender> EventSender for ThrottledEventSender<S> {
+    fn send_event(&self, event: Event) -> Result<()> {
+        if self.throttle.borrow_mut().accept().is_ok() {
+            self.event_sender.send_event(event)?;
+        }
+
+        Ok(())
     }
 }

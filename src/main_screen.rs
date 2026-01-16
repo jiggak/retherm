@@ -47,17 +47,22 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Dial(dir) => {
-                let current_target_temp = self.gauge.hvac_state.target_temp;
+                let mut target_temp = self.gauge.hvac_state.target_temp;
                 if *dir > 0 {
-                    let temp = current_target_temp + 0.1;
-                    self.event_sender.send_event(Event::SetTargetTemp(temp))?;
+                    target_temp = target_temp + 0.1;
                 } else if *dir < 0 {
-                    let temp = current_target_temp - 0.1;
-                    self.event_sender.send_event(Event::SetTargetTemp(temp))?;
+                    target_temp = target_temp - 0.1;
+                }
+
+                // TODO implement some sort of debounce with timeout and
+                // commit/send SetTargetTemp event
+
+                if self.gauge.hvac_state.set_target_temp(target_temp) {
+                    self.event_sender.send_event(Event::SetTargetTemp(target_temp))?;
                 }
             },
             Event::HvacState(state) => {
-                self.gauge.hvac_state = state.clone();
+                // self.gauge.hvac_state = state.clone();
             },
             _ => { }
         }
