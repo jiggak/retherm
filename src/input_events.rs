@@ -16,58 +16,99 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::thread;
+use std::thread::{self, JoinHandle};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use evdev::{Device, EventSummary, KeyCode};
 
 use crate::events::{Event, EventSender};
 
-pub fn start_button_events<S>(sender: S) -> Result<()>
-    where S: EventSender + Send + 'static
-{
-    let mut device = Device::open("/dev/input/event2")?;
-
-    thread::spawn(move || {
-        loop {
-            for e in device.fetch_events().unwrap() {
-                // println!("button event {:?}", e);
-                match e.destructure() {
-                    // value 1 = down, followed by value 0 = up
-                    EventSummary::Key(_, KeyCode::KEY_POWER, 1) => {
-                        sender.send_event(Event::ButtonDown).unwrap();
-                    },
-                    _ => { }
-                }
-            }
-        }
-    });
-
-    Ok(())
+struct InputDevice {
+    device: Device,
+    map_fn: InputEventMapFn
 }
 
-pub fn start_dial_events<S>(sender: S) -> Result<()>
-    where S: EventSender + Send + 'static
-{
-    let mut device = Device::open("/dev/input/event1")?;
+type InputEventMapFn = fn(EventSummary) -> Option<Event>;
 
-    thread::spawn(move || {
-        loop {
-            if let Ok(events) = device.fetch_events() {
-                for e in events {
-                    // println!("dial event {:?}", e);
-                    match e.destructure() {
-                        // value > 0 = counter clockwise, value < 0 clockwise
-                        EventSummary::RelativeAxis(_, _, value) => {
-                            // invert value so clockwise is increasing
-                            sender.send_event(Event::Dial(value * -1)).unwrap();
-                        },
-                        _ => { }
-                    }
+impl InputDevice {
+    fn open(path: &str, map_fn: InputEventMapFn) -> Result<Self> {
+        let device = Device::open(path)?;
+        Ok(Self {
+            device,
+            map_fn
+        })
+    }
+
+    fn fetch_events(&mut self) -> Result<impl Iterator<Item = Event>> {
+        let events = self.device.fetch_events()?
+            .filter_map(|event| {
+                (self.map_fn)(event.destructure())
+            });
+        Ok(events)
+    }
+}
+
+pub struct InputDeviceThread {
+    thread: JoinHandle<Result<()>>
+}
+
+impl InputDeviceThread {
+    fn start<S>(mut input_events: InputDevice, sender: S) -> Self
+        where S: EventSender + Send + 'static
+    {
+        let thread = thread::spawn(move || {
+            loop {
+                let events = input_events.fetch_events()?;
+                for event in events {
+                    sender.send_event(event)?;
                 }
             }
-        }
-    });
+        });
 
-    Ok(())
+        Self {
+            thread
+        }
+    }
+
+    pub fn stop(self) -> Result<()> {
+        // FIXME find some way to close input event device so fetch_events() stops blocking
+        let handle = self.thread.join()
+            .map_err(|e| anyhow!("{:?}", e))?;
+        handle
+    }
+}
+
+pub fn start_dial_events<S>(sender: S) -> Result<InputDeviceThread>
+    where S: EventSender + Send + 'static
+{
+    let input_events = InputDevice::open(
+        "/dev/input/event1",
+        |e| match e {
+            // value > 0 = counter clockwise, value < 0 clockwise
+            EventSummary::RelativeAxis(_, _, value) => {
+                // invert value so clockwise is increasing
+                Some(Event::Dial(value * -1))
+            }
+            _ => None
+        }
+    )?;
+
+    Ok(InputDeviceThread::start(input_events, sender))
+}
+
+pub fn start_button_events<S>(sender: S) -> Result<InputDeviceThread>
+    where S: EventSender + Send + 'static
+{
+    let input_events = InputDevice::open(
+        "/dev/input/event2",
+        |e| match e {
+            // value 1 = down, followed by value 0 = up
+            EventSummary::Key(_, KeyCode::KEY_POWER, 1) => {
+                Some(Event::ButtonDown)
+            }
+            _ => None
+        }
+    )?;
+
+    Ok(InputDeviceThread::start(input_events, sender))
 }
