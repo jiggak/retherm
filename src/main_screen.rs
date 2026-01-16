@@ -54,15 +54,12 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                     target_temp = target_temp - 0.1;
                 }
 
-                // TODO implement some sort of debounce with timeout and
-                // commit/send SetTargetTemp event
-
                 if self.gauge.hvac_state.set_target_temp(target_temp) {
                     self.event_sender.send_event(Event::SetTargetTemp(target_temp))?;
                 }
             },
             Event::HvacState(state) => {
-                // self.gauge.hvac_state = state.clone();
+                self.gauge.hvac_state = state.clone();
             },
             _ => { }
         }

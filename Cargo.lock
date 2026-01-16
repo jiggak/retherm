@@ -296,6 +296,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "debounce"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f2e5bc95e82bd8e9b333f4c5ff6dceab54e2e99f4d8cef2a680d417206ead34"
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -650,6 +656,7 @@ name = "nest-app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "debounce",
  "embedded-graphics",
  "embedded-graphics-framebuf",
  "embedded-ttf",

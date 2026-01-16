@@ -19,6 +19,7 @@
 use std::{cell::RefCell, sync::mpsc::{Receiver, Sender, channel}, time::Duration};
 
 use anyhow::Result;
+use debounce::EventDebouncer;
 use throttle::Throttle;
 
 use crate::backplate::{HvacMode, HvacState};
@@ -43,11 +44,26 @@ impl Event {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum EventOrigin {
-    Interface,
-    HomeAssistant,
-    Backplate
+// This impl is here to support the TrailingEventSender which sends the last
+// event variant after a delay (ignoring content of event).
+// If this because a problem due to needing equality to include event content,
+// add a new event type specifically for the TrailingEventSender with it's own
+// equality impl.
+impl PartialEq for Event {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::ButtonDown => matches!(other, Self::ButtonDown),
+            Self::Dial(_) => matches!(other, Self::Dial(_)),
+            Self::SetTargetTemp(_) => matches!(other, Self::SetTargetTemp(_)),
+            Self::SetMode(_) => matches!(other, Self::SetMode(_)),
+            Self::HvacState(_) => matches!(other, Self::HvacState(_)),
+            Self::Quit => matches!(other, Self::Quit),
+        }
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
+    }
 }
 
 pub trait EventSender {
@@ -113,6 +129,29 @@ impl<S: EventSender> EventSender for ThrottledEventSender<S> {
             self.event_sender.send_event(event)?;
         }
 
+        Ok(())
+    }
+}
+
+pub struct TrailingEventSender {
+    event_debounce: EventDebouncer<Event>
+}
+
+impl TrailingEventSender {
+    pub fn new<S>(event_sender: S, delay_ms: u64) -> Self
+        where S: EventSender + Send + 'static
+    {
+        let delay = Duration::from_millis(delay_ms);
+        let event_debounce = EventDebouncer::new(delay, move |e: Event|
+            event_sender.send_event(e).unwrap()
+        );
+        Self { event_debounce }
+    }
+}
+
+impl EventSender for TrailingEventSender {
+    fn send_event(&self, event: Event) -> Result<()> {
+        self.event_debounce.put(event);
         Ok(())
     }
 }
