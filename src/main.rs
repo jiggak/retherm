@@ -24,7 +24,6 @@ mod home_assistant;
 mod input_events;
 mod main_screen;
 mod sound;
-mod window;
 #[cfg(feature = "device")]
 mod window_fb;
 #[cfg(feature = "simulate")]
@@ -34,11 +33,9 @@ use anyhow::Result;
 use esphome_api::server::EncryptedStreamProvider;
 
 use crate::backplate::Backplate;
-use crate::drawable::AppDrawable;
 use crate::events::{Event, EventHandler, EventSource, TrailingEventSender};
 use crate::home_assistant::HomeAssistant;
 use crate::main_screen::MainScreen;
-use crate::window::AppWindow;
 
 fn main() -> Result<()> {
     let mut event_source = get_event_source()?;
@@ -65,8 +62,7 @@ fn main() -> Result<()> {
     let mut backplate = Backplate::new(event_source.event_sender());
 
     'running: loop {
-        screen.draw(window.draw_target())?;
-        window.flush()?;
+        window.draw_screen(&screen)?;
 
         let event = event_source.wait_event()?;
         if matches!(event, Event::Quit) {

@@ -16,8 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::convert::Infallible;
-
 use anyhow::{Result, anyhow};
 use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 use embedded_graphics_framebuf::FrameBuf;
@@ -27,7 +25,7 @@ use sdl2::{
     keyboard::Keycode, pixels::PixelFormatEnum, render::Canvas, video::Window
 };
 
-use crate::{events::{Event, EventHandler, EventSender, EventSource}, window::AppWindow};
+use crate::{drawable::AppDrawable, events::{Event, EventHandler, EventSender, EventSource}};
 
 pub struct SdlWindow {
     window_canvas: Canvas<Window>,
@@ -56,12 +54,6 @@ impl SdlWindow {
             Self { window_canvas, buffer }
         )
     }
-}
-
-impl AppWindow for SdlWindow {
-    fn draw_target(&mut self) -> &mut impl DrawTarget<Color = Bgr888, Error = Infallible> {
-        &mut self.buffer
-    }
 
     fn flush(&mut self) -> Result<()> {
         let texture_creator = self.window_canvas.texture_creator();
@@ -83,6 +75,12 @@ impl AppWindow for SdlWindow {
             .map_err(|e| anyhow!(e))?;
         self.window_canvas.present();
 
+        Ok(())
+    }
+
+    pub fn draw_screen(&mut self, screen: &impl AppDrawable) -> Result<()> {
+        screen.draw(&mut self.buffer)?;
+        self.flush()?;
         Ok(())
     }
 }

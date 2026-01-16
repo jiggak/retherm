@@ -25,7 +25,7 @@ use embedded_ttf::FontTextStyleBuilder;
 use rusttype::Font;
 
 use crate::{
-    backplate::HvacState, drawable::AppDrawable,
+    backplate::HvacState, drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender}
 };
 
@@ -69,9 +69,7 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
 }
 
 impl<S: EventSender> AppDrawable for MainScreen<S> {
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
-        where D: DrawTarget<Color = Bgr888>
-    {
+    fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
         target.clear(Bgr888::BLACK)?;
 
         self.gauge.draw(target)?;
@@ -235,9 +233,7 @@ impl ThermostatGauge {
 }
 
 impl AppDrawable for ThermostatGauge {
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
-        where D: DrawTarget<Color = Bgr888>
-    {
+    fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
         let center = target.bounding_box().center();
         let target_temp_percent = get_temp_percent(self.hvac_state.target_temp);
         let current_temp_percent = get_temp_percent(self.hvac_state.current_temp);

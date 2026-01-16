@@ -16,18 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::convert::Infallible;
-
 use anyhow::{Result, anyhow};
 use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 use embedded_graphics_framebuf::FrameBuf;
 use linuxfb::Framebuffer;
 
 use crate::{
-    backlight::{Backlight, BacklightTimer},
-    events::{Event, EventHandler},
-    sound::Sound,
-    window::AppWindow
+    backlight::{Backlight, BacklightTimer}, drawable::AppDrawable,
+    events::{Event, EventHandler}, sound::Sound
 };
 
 pub struct FramebufferWindow {
@@ -83,15 +79,11 @@ impl FramebufferWindow {
 
         Ok(())
     }
-}
 
-impl AppWindow for FramebufferWindow {
-    fn draw_target(&mut self) -> &mut impl DrawTarget<Color = Bgr888, Error = Infallible> {
-        &mut self.buffer
-    }
-
-    fn flush(&mut self) -> Result<()> {
-        FramebufferWindow::flush(self)
+    pub fn draw_screen(&mut self, screen: &impl AppDrawable) -> Result<()> {
+        screen.draw(&mut self.buffer)?;
+        self.flush()?;
+        Ok(())
     }
 }
 

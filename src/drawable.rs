@@ -16,42 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use embedded_graphics::{pixelcolor::Bgr888, prelude::DrawTarget};
+use anyhow::Result;
+use embedded_graphics::pixelcolor::Bgr888;
+use embedded_graphics_framebuf::FrameBuf;
 
-/*
-Do I really gain anything with this trait vs. using embedded_graphics::Drawable?
-One advantage is implementing the AppDrawable trait is tiny bit cleaner:
-
-```
-impl AppDrawable for ThermostatGauge {
-    fn draw<D>(&self, target: &mut D) -> std::result::Result<(), D::Error>
-            where D: DrawTarget<Color = Bgr888> {
-        Ok(())
-    }
-}
-```
-
-vs.
-
-```
-impl Drawable for ThermostatGauge {
-    type Color = Bgr888;
-    type Output = ();
-
-    fn draw<D>(&self, target: &mut D) -> std::result::Result<Self::Output, D::Error>
-        where
-            D: DrawTarget<Color = Self::Color> {
-        Ok(())
-    }
-}
-```
-
-The hope was by using this trait I might somehow make it easier on myself if
-I ever decide to replace embedded-graphics crate. Or maybe I might add other
-parameters to the draw function.
-*/
-
+/// Trait for screens and components drawn by screens.
 pub trait AppDrawable {
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
-        where D: DrawTarget<Color = Bgr888>;
+    fn draw(&self, target: &mut AppFrameBuf) -> Result<()>;
 }
+
+pub type AppFrameBuf = FrameBuf<Bgr888, [Bgr888; 320 * 320]>;
