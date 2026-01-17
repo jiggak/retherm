@@ -80,7 +80,7 @@ impl FramebufferWindow {
         Ok(())
     }
 
-    pub fn draw_screen(&mut self, screen: &impl AppDrawable) -> Result<()> {
+    pub fn draw_screen(&mut self, screen: &dyn AppDrawable) -> Result<()> {
         screen.draw(&mut self.buffer)?;
         self.flush()?;
         Ok(())

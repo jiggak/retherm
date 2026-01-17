@@ -23,6 +23,8 @@ mod events;
 mod home_assistant;
 mod input_events;
 mod main_screen;
+mod mode_screen;
+mod screen_manager;
 mod sound;
 #[cfg(feature = "device")]
 mod window_fb;
@@ -36,13 +38,17 @@ use crate::backplate::Backplate;
 use crate::events::{Event, EventHandler, EventSource, TrailingEventSender};
 use crate::home_assistant::HomeAssistant;
 use crate::main_screen::MainScreen;
+use crate::screen_manager::ScreenManager;
 
 fn main() -> Result<()> {
     let mut event_source = get_event_source()?;
+
     let mut window = get_window()?;
-    let mut screen = MainScreen::new(
+
+    let main_screen = MainScreen::new(
         TrailingEventSender::new(event_source.event_sender(), 500)
     )?;
+    let mut screen_manager = ScreenManager::new(main_screen);
 
     start_threads(&event_source)?;
 
@@ -62,7 +68,7 @@ fn main() -> Result<()> {
     let mut backplate = Backplate::new(event_source.event_sender());
 
     'running: loop {
-        window.draw_screen(&screen)?;
+        window.draw_screen(screen_manager.active_screen())?;
 
         let event = event_source.wait_event()?;
         if matches!(event, Event::Quit) {
@@ -70,7 +76,7 @@ fn main() -> Result<()> {
         }
 
         let handlers: [&mut dyn EventHandler; _] = [
-            &mut window, &mut screen, &mut home_assistant, &mut backplate
+            &mut window, &mut screen_manager, &mut home_assistant, &mut backplate
         ];
 
         for handler in handlers {
