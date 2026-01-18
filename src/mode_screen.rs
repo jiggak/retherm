@@ -36,14 +36,19 @@ pub struct ModeScreen<S> {
 }
 
 impl<S: EventSender> ModeScreen<S> {
-    pub fn new(event_sender: S) -> Result<Self> {
+    pub fn new(event_sender: S, current_mode: &HvacMode) -> Result<Self> {
+        let modes = [
+            HvacMode::Heat,
+            HvacMode::Cool,
+            HvacMode::Off
+        ];
+
+        let selected_row = modes.iter()
+            .position(|m| m == current_mode)
+            .unwrap_or_default();
+
         Ok(Self {
-            mode_list: ListView::new(&[
-                HvacMode::Off,
-                HvacMode::Auto,
-                HvacMode::Heat,
-                HvacMode::Cool
-            ])?,
+            mode_list: ListView::new(&modes, selected_row)?,
             event_sender
         })
     }
@@ -117,7 +122,7 @@ struct ListView<T> {
 }
 
 impl<T> ListView<T> {
-    fn new<R>(rows: &[R]) -> Result<Self>
+    fn new<R>(rows: &[R], selected_row: usize) -> Result<Self>
         where R: Clone + Into<ListItem<T>>
     {
         let font = Font::try_from_bytes(include_bytes!("../roboto/Roboto-Bold.ttf"))
@@ -126,7 +131,7 @@ impl<T> ListView<T> {
         // I call clone later on font_style, is that better than re-creating
         // FontTextStyle on each render loop?
         let font_style = FontTextStyleBuilder::new(font)
-            .font_size(35)
+            .font_size(36)
             .text_color(Bgr888::WHITE)
             .anti_aliasing_color(Bgr888::BLACK)
             .build();
@@ -138,7 +143,7 @@ impl<T> ListView<T> {
 
         Ok(Self {
             rows,
-            selected_row: 0,
+            selected_row,
             font_style
         })
     }
@@ -160,7 +165,7 @@ impl<T> ListView<T> {
         let center = target.bounding_box().center();
         let text_pos = Point::new(
             center.x,
-            y_pos as i32
+            y_pos as i32 + 2
         );
 
         let text = Text::with_alignment(
@@ -194,7 +199,7 @@ impl<T> AppDrawable for ListView<T> {
         );
 
         let style = PrimitiveStyleBuilder::new()
-            .stroke_color(Bgr888::BLUE)
+            .stroke_color(Bgr888::WHITE)
             .stroke_width(4)
             .build();
 

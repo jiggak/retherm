@@ -106,8 +106,7 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                 message.supported_modes = vec![
                     ClimateMode::Off as i32,
                     ClimateMode::Heat as i32,
-                    ClimateMode::Cool as i32,
-                    ClimateMode::HeatCool as i32
+                    ClimateMode::Cool as i32
                 ];
                 message.visual_min_temperature = HvacState::MIN_TEMP;
                 message.visual_max_temperature = HvacState::MAX_TEMP;

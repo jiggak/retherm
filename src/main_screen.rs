@@ -64,7 +64,9 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                 }
             }
             Event::ButtonDown => {
-                self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect))?;
+                self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect {
+                    current_mode: self.gauge.hvac_state.mode
+                }))?;
             }
             Event::HvacState(state) => {
                 self.gauge.hvac_state = state.clone();

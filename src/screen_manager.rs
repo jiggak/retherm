@@ -19,14 +19,16 @@
 use anyhow::Result;
 
 use crate::{
-    drawable::AppDrawable,
+    backplate::HvacMode, drawable::AppDrawable,
     events::{Event, EventHandler, EventSender},
     mode_screen::ModeScreen
 };
 
 #[derive(Debug)]
 pub enum ScreenId {
-    ModeSelect
+    ModeSelect {
+        current_mode: HvacMode
+    }
 }
 
 pub trait Screen: AppDrawable + EventHandler { }
@@ -58,8 +60,8 @@ impl<S: EventSender + Clone + 'static> ScreenManager<S> {
 
     fn show_screen(&mut self, screen: &ScreenId) -> Result<()> {
         match screen {
-            ScreenId::ModeSelect => {
-                let screen = ModeScreen::new(self.event_sender.clone())?;
+            ScreenId::ModeSelect { current_mode } => {
+                let screen = ModeScreen::new(self.event_sender.clone(), current_mode)?;
                 self.screens.push(Box::new(screen));
             }
         }
