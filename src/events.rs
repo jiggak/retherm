@@ -32,6 +32,7 @@ pub enum Event {
     SetMode(HvacMode),
     HvacState(HvacState),
     NavigateTo(ScreenId),
+    NavigateBack,
     Quit
 }
 
@@ -59,6 +60,7 @@ impl PartialEq for Event {
             Self::SetMode(_) => matches!(other, Self::SetMode(_)),
             Self::HvacState(_) => matches!(other, Self::HvacState(_)),
             Self::NavigateTo(_) => matches!(other, Self::NavigateTo(_)),
+            Self::NavigateBack => matches!(other, Self::NavigateBack),
             Self::Quit => matches!(other, Self::Quit),
         }
     }

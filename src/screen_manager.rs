@@ -18,7 +18,11 @@
 
 use anyhow::Result;
 
-use crate::{drawable::AppDrawable, events::{Event, EventHandler, EventSender}, mode_screen::ModeScreen};
+use crate::{
+    drawable::AppDrawable,
+    events::{Event, EventHandler, EventSender},
+    mode_screen::ModeScreen
+};
 
 #[derive(Debug)]
 pub enum ScreenId {
@@ -52,13 +56,15 @@ impl<S: EventSender + Clone + 'static> ScreenManager<S> {
         }
     }
 
-    fn show_screen(&mut self, screen: &ScreenId) {
+    fn show_screen(&mut self, screen: &ScreenId) -> Result<()> {
         match screen {
             ScreenId::ModeSelect => {
-                let screen = ModeScreen::new(self.event_sender.clone());
+                let screen = ModeScreen::new(self.event_sender.clone())?;
                 self.screens.push(Box::new(screen));
             }
         }
+
+        Ok(())
     }
 }
 
@@ -66,8 +72,14 @@ impl<S: EventSender + Clone + 'static> EventHandler for ScreenManager<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         self.active_screen().handle_event(event)?;
 
-        if let Event::NavigateTo(screen) = event {
-            self.show_screen(screen);
+        match event {
+            Event::NavigateTo(screen) => {
+                self.show_screen(screen)?;
+            }
+            Event::NavigateBack => {
+                self.screens.pop();
+            }
+            _ => { }
         }
 
         Ok(())
