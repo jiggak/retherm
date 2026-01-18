@@ -26,22 +26,24 @@ use rusttype::Font;
 
 use crate::{
     backplate::HvacState, drawable::{AppDrawable, AppFrameBuf},
-    events::{Event, EventHandler, EventSender},
-    screen_manager::Screen
+    events::{Event, EventHandler, EventSender, TrailingEventSender},
+    screen_manager::{Screen, ScreenId}
 };
 
 pub struct MainScreen<S> {
     gauge: ThermostatGauge,
-    event_sender: S
+    cmd_sender: TrailingEventSender,
+    event_sender: S,
 }
 
 impl<S: EventSender> Screen for MainScreen<S> { }
 
-impl<S: EventSender> MainScreen<S> {
+impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
     pub fn new(event_sender: S) -> Result<Self> {
+        let cmd_sender = TrailingEventSender::new(event_sender.clone(), 500);
         Ok(Self {
             gauge: ThermostatGauge::new()?,
-            event_sender
+            cmd_sender, event_sender
         })
     }
 }
@@ -58,8 +60,11 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                 }
 
                 if self.gauge.hvac_state.set_target_temp(target_temp) {
-                    self.event_sender.send_event(Event::SetTargetTemp(target_temp))?;
+                    self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;
                 }
+            }
+            Event::ButtonDown => {
+                self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect))?;
             }
             Event::HvacState(state) => {
                 self.gauge.hvac_state = state.clone();

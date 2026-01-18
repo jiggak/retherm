@@ -18,20 +18,29 @@
 
 use anyhow::Result;
 
-use crate::{drawable::AppDrawable, events::{Event, EventHandler}};
+use crate::{drawable::AppDrawable, events::{Event, EventHandler, EventSender}, mode_screen::ModeScreen};
+
+#[derive(Debug)]
+pub enum ScreenId {
+    ModeSelect
+}
 
 pub trait Screen: AppDrawable + EventHandler { }
 
-pub struct ScreenManager {
+pub struct ScreenManager<S> {
     main_screen: Box<dyn Screen>,
-    screens: Vec<Box<dyn Screen>>
+    screens: Vec<Box<dyn Screen>>,
+    event_sender: S
 }
 
-impl ScreenManager {
-    pub fn new<S: Screen + 'static>(main_screen: S) -> Self {
+impl<S: EventSender + Clone + 'static> ScreenManager<S> {
+    pub fn new<R>(main_screen: R, event_sender: S) -> Self
+        where R: Screen + 'static
+    {
         Self {
             main_screen: Box::new(main_screen),
-            screens: Vec::new()
+            screens: Vec::new(),
+            event_sender
         }
     }
 
@@ -42,15 +51,24 @@ impl ScreenManager {
             self.main_screen.as_mut()
         }
     }
+
+    fn show_screen(&mut self, screen: &ScreenId) {
+        match screen {
+            ScreenId::ModeSelect => {
+                let screen = ModeScreen::new(self.event_sender.clone());
+                self.screens.push(Box::new(screen));
+            }
+        }
+    }
 }
 
-impl EventHandler for ScreenManager {
+impl<S: EventSender + Clone + 'static> EventHandler for ScreenManager<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         self.active_screen().handle_event(event)?;
 
-        // if let Event::ShowScreen(screen) = event {
-        //     self.screens.push(screen);
-        // }
+        if let Event::NavigateTo(screen) = event {
+            self.show_screen(screen);
+        }
 
         Ok(())
     }

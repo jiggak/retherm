@@ -35,7 +35,7 @@ use anyhow::Result;
 use esphome_api::server::EncryptedStreamProvider;
 
 use crate::backplate::Backplate;
-use crate::events::{Event, EventHandler, EventSender, EventSource, TrailingEventSender};
+use crate::events::{Event, EventHandler, EventSender, EventSource};
 use crate::home_assistant::HomeAssistant;
 use crate::main_screen::MainScreen;
 use crate::screen_manager::ScreenManager;
@@ -45,10 +45,8 @@ fn main() -> Result<()> {
 
     let mut window = get_window()?;
 
-    let main_screen = MainScreen::new(
-        TrailingEventSender::new(event_source.event_sender(), 500)
-    )?;
-    let mut screen_manager = ScreenManager::new(main_screen);
+    let main_screen = MainScreen::new(event_source.event_sender())?;
+    let mut screen_manager = ScreenManager::new(main_screen, event_source.event_sender());
 
     start_threads(&event_source)?;
 
