@@ -22,7 +22,7 @@ use anyhow::Result;
 use debounce::EventDebouncer;
 use throttle::Throttle;
 
-use crate::backplate::{HvacMode, HvacState};
+use crate::{backplate::{HvacMode, HvacState}, screen_manager::ScreenId};
 
 #[derive(Debug)]
 pub enum Event {
@@ -31,6 +31,8 @@ pub enum Event {
     SetTargetTemp(f32),
     SetMode(HvacMode),
     HvacState(HvacState),
+    NavigateTo(ScreenId),
+    NavigateBack,
     Quit
 }
 
@@ -57,6 +59,8 @@ impl PartialEq for Event {
             Self::SetTargetTemp(_) => matches!(other, Self::SetTargetTemp(_)),
             Self::SetMode(_) => matches!(other, Self::SetMode(_)),
             Self::HvacState(_) => matches!(other, Self::HvacState(_)),
+            Self::NavigateTo(_) => matches!(other, Self::NavigateTo(_)),
+            Self::NavigateBack => matches!(other, Self::NavigateBack),
             Self::Quit => matches!(other, Self::Quit),
         }
     }
@@ -74,9 +78,9 @@ pub trait EventHandler {
     fn handle_event(&mut self, event: &Event) -> Result<()>;
 }
 
-pub trait EventSource {
+pub trait EventSource<S: EventSender> {
     fn wait_event(&mut self) -> Result<Event>;
-    fn event_sender(&self) -> impl EventSender + Send + 'static;
+    fn event_sender(&self) -> S;
 }
 
 pub struct DefaultEventSource {
@@ -91,12 +95,12 @@ impl DefaultEventSource {
     }
 }
 
-impl EventSource for DefaultEventSource {
+impl EventSource<Sender<Event>> for DefaultEventSource {
     fn wait_event(&mut self) -> Result<Event> {
         Ok(self.receiver.recv()?)
     }
 
-    fn event_sender(&self) -> impl EventSender + 'static {
+    fn event_sender(&self) -> Sender<Event> {
         self.sender.clone()
     }
 }

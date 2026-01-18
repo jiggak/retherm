@@ -25,20 +25,25 @@ use embedded_ttf::FontTextStyleBuilder;
 use rusttype::Font;
 
 use crate::{
-    backplate::HvacState, drawable::AppDrawable,
-    events::{Event, EventHandler, EventSender}
+    backplate::HvacState, drawable::{AppDrawable, AppFrameBuf},
+    events::{Event, EventHandler, EventSender, TrailingEventSender},
+    screen_manager::{Screen, ScreenId}
 };
 
 pub struct MainScreen<S> {
     gauge: ThermostatGauge,
-    event_sender: S
+    cmd_sender: TrailingEventSender,
+    event_sender: S,
 }
 
-impl<S: EventSender> MainScreen<S> {
+impl<S: EventSender> Screen for MainScreen<S> { }
+
+impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
     pub fn new(event_sender: S) -> Result<Self> {
+        let cmd_sender = TrailingEventSender::new(event_sender.clone(), 500);
         Ok(Self {
             gauge: ThermostatGauge::new()?,
-            event_sender
+            cmd_sender, event_sender
         })
     }
 }
@@ -55,12 +60,17 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                 }
 
                 if self.gauge.hvac_state.set_target_temp(target_temp) {
-                    self.event_sender.send_event(Event::SetTargetTemp(target_temp))?;
+                    self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;
                 }
-            },
+            }
+            Event::ButtonDown => {
+                self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect {
+                    current_mode: self.gauge.hvac_state.mode
+                }))?;
+            }
             Event::HvacState(state) => {
                 self.gauge.hvac_state = state.clone();
-            },
+            }
             _ => { }
         }
 
@@ -69,9 +79,7 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
 }
 
 impl<S: EventSender> AppDrawable for MainScreen<S> {
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
-        where D: DrawTarget<Color = Bgr888>
-    {
+    fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
         target.clear(Bgr888::BLACK)?;
 
         self.gauge.draw(target)?;
@@ -235,9 +243,7 @@ impl ThermostatGauge {
 }
 
 impl AppDrawable for ThermostatGauge {
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
-        where D: DrawTarget<Color = Bgr888>
-    {
+    fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
         let center = target.bounding_box().center();
         let target_temp_percent = get_temp_percent(self.hvac_state.target_temp);
         let current_temp_percent = get_temp_percent(self.hvac_state.current_temp);

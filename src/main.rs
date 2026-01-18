@@ -23,8 +23,9 @@ mod events;
 mod home_assistant;
 mod input_events;
 mod main_screen;
+mod mode_screen;
+mod screen_manager;
 mod sound;
-mod window;
 #[cfg(feature = "device")]
 mod window_fb;
 #[cfg(feature = "simulate")]
@@ -34,18 +35,18 @@ use anyhow::Result;
 use esphome_api::server::EncryptedStreamProvider;
 
 use crate::backplate::Backplate;
-use crate::drawable::AppDrawable;
-use crate::events::{Event, EventHandler, EventSource, TrailingEventSender};
+use crate::events::{Event, EventHandler, EventSender, EventSource};
 use crate::home_assistant::HomeAssistant;
 use crate::main_screen::MainScreen;
-use crate::window::AppWindow;
+use crate::screen_manager::ScreenManager;
 
 fn main() -> Result<()> {
     let mut event_source = get_event_source()?;
+
     let mut window = get_window()?;
-    let mut screen = MainScreen::new(
-        TrailingEventSender::new(event_source.event_sender(), 500)
-    )?;
+
+    let main_screen = MainScreen::new(event_source.event_sender())?;
+    let mut screen_manager = ScreenManager::new(main_screen, event_source.event_sender());
 
     start_threads(&event_source)?;
 
@@ -65,8 +66,7 @@ fn main() -> Result<()> {
     let mut backplate = Backplate::new(event_source.event_sender());
 
     'running: loop {
-        screen.draw(window.draw_target())?;
-        window.flush()?;
+        window.draw_screen(screen_manager.active_screen())?;
 
         let event = event_source.wait_event()?;
         if matches!(event, Event::Quit) {
@@ -74,7 +74,7 @@ fn main() -> Result<()> {
         }
 
         let handlers: [&mut dyn EventHandler; _] = [
-            &mut window, &mut screen, &mut home_assistant, &mut backplate
+            &mut window, &mut screen_manager, &mut home_assistant, &mut backplate
         ];
 
         for handler in handlers {
@@ -91,12 +91,14 @@ fn get_window() -> Result<crate::window_fb::FramebufferWindow> {
 }
 
 #[cfg(feature = "device")]
-fn get_event_source() -> Result<impl EventSource> {
+fn get_event_source() -> Result<crate::events::DefaultEventSource> {
     Ok(crate::events::DefaultEventSource::new())
 }
 
 #[cfg(feature = "device")]
-fn start_threads<E: EventSource>(events: &E) -> Result<()> {
+fn start_threads<E, S>(events: &E) -> Result<()>
+    where E: EventSource<S>, S: EventSender + Send + 'static
+{
     crate::input_events::start_button_events(events.event_sender())?;
     // Slow down events from dial to make it feel less twitchy
     // And spam the event loop less
@@ -111,11 +113,11 @@ fn get_window() -> Result<crate::window_sdl::SdlWindow> {
 }
 
 #[cfg(feature = "simulate")]
-fn get_event_source() -> Result<impl EventSource> {
+fn get_event_source() -> Result<crate::window_sdl::SdlEventSource> {
     crate::window_sdl::SdlEventSource::new()
 }
 
 #[cfg(feature = "simulate")]
-fn start_threads<E: EventSource>(_events: &E) -> Result<()> {
+fn start_threads<E: EventSource<S>, S: EventSender>(_events: &E) -> Result<()> {
     Ok(())
 }

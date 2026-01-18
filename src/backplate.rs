@@ -120,7 +120,7 @@ impl From<&HvacState> for ClimateStateResponse {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HvacMode {
     Off,
     Auto,

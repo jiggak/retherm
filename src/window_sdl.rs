@@ -16,18 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::convert::Infallible;
+use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
 use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 use embedded_graphics_framebuf::FrameBuf;
 use sdl2::{
-    EventPump, EventSubsystem,
-    event::{Event as SdlEvent, EventSender as SdlEventSender},
+    EventPump, event::{Event as SdlEvent, EventSender as SdlEventSender},
     keyboard::Keycode, pixels::PixelFormatEnum, render::Canvas, video::Window
 };
 
-use crate::{events::{Event, EventHandler, EventSender, EventSource}, window::AppWindow};
+use crate::{drawable::AppDrawable, events::{Event, EventHandler, EventSender, EventSource}};
 
 pub struct SdlWindow {
     window_canvas: Canvas<Window>,
@@ -56,12 +55,6 @@ impl SdlWindow {
             Self { window_canvas, buffer }
         )
     }
-}
-
-impl AppWindow for SdlWindow {
-    fn draw_target(&mut self) -> &mut impl DrawTarget<Color = Bgr888, Error = Infallible> {
-        &mut self.buffer
-    }
 
     fn flush(&mut self) -> Result<()> {
         let texture_creator = self.window_canvas.texture_creator();
@@ -85,6 +78,12 @@ impl AppWindow for SdlWindow {
 
         Ok(())
     }
+
+    pub fn draw_screen(&mut self, screen: &dyn AppDrawable) -> Result<()> {
+        screen.draw(&mut self.buffer)?;
+        self.flush()?;
+        Ok(())
+    }
 }
 
 impl EventHandler for SdlWindow {
@@ -95,7 +94,7 @@ impl EventHandler for SdlWindow {
 
 pub struct SdlEventSource {
     event_pump: EventPump,
-    sdl_events: EventSubsystem
+    event_sender: SdlEventSenderHandle
 }
 
 impl SdlEventSource {
@@ -112,16 +111,15 @@ impl SdlEventSource {
         sdl_events.register_custom_event::<Event>()
             .map_err(|e| anyhow!(e))?;
 
+        let event_sender = SdlEventSenderHandle::new(sdl_events.event_sender());
+
         Ok(
-            Self {
-                event_pump,
-                sdl_events
-            }
+            Self { event_pump, event_sender }
         )
     }
 }
 
-impl EventSource for SdlEventSource {
+impl EventSource<SdlEventSenderHandle> for SdlEventSource {
     fn wait_event(&mut self) -> Result<Event> {
         match self.event_pump.wait_event() {
             SdlEvent::Quit { .. } => Ok(Event::Quit),
@@ -143,14 +141,25 @@ impl EventSource for SdlEventSource {
         }
     }
 
-    fn event_sender(&self) -> impl EventSender + 'static {
-        self.sdl_events.event_sender()
+    fn event_sender(&self) -> SdlEventSenderHandle {
+        self.event_sender.clone()
     }
 }
 
-impl EventSender for SdlEventSender {
+#[derive(Clone)]
+pub struct SdlEventSenderHandle {
+    inner: Arc<SdlEventSender>,
+}
+
+impl SdlEventSenderHandle {
+    fn new(sender: SdlEventSender) -> Self {
+        Self { inner: Arc::new(sender) }
+    }
+}
+
+impl EventSender for SdlEventSenderHandle {
     fn send_event(&self, event: Event) -> Result<()> {
-        self.push_custom_event(event)
+        self.inner.push_custom_event(event)
             .map_err(|e| anyhow!(e))
     }
 }
