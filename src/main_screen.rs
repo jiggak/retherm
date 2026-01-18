@@ -113,10 +113,10 @@ impl ThermostatGauge {
         // required. At some point the fonts will be loaded from files specified
         // in configuration files, so some sort of resource manager might be
         // required.
-        let font_reg = Font::try_from_bytes(include_bytes!("../roboto/Roboto-Regular.ttf"))
+        let font_reg = Font::try_from_bytes(include_bytes!("../assets/roboto/Roboto-Regular.ttf"))
             .ok_or(anyhow!("Invalid font data"))?;
 
-        let font_bold = Font::try_from_bytes(include_bytes!("../roboto/Roboto-Bold.ttf"))
+        let font_bold = Font::try_from_bytes(include_bytes!("../assets/roboto/Roboto-Bold.ttf"))
             .ok_or(anyhow!("Invalid font data"))?;
 
         Ok(Self {

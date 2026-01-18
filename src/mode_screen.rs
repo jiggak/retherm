@@ -62,8 +62,8 @@ impl<S: EventSender> EventHandler for ModeScreen<S> {
             Event::Dial(dir) => {
                 if *dir != 0 {
                     let inc = dir / dir.abs();
-                    let selected = self.mode_list.selected_row as i32 + inc;
-                    self.mode_list.set_selected_row(selected);
+                    let highlight = self.mode_list.highlight_row as i32 + inc;
+                    self.mode_list.set_highlight_row(highlight);
                 }
             }
             Event::ButtonDown => {
@@ -118,20 +118,31 @@ impl From<HvacMode> for ListItem<HvacMode> {
 struct ListView<T> {
     rows: Vec<ListItem<T>>,
     selected_row: usize,
-    font_style: FontTextStyle<Bgr888>
+    highlight_row: usize,
+    font_style: FontTextStyle<Bgr888>,
+    icon_style: FontTextStyle<Bgr888>
 }
 
 impl<T> ListView<T> {
     fn new<R>(rows: &[R], selected_row: usize) -> Result<Self>
         where R: Clone + Into<ListItem<T>>
     {
-        let font = Font::try_from_bytes(include_bytes!("../roboto/Roboto-Bold.ttf"))
+        let icon_font = Font::try_from_bytes(include_bytes!("../assets/fontawesome-free-7.1.0/Font Awesome 7 Free-Solid-900.otf"))
+            .ok_or(anyhow!("Invalid font data"))?;
+
+        let font = Font::try_from_bytes(include_bytes!("../assets/roboto/Roboto-Bold.ttf"))
             .ok_or(anyhow!("Invalid font data"))?;
 
         // I call clone later on font_style, is that better than re-creating
         // FontTextStyle on each render loop?
         let font_style = FontTextStyleBuilder::new(font)
             .font_size(36)
+            .text_color(Bgr888::WHITE)
+            .anti_aliasing_color(Bgr888::BLACK)
+            .build();
+
+        let icon_style = FontTextStyleBuilder::new(icon_font)
+            .font_size(26)
             .text_color(Bgr888::WHITE)
             .anti_aliasing_color(Bgr888::BLACK)
             .build();
@@ -144,22 +155,24 @@ impl<T> ListView<T> {
         Ok(Self {
             rows,
             selected_row,
-            font_style
+            highlight_row: 0,
+            font_style,
+            icon_style
         })
     }
 
-    fn set_selected_row(&mut self, row: i32) {
-        if row >= 0 && row < self.rows.len() as i32 && row != self.selected_row as i32 {
-            self.selected_row = row as usize;
+    fn set_highlight_row(&mut self, row: i32) {
+        if row >= 0 && row < self.rows.len() as i32 && row != self.highlight_row as i32 {
+            self.highlight_row = row as usize;
         }
     }
 
     fn get_selected_value(&self) -> &T {
-        let row = self.rows.get(self.selected_row).unwrap();
+        let row = self.rows.get(self.highlight_row).unwrap();
         &row.value
     }
 
-    fn draw_row<D>(&self, target: &mut D, y_pos: usize, text: &str) -> Result<(), D::Error>
+    fn draw_row_text<D>(&self, target: &mut D, y_pos: usize, text: &str) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
         let center = target.bounding_box().center();
@@ -168,14 +181,13 @@ impl<T> ListView<T> {
             y_pos as i32 + 2
         );
 
-        let text = Text::with_alignment(
+        Text::with_alignment(
             text,
             text_pos,
             self.font_style.clone(),
             Alignment::Center
-        );
-
-        text.draw(target)?;
+        )
+        .draw(target)?;
 
         Ok(())
     }
@@ -183,18 +195,28 @@ impl<T> ListView<T> {
 
 impl<T> AppDrawable for ListView<T> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        let (row_width, row_height): (usize, usize) = (120, 40);;
+        let (row_width, row_height): (usize, usize) = (150, 40);;
         let list_height = self.rows.len() * row_height;
 
         let start_x = (target.width() - row_width) / 2;
         let start_y = (target.height() - list_height) / 2;
 
         for (i, row) in self.rows.iter().enumerate() {
-            self.draw_row(target, start_y + (i * row_height), &row.label)?;
+            let row_y = start_y + (i * row_height);
+            self.draw_row_text(target, row_y, &row.label)?;
+            if i == self.selected_row {
+                Text::with_alignment(
+                    "\u{f00c}",
+                    Point::new((start_x + 7) as i32, (row_y + 7) as i32),
+                    self.icon_style.clone(),
+                    Alignment::Left
+                )
+                .draw(target)?;
+            }
         }
 
         let rect = Rectangle::new(
-            Point::new(start_x as i32, (start_y + (self.selected_row * row_height)) as i32),
+            Point::new(start_x as i32, (start_y + (self.highlight_row * row_height)) as i32),
             Size::new(row_width as u32, row_height as u32)
         );
 
