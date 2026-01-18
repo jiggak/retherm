@@ -16,12 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::sync::Arc;
+
 use anyhow::{Result, anyhow};
 use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 use embedded_graphics_framebuf::FrameBuf;
 use sdl2::{
-    EventPump, EventSubsystem,
-    event::{Event as SdlEvent, EventSender as SdlEventSender},
+    EventPump, event::{Event as SdlEvent, EventSender as SdlEventSender},
     keyboard::Keycode, pixels::PixelFormatEnum, render::Canvas, video::Window
 };
 
@@ -93,7 +94,7 @@ impl EventHandler for SdlWindow {
 
 pub struct SdlEventSource {
     event_pump: EventPump,
-    sdl_events: EventSubsystem
+    event_sender: SdlEventSenderHandle
 }
 
 impl SdlEventSource {
@@ -110,16 +111,15 @@ impl SdlEventSource {
         sdl_events.register_custom_event::<Event>()
             .map_err(|e| anyhow!(e))?;
 
+        let event_sender = SdlEventSenderHandle::new(sdl_events.event_sender());
+
         Ok(
-            Self {
-                event_pump,
-                sdl_events
-            }
+            Self { event_pump, event_sender }
         )
     }
 }
 
-impl EventSource for SdlEventSource {
+impl EventSource<SdlEventSenderHandle> for SdlEventSource {
     fn wait_event(&mut self) -> Result<Event> {
         match self.event_pump.wait_event() {
             SdlEvent::Quit { .. } => Ok(Event::Quit),
@@ -141,14 +141,25 @@ impl EventSource for SdlEventSource {
         }
     }
 
-    fn event_sender(&self) -> impl EventSender + 'static {
-        self.sdl_events.event_sender()
+    fn event_sender(&self) -> SdlEventSenderHandle {
+        self.event_sender.clone()
     }
 }
 
-impl EventSender for SdlEventSender {
+#[derive(Clone)]
+pub struct SdlEventSenderHandle {
+    inner: Arc<SdlEventSender>,
+}
+
+impl SdlEventSenderHandle {
+    fn new(sender: SdlEventSender) -> Self {
+        Self { inner: Arc::new(sender) }
+    }
+}
+
+impl EventSender for SdlEventSenderHandle {
     fn send_event(&self, event: Event) -> Result<()> {
-        self.push_custom_event(event)
+        self.inner.push_custom_event(event)
             .map_err(|e| anyhow!(e))
     }
 }

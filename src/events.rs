@@ -74,9 +74,9 @@ pub trait EventHandler {
     fn handle_event(&mut self, event: &Event) -> Result<()>;
 }
 
-pub trait EventSource {
+pub trait EventSource<S: EventSender> {
     fn wait_event(&mut self) -> Result<Event>;
-    fn event_sender(&self) -> impl EventSender + Send + 'static;
+    fn event_sender(&self) -> S;
 }
 
 pub struct DefaultEventSource {
@@ -91,12 +91,12 @@ impl DefaultEventSource {
     }
 }
 
-impl EventSource for DefaultEventSource {
+impl EventSource<Sender<Event>> for DefaultEventSource {
     fn wait_event(&mut self) -> Result<Event> {
         Ok(self.receiver.recv()?)
     }
 
-    fn event_sender(&self) -> impl EventSender + 'static {
+    fn event_sender(&self) -> Sender<Event> {
         self.sender.clone()
     }
 }

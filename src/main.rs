@@ -35,7 +35,7 @@ use anyhow::Result;
 use esphome_api::server::EncryptedStreamProvider;
 
 use crate::backplate::Backplate;
-use crate::events::{Event, EventHandler, EventSource, TrailingEventSender};
+use crate::events::{Event, EventHandler, EventSender, EventSource, TrailingEventSender};
 use crate::home_assistant::HomeAssistant;
 use crate::main_screen::MainScreen;
 use crate::screen_manager::ScreenManager;
@@ -93,12 +93,14 @@ fn get_window() -> Result<crate::window_fb::FramebufferWindow> {
 }
 
 #[cfg(feature = "device")]
-fn get_event_source() -> Result<impl EventSource> {
+fn get_event_source() -> Result<crate::events::DefaultEventSource> {
     Ok(crate::events::DefaultEventSource::new())
 }
 
 #[cfg(feature = "device")]
-fn start_threads<E: EventSource>(events: &E) -> Result<()> {
+fn start_threads<E, S>(events: &E) -> Result<()>
+    where E: EventSource<S>, S: EventSender + Send + 'static
+{
     crate::input_events::start_button_events(events.event_sender())?;
     // Slow down events from dial to make it feel less twitchy
     // And spam the event loop less
@@ -113,11 +115,11 @@ fn get_window() -> Result<crate::window_sdl::SdlWindow> {
 }
 
 #[cfg(feature = "simulate")]
-fn get_event_source() -> Result<impl EventSource> {
+fn get_event_source() -> Result<crate::window_sdl::SdlEventSource> {
     crate::window_sdl::SdlEventSource::new()
 }
 
 #[cfg(feature = "simulate")]
-fn start_threads<E: EventSource>(_events: &E) -> Result<()> {
+fn start_threads<E: EventSource<S>, S: EventSender>(_events: &E) -> Result<()> {
     Ok(())
 }
