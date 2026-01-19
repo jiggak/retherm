@@ -35,7 +35,7 @@ pub struct ModeScreen<S> {
 }
 
 impl<S: EventSender> ModeScreen<S> {
-    pub fn new(event_sender: S, theme: &ModeSelectTheme, current_mode: &HvacMode) -> Result<Self> {
+    pub fn new(theme: &ModeSelectTheme, event_sender: S, current_mode: &HvacMode) -> Result<Self> {
         let modes = [
             HvacMode::Heat,
             HvacMode::Cool,
@@ -159,7 +159,7 @@ impl<T> ListView<T> {
         Text::with_alignment(
             text,
             text_pos,
-            self.theme.label_font.to_font_style(text_color, self.theme.bg_colour),
+            self.theme.label_font.font_style(text_color, self.theme.bg_colour),
             Alignment::Center
         )
         .draw(target)?;
@@ -180,7 +180,7 @@ impl<T> ListView<T> {
         Text::with_alignment(
             text,
             text_pos,
-            self.theme.icon_font.to_font_style(text_color, self.theme.bg_colour),
+            self.theme.icon_font.font_style(text_color, self.theme.bg_colour),
             Alignment::Left
         )
         .draw(target)?;

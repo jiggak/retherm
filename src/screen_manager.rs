@@ -64,8 +64,9 @@ impl<S: EventSender + Clone + 'static> ScreenManager<S> {
         match screen {
             ScreenId::ModeSelect { current_mode } => {
                 let screen = ModeScreen::new(
+                    &self.theme.mode_select,
                     self.event_sender.clone(),
-                    &self.theme.mode_select, current_mode
+                    current_mode
                 )?;
 
                 self.screens.push(Box::new(screen));

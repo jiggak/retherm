@@ -49,7 +49,7 @@ fn main() -> Result<()> {
 
     let theme = Theme::default()?;
 
-    let main_screen = MainScreen::new(event_source.event_sender())?;
+    let main_screen = MainScreen::new(&theme.gauge, event_source.event_sender())?;
     let mut screen_manager = ScreenManager::new(theme, main_screen, event_source.event_sender());
 
     start_threads(&event_source)?;

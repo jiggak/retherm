@@ -16,18 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use embedded_graphics::{
     pixelcolor::Bgr888, prelude::*, primitives::{Arc, Circle, PrimitiveStyle},
-    text::{Alignment, Text}
+    text::{Alignment, Text, renderer::TextRenderer}
 };
-use embedded_ttf::FontTextStyleBuilder;
-use rusttype::Font;
 
 use crate::{
     backplate::{HvacMode, HvacState}, drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender, TrailingEventSender},
-    screen_manager::{Screen, ScreenId}
+    screen_manager::{Screen, ScreenId}, theme::{FontStyle, GaugeTheme}
 };
 
 pub struct MainScreen<S> {
@@ -39,10 +37,10 @@ pub struct MainScreen<S> {
 impl<S: EventSender> Screen for MainScreen<S> { }
 
 impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
-    pub fn new(event_sender: S) -> Result<Self> {
+    pub fn new(theme: &GaugeTheme, event_sender: S) -> Result<Self> {
         let cmd_sender = TrailingEventSender::new(event_sender.clone(), 500);
         Ok(Self {
-            gauge: ThermostatGauge::new()?,
+            gauge: ThermostatGauge::new(theme.clone())?,
             cmd_sender, event_sender
         })
     }
@@ -80,8 +78,6 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
 
 impl<S: EventSender> AppDrawable for MainScreen<S> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        target.clear(Bgr888::BLACK)?;
-
         self.gauge.draw(target)?;
 
         Ok(())
@@ -90,56 +86,21 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
 
 struct ThermostatGauge {
     hvac_state: HvacState,
-    font_reg: Font<'static>,
-    font_bold: Font<'static>
+    theme: GaugeTheme
 }
 
 impl ThermostatGauge {
-    const FONT_SIZE_LG: u32 = 100;
-    const FONT_SIZE_MD: u32 = 40;
-    const FONT_SIZE_SM: u32 = 20;
-    const FONT_FG_COLOUR: Bgr888 = Bgr888::WHITE;
-    const FONT_BG_COLOUR: Bgr888 = Bgr888::BLACK;
-
-    const ARC_DIA: u32 = 280;
-    const ARC_WIDTH: u32 = 12;
-    // Arc start angle starts at 3'oclock
-    const ARC_START_DEG: f32 = 120.0;
-    const ARC_SWEEP_DEG: f32 = 300.0;
-
-    const ARC_BG_COLOUR: Bgr888 = Bgr888::CSS_DIM_GRAY;
-    const ARC_HEAT_FG_COLOUR: Bgr888 = Bgr888::CSS_PERU;
-    const ARC_HEAT_TARGET_DOT_COLOUR: Bgr888 = Bgr888::CSS_DARK_ORANGE;
-    const ARC_COOL_FG_COLOUR: Bgr888 = Bgr888::CSS_ROYAL_BLUE;
-    const ARC_COOL_TARGET_DOT_COLOUR: Bgr888 = Bgr888::CSS_DODGER_BLUE;
-    const ARC_TARGET_DOT_DIA: u32 = 20;
-
-    const ARC_TEMP_DOT_DIA: u32 = 10;
-    const ARC_TEMP_DOT_COLOUR: Bgr888 = Bgr888::CSS_SILVER;
-    const ARC_TEMP_TEXT_RADIUS: f32 = 124.0;
-
-    fn new() -> Result<Self> {
-        // I have no idea if it makes sense to keep this as a struct variable.
-        // It feels like a bad idea to be re-loading fonts each time a draw is
-        // required. At some point the fonts will be loaded from files specified
-        // in configuration files, so some sort of resource manager might be
-        // required.
-        let font_reg = Font::try_from_bytes(include_bytes!("../assets/roboto/Roboto-Regular.ttf"))
-            .ok_or(anyhow!("Invalid font data"))?;
-
-        let font_bold = Font::try_from_bytes(include_bytes!("../assets/roboto/Roboto-Bold.ttf"))
-            .ok_or(anyhow!("Invalid font data"))?;
-
+    fn new(theme: GaugeTheme) -> Result<Self> {
         Ok(Self {
             hvac_state: HvacState::default(),
-            font_reg,
-            font_bold
+            theme
         })
     }
 
-    fn get_arc_point(center: Point, percent: f32, radius: f32) -> Point {
-        let point_angle = Self::ARC_SWEEP_DEG * percent + Self::ARC_START_DEG;
+    fn get_arc_point(&self, center: Point, percent: f32, diameter: u32) -> Point {
+        let point_angle = self.theme.arc_sweed_deg * percent + self.theme.arc_start_deg;
         let point_angle = Angle::from_degrees(point_angle);
+        let radius = (diameter / 2) as f32;
         center + Point::new(
             (point_angle.to_radians().cos() * radius).round() as i32,
             (point_angle.to_radians().sin() * radius).round() as i32
@@ -152,16 +113,11 @@ impl ThermostatGauge {
         let (temp_int, temp_frac) = round_temperature(self.hvac_state.target_temp);
         let (temp_int_s, temp_frac_s) = (temp_int.to_string(), temp_frac.to_string());
 
-        // is clone() better than re-loading `Font` instance?
-        let font_style = FontTextStyleBuilder::new(self.font_bold.clone())
-            .font_size(Self::FONT_SIZE_LG)
-            .text_color(Self::FONT_FG_COLOUR)
-            .anti_aliasing_color(Self::FONT_BG_COLOUR)
-            .build();
+        let font_style = self.theme.font_style(&self.theme.target_font);
 
         let text_pos = Point::new(
             center.x,
-            center.y - Self::FONT_SIZE_LG as i32 / 2
+            center.y - font_style.line_height() as i32 / 2
         );
 
         let text = Text::with_alignment(
@@ -174,15 +130,11 @@ impl ThermostatGauge {
         text.draw(target)?;
 
         if temp_frac > 0 {
-            let font_style = FontTextStyleBuilder::new(self.font_bold.clone())
-                .font_size(Self::FONT_SIZE_MD)
-                .text_color(Self::FONT_FG_COLOUR)
-                .anti_aliasing_color(Self::FONT_BG_COLOUR)
-                .build();
+            let font_style = self.theme.font_style(&self.theme.target_decimal_font);
 
             let text_pos = Point::new(
                 center.x + (text.bounding_box().size.width / 2) as i32,
-                text_pos.y + Self::FONT_SIZE_MD as i32 / 2
+                text_pos.y + font_style.line_height() as i32 / 2
             );
 
             let text = Text::with_alignment(
@@ -201,11 +153,7 @@ impl ThermostatGauge {
     fn draw_sm_text<D>(&self, target: &mut D, center: Point, s: String) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let font_style = FontTextStyleBuilder::new(self.font_reg.clone())
-            .font_size(Self::FONT_SIZE_SM)
-            .text_color(Self::FONT_FG_COLOUR)
-            .anti_aliasing_color(Self::FONT_BG_COLOUR)
-            .build();
+        let font_style = self.theme.font_style(&self.theme.current_font);
 
         let text = Text::with_alignment(
             &s,
@@ -229,12 +177,12 @@ impl ThermostatGauge {
     ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let angle_start = Self::ARC_START_DEG + (Self::ARC_SWEEP_DEG * start_percent);
-        let sweep_angle = Self::ARC_SWEEP_DEG * (end_percent - start_percent);
+        let angle_start = self.theme.arc_start_deg + (self.theme.arc_sweed_deg * start_percent);
+        let sweep_angle = self.theme.arc_sweed_deg * (end_percent - start_percent);
 
         let arc = Arc::with_center(
             center,
-            Self::ARC_DIA,
+            self.theme.arc_dia,
             Angle::from_degrees(angle_start),
             Angle::from_degrees(sweep_angle)
         );
@@ -242,7 +190,7 @@ impl ThermostatGauge {
         // This is most likely less efficient than arc.into_styled().draw()
         // But we get pretty rounded corners
         for p in arc.points() {
-            Circle::with_center(p, Self::ARC_WIDTH)
+            Circle::with_center(p, self.theme.arc_width)
                 .into_styled(PrimitiveStyle::with_fill(colour))
                 .draw(target)?;
         }
@@ -253,7 +201,7 @@ impl ThermostatGauge {
     fn draw_arc_point<D>(&self, target: &mut D, percent: f32, center: Point, dia: u32, colour: D::Color) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let point_center = Self::get_arc_point(center, percent, (Self::ARC_DIA/2) as f32);
+        let point_center = self.get_arc_point(center, percent, self.theme.arc_dia);
 
         Circle::with_center(point_center, dia)
             .into_styled(PrimitiveStyle::with_fill(colour))
@@ -265,6 +213,8 @@ impl ThermostatGauge {
 
 impl AppDrawable for ThermostatGauge {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
+        target.clear(self.theme.bg_colour)?;
+
         let center = target.bounding_box().center();
         let target_temp_percent = get_temp_percent(self.hvac_state.target_temp);
         let current_temp_percent = get_temp_percent(self.hvac_state.current_temp);
@@ -272,29 +222,29 @@ impl AppDrawable for ThermostatGauge {
         self.draw_temp_text(target, center)?;
 
         // gauge background
-        self.draw_arc(target, 0.0, 1.0, center, Self::ARC_BG_COLOUR)?;
+        self.draw_arc(target, 0.0, 1.0, center, self.theme.arc_bg_colour)?;
 
         // gauge foreground
         let dot_colour = if matches!(self.hvac_state.mode, HvacMode::Heat) {
-            self.draw_arc(target, 0.0, target_temp_percent, center, Self::ARC_HEAT_FG_COLOUR)?;
-            Self::ARC_HEAT_TARGET_DOT_COLOUR
+            self.draw_arc(target, 0.0, target_temp_percent, center, self.theme.arc_heat_colour)?;
+            self.theme.arc_heat_dot_colour
         } else if matches!(self.hvac_state.mode, HvacMode::Cool) {
-            self.draw_arc(target, target_temp_percent, 1.0, center, Self::ARC_COOL_FG_COLOUR)?;
-            Self::ARC_COOL_TARGET_DOT_COLOUR
+            self.draw_arc(target, target_temp_percent, 1.0, center, self.theme.arc_cool_colour)?;
+            self.theme.arc_cool_dot_colour
         } else {
-            Self::ARC_BG_COLOUR
+            self.theme.arc_bg_colour
         };
 
         // large dot for target temp, with another dot inside
-        self.draw_arc_point(target, target_temp_percent, center, Self::ARC_TARGET_DOT_DIA, dot_colour)?;
-        self.draw_arc_point(target, target_temp_percent, center, Self::ARC_WIDTH, Self::FONT_FG_COLOUR)?;
+        self.draw_arc_point(target, target_temp_percent, center, self.theme.arc_target_dot_dia, dot_colour)?;
+        self.draw_arc_point(target, target_temp_percent, center, self.theme.arc_width, self.theme.fg_colour)?;
 
         // small dot for current temp
-        self.draw_arc_point(target, current_temp_percent, center, Self::ARC_TEMP_DOT_DIA, Self::ARC_TEMP_DOT_COLOUR)?;
+        self.draw_arc_point(target, current_temp_percent, center, self.theme.arc_temp_dot_dia, self.theme.arc_temp_dot_colour)?;
 
         // draw current temp label along the current temp angle
         let current_temp = format!("{:.1}", self.hvac_state.current_temp);
-        let current_temp_center = Self::get_arc_point(center, current_temp_percent, Self::ARC_TEMP_TEXT_RADIUS);
+        let current_temp_center = self.get_arc_point(center, current_temp_percent, self.theme.arc_temp_text_dia);
         self.draw_sm_text(target, current_temp_center, current_temp)?;
 
         Ok(())

@@ -42,13 +42,17 @@ impl<'a> FontDef<'a> {
 }
 
 impl<'a> FontDef<'a> where 'a: 'static {
-    pub fn to_font_style<C: PixelColor>(&self, fg_color: C, bg_color: C) -> FontTextStyle<C> {
+    pub fn font_style<C: PixelColor>(&self, fg_color: C, bg_color: C) -> FontTextStyle<C> {
         FontTextStyleBuilder::new(self.font.clone())
             .font_size(self.size)
             .text_color(fg_color)
             .anti_aliasing_color(bg_color)
             .build()
     }
+}
+
+pub trait FontStyle<C: PixelColor> {
+    fn font_style(&self, font: &FontDef<'static>) -> FontTextStyle<C>;
 }
 
 #[derive(Clone)]
@@ -59,6 +63,7 @@ pub struct RectTheme {
     pub corner_radius: Option<u32>
 }
 
+#[derive(Clone)]
 pub struct GaugeTheme {
     pub fg_colour: Bgr888,
     pub bg_colour: Bgr888,
@@ -68,7 +73,7 @@ pub struct GaugeTheme {
     /// Width of arc
     pub arc_width: u32,
     /// Arc start angle; 0 degrees at 3'oclock
-    pub arc_start_angle: f32,
+    pub arc_start_deg: f32,
     pub arc_sweed_deg: f32,
 
     /// Target temp decimal digit font
@@ -97,6 +102,12 @@ pub struct GaugeTheme {
     pub arc_temp_text_dia: u32
 }
 
+impl FontStyle<Bgr888> for GaugeTheme {
+    fn font_style(&self, font: &FontDef<'static>) -> FontTextStyle<Bgr888> {
+        font.font_style(self.fg_colour, self.bg_colour)
+    }
+}
+
 #[derive(Clone)]
 pub struct ModeSelectTheme {
     pub fg_colour: Bgr888,
@@ -110,6 +121,12 @@ pub struct ModeSelectTheme {
 
     pub highlight_text_colour: Bgr888,
     pub highlight_rect: RectTheme
+}
+
+impl FontStyle<Bgr888> for ModeSelectTheme {
+    fn font_style(&self, font: &FontDef<'static>) -> FontTextStyle<Bgr888> {
+        font.font_style(self.fg_colour, self.bg_colour)
+    }
 }
 
 impl Theme {
@@ -133,7 +150,7 @@ impl Theme {
 
                 arc_dia: 280,
                 arc_width: 12,
-                arc_start_angle: 120.0,
+                arc_start_deg: 120.0,
                 arc_sweed_deg: 300.0,
 
                 target_font: FontDef::new(&bold_font, 100),
