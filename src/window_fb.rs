@@ -93,7 +93,7 @@ impl EventHandler for FramebufferWindow {
             self.backlight_timer.reset();
         }
 
-        if matches!(event, Event::Dial(..)) {
+        if matches!(event, Event::Dial(_)) {
             self.sounds.click()?;
         }
 

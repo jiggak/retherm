@@ -25,7 +25,7 @@ use embedded_ttf::FontTextStyleBuilder;
 use rusttype::Font;
 
 use crate::{
-    backplate::HvacState, drawable::{AppDrawable, AppFrameBuf},
+    backplate::{HvacMode, HvacState}, drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender, TrailingEventSender},
     screen_manager::{Screen, ScreenId}
 };
@@ -106,6 +106,17 @@ impl ThermostatGauge {
     // Arc start angle starts at 3'oclock
     const ARC_START_DEG: f32 = 120.0;
     const ARC_SWEEP_DEG: f32 = 300.0;
+
+    const ARC_BG_COLOUR: Bgr888 = Bgr888::CSS_DIM_GRAY;
+    const ARC_HEAT_FG_COLOUR: Bgr888 = Bgr888::CSS_PERU;
+    const ARC_HEAT_TARGET_DOT_COLOUR: Bgr888 = Bgr888::CSS_DARK_ORANGE;
+    const ARC_COOL_FG_COLOUR: Bgr888 = Bgr888::CSS_ROYAL_BLUE;
+    const ARC_COOL_TARGET_DOT_COLOUR: Bgr888 = Bgr888::CSS_DODGER_BLUE;
+    const ARC_TARGET_DOT_DIA: u32 = 20;
+
+    const ARC_TEMP_DOT_DIA: u32 = 10;
+    const ARC_TEMP_DOT_COLOUR: Bgr888 = Bgr888::CSS_SILVER;
+    const ARC_TEMP_TEXT_RADIUS: f32 = 124.0;
 
     fn new() -> Result<Self> {
         // I have no idea if it makes sense to keep this as a struct variable.
@@ -208,14 +219,24 @@ impl ThermostatGauge {
         Ok(())
     }
 
-    fn draw_arc<D>(&self, target: &mut D, percent: f32, center: Point, colour: D::Color) -> Result<(), D::Error>
+    fn draw_arc<D>(
+        &self,
+        target: &mut D,
+        start_percent: f32,
+        end_percent: f32,
+        center: Point,
+        colour: D::Color
+    ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
+        let angle_start = Self::ARC_START_DEG + (Self::ARC_SWEEP_DEG * start_percent);
+        let sweep_angle = Self::ARC_SWEEP_DEG * (end_percent - start_percent);
+
         let arc = Arc::with_center(
             center,
             Self::ARC_DIA,
-            Angle::from_degrees(Self::ARC_START_DEG),
-            Angle::from_degrees(Self::ARC_SWEEP_DEG * percent)
+            Angle::from_degrees(angle_start),
+            Angle::from_degrees(sweep_angle)
         );
 
         // This is most likely less efficient than arc.into_styled().draw()
@@ -251,17 +272,29 @@ impl AppDrawable for ThermostatGauge {
         self.draw_temp_text(target, center)?;
 
         // gauge background
-        self.draw_arc(target, 1.0, center, Bgr888::CSS_DIM_GRAY)?;
+        self.draw_arc(target, 0.0, 1.0, center, Self::ARC_BG_COLOUR)?;
+
         // gauge foreground
-        self.draw_arc(target, target_temp_percent, center, Bgr888::CSS_PERU)?;
+        let dot_colour = if matches!(self.hvac_state.mode, HvacMode::Heat) {
+            self.draw_arc(target, 0.0, target_temp_percent, center, Self::ARC_HEAT_FG_COLOUR)?;
+            Self::ARC_HEAT_TARGET_DOT_COLOUR
+        } else if matches!(self.hvac_state.mode, HvacMode::Cool) {
+            self.draw_arc(target, target_temp_percent, 1.0, center, Self::ARC_COOL_FG_COLOUR)?;
+            Self::ARC_COOL_TARGET_DOT_COLOUR
+        } else {
+            Self::ARC_BG_COLOUR
+        };
 
-        self.draw_arc_point(target, target_temp_percent, center, 20, Bgr888::CSS_DARK_ORANGE)?;
-        self.draw_arc_point(target, target_temp_percent, center, Self::ARC_WIDTH, Bgr888::WHITE)?;
+        // large dot for target temp, with another dot inside
+        self.draw_arc_point(target, target_temp_percent, center, Self::ARC_TARGET_DOT_DIA, dot_colour)?;
+        self.draw_arc_point(target, target_temp_percent, center, Self::ARC_WIDTH, Self::FONT_FG_COLOUR)?;
 
-        self.draw_arc_point(target, current_temp_percent, center, 10, Bgr888::CSS_SILVER)?;
+        // small dot for current temp
+        self.draw_arc_point(target, current_temp_percent, center, Self::ARC_TEMP_DOT_DIA, Self::ARC_TEMP_DOT_COLOUR)?;
 
+        // draw current temp label along the current temp angle
         let current_temp = format!("{:.1}", self.hvac_state.current_temp);
-        let current_temp_center = Self::get_arc_point(center, current_temp_percent, 124.0);
+        let current_temp_center = Self::get_arc_point(center, current_temp_percent, Self::ARC_TEMP_TEXT_RADIUS);
         self.draw_sm_text(target, current_temp_center, current_temp)?;
 
         Ok(())
