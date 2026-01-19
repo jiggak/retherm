@@ -16,18 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use embedded_graphics::{
     pixelcolor::Bgr888, prelude::*,
     primitives::{PrimitiveStyleBuilder, Rectangle, RoundedRectangle},
     text::{Alignment, Text}
 };
-use embedded_ttf::{FontTextStyle, FontTextStyleBuilder};
-use rusttype::Font;
 
 use crate::{
     backplate::HvacMode, drawable::{AppDrawable, AppFrameBuf},
-    events::{Event, EventHandler, EventSender}, screen_manager::Screen
+    events::{Event, EventHandler, EventSender},
+    screen_manager::Screen, theme::ModeSelectTheme
 };
 
 pub struct ModeScreen<S> {
@@ -36,7 +35,7 @@ pub struct ModeScreen<S> {
 }
 
 impl<S: EventSender> ModeScreen<S> {
-    pub fn new(event_sender: S, current_mode: &HvacMode) -> Result<Self> {
+    pub fn new(event_sender: S, theme: &ModeSelectTheme, current_mode: &HvacMode) -> Result<Self> {
         let modes = [
             HvacMode::Heat,
             HvacMode::Cool,
@@ -48,7 +47,7 @@ impl<S: EventSender> ModeScreen<S> {
             .unwrap_or_default();
 
         Ok(Self {
-            mode_list: ListView::new(&modes, selected_row)?,
+            mode_list: ListView::new(theme.clone(), &modes, selected_row)?,
             event_sender
         })
     }
@@ -79,8 +78,6 @@ impl<S: EventSender> EventHandler for ModeScreen<S> {
 
 impl<S: EventSender> AppDrawable for ModeScreen<S> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        target.clear(Bgr888::BLACK)?;
-
         self.mode_list.draw(target)?;
 
         Ok(())
@@ -119,45 +116,23 @@ struct ListView<T> {
     rows: Vec<ListItem<T>>,
     selected_row: usize,
     highlight_row: usize,
-    font_style: FontTextStyle<Bgr888>,
-    icon_style: FontTextStyle<Bgr888>
+    theme: ModeSelectTheme
 }
 
 impl<T> ListView<T> {
-    fn new<R>(rows: &[R], selected_row: usize) -> Result<Self>
+    fn new<R>(theme: ModeSelectTheme, rows: &[R], selected_row: usize) -> Result<Self>
         where R: Clone + Into<ListItem<T>>
     {
-        let icon_font = Font::try_from_bytes(include_bytes!("../assets/fontawesome-free-7.1.0/Font Awesome 7 Free-Solid-900.otf"))
-            .ok_or(anyhow!("Invalid font data"))?;
-
-        let font = Font::try_from_bytes(include_bytes!("../assets/roboto/Roboto-Bold.ttf"))
-            .ok_or(anyhow!("Invalid font data"))?;
-
-        // I call clone later on font_style, is that better than re-creating
-        // FontTextStyle on each render loop?
-        let font_style = FontTextStyleBuilder::new(font)
-            .font_size(36)
-            .text_color(Bgr888::WHITE)
-            .anti_aliasing_color(Bgr888::BLACK)
-            .build();
-
-        let icon_style = FontTextStyleBuilder::new(icon_font)
-            .font_size(26)
-            .text_color(Bgr888::WHITE)
-            .anti_aliasing_color(Bgr888::BLACK)
-            .build();
-
         let rows = rows.iter()
             .cloned()
             .map(Into::into)
             .collect();
 
         Ok(Self {
+            theme,
             rows,
             selected_row,
-            highlight_row: 0,
-            font_style,
-            icon_style
+            highlight_row: 0
         })
     }
 
@@ -172,22 +147,74 @@ impl<T> ListView<T> {
         &row.value
     }
 
-    fn draw_row_text<D>(&self, target: &mut D, y_pos: usize, text: &str) -> Result<(), D::Error>
+    fn draw_row_text<D>(&self, target: &mut D, text_color: Bgr888, row_rect: Rectangle, text: &str) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let center = target.bounding_box().center();
+        let center = row_rect.center();
         let text_pos = Point::new(
             center.x,
-            y_pos as i32 + 2
+            center.y - (self.theme.label_font.size as i32 / 2)
         );
 
         Text::with_alignment(
             text,
             text_pos,
-            self.font_style.clone(),
+            self.theme.label_font.to_font_style(text_color, self.theme.bg_colour),
             Alignment::Center
         )
         .draw(target)?;
+
+        Ok(())
+    }
+
+    fn draw_checkmark<D>(&self, target: &mut D, text_color: Bgr888, row_rect: Rectangle, text: &str) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let top_left = row_rect.top_left;
+        let padding = (row_rect.size.height - self.theme.icon_font.size) / 2;
+        let text_pos = Point::new(
+            top_left.x + padding as i32,
+            top_left.y + padding as i32
+        );
+
+        Text::with_alignment(
+            text,
+            text_pos,
+            self.theme.icon_font.to_font_style(text_color, self.theme.bg_colour),
+            Alignment::Left
+        )
+        .draw(target)?;
+
+        Ok(())
+    }
+
+    fn draw_highlight<D>(&self, target: &mut D, row_rect: Rectangle) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let mut style_builder = PrimitiveStyleBuilder::new();
+
+        if let Some(color) = self.theme.highlight_rect.stroke_colour {
+            style_builder = style_builder.stroke_color(color);
+        }
+
+        if let Some(width) = self.theme.highlight_rect.stroke_width {
+            style_builder = style_builder.stroke_width(width);
+        }
+
+        if let Some(fill) = self.theme.highlight_rect.fill_colour {
+            style_builder = style_builder.fill_color(fill);
+        }
+
+        let rect_style = style_builder.build();
+
+        if let Some(radius) = self.theme.highlight_rect.corner_radius {
+            RoundedRectangle::with_equal_corners(row_rect, Size::new_equal(radius))
+                .into_styled(rect_style)
+                .draw(target)?;
+        } else {
+            row_rect.into_styled(rect_style)
+                .draw(target)?;
+        }
 
         Ok(())
     }
@@ -195,39 +222,40 @@ impl<T> ListView<T> {
 
 impl<T> AppDrawable for ListView<T> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        let (row_width, row_height): (usize, usize) = (150, 40);;
+        target.clear(self.theme.bg_colour)?;
+
+        let (row_width, row_height) = (
+            self.theme.row_size.width as usize, self.theme.row_size.height as usize
+        );
         let list_height = self.rows.len() * row_height;
 
         let start_x = (target.width() - row_width) / 2;
         let start_y = (target.height() - list_height) / 2;
 
-        for (i, row) in self.rows.iter().enumerate() {
-            let row_y = start_y + (i * row_height);
-            self.draw_row_text(target, row_y, &row.label)?;
-            if i == self.selected_row {
-                Text::with_alignment(
-                    "\u{f00c}",
-                    Point::new((start_x + 7) as i32, (row_y + 7) as i32),
-                    self.icon_style.clone(),
-                    Alignment::Left
-                )
-                .draw(target)?;
-            }
-        }
-
-        let rect = Rectangle::new(
-            Point::new(start_x as i32, (start_y + (self.highlight_row * row_height)) as i32),
-            Size::new(row_width as u32, row_height as u32)
+        let mut row_rect = Rectangle::new(
+            Point::new(start_x as i32, start_y as i32),
+            self.theme.row_size
         );
 
-        let style = PrimitiveStyleBuilder::new()
-            .stroke_color(Bgr888::WHITE)
-            .stroke_width(4)
-            .build();
+        for (i, row) in self.rows.iter().enumerate() {
+            let text_colour = if i == self.highlight_row {
+                self.theme.highlight_text_colour
+            } else {
+                self.theme.fg_colour
+            };
 
-        RoundedRectangle::with_equal_corners(rect, Size::new(10, 10))
-            .into_styled(style)
-            .draw(target)?;
+            self.draw_row_text(target, text_colour, row_rect, &row.label)?;
+
+            if i == self.selected_row {
+                self.draw_checkmark(target, text_colour, row_rect, &self.theme.checkmark)?;
+            }
+
+            if i == self.highlight_row {
+                self.draw_highlight(target, row_rect)?;
+            }
+
+            row_rect = row_rect.translate(Point::new(0, row_height as i32));
+        }
 
         Ok(())
     }

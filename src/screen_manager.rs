@@ -21,7 +21,7 @@ use anyhow::Result;
 use crate::{
     backplate::HvacMode, drawable::AppDrawable,
     events::{Event, EventHandler, EventSender},
-    mode_screen::ModeScreen
+    mode_screen::ModeScreen, theme::Theme
 };
 
 #[derive(Debug)]
@@ -36,17 +36,19 @@ pub trait Screen: AppDrawable + EventHandler { }
 pub struct ScreenManager<S> {
     main_screen: Box<dyn Screen>,
     screens: Vec<Box<dyn Screen>>,
-    event_sender: S
+    event_sender: S,
+    theme: Theme
 }
 
 impl<S: EventSender + Clone + 'static> ScreenManager<S> {
-    pub fn new<R>(main_screen: R, event_sender: S) -> Self
+    pub fn new<R>(theme: Theme, main_screen: R, event_sender: S) -> Self
         where R: Screen + 'static
     {
         Self {
             main_screen: Box::new(main_screen),
             screens: Vec::new(),
-            event_sender
+            event_sender,
+            theme
         }
     }
 
@@ -61,7 +63,11 @@ impl<S: EventSender + Clone + 'static> ScreenManager<S> {
     fn show_screen(&mut self, screen: &ScreenId) -> Result<()> {
         match screen {
             ScreenId::ModeSelect { current_mode } => {
-                let screen = ModeScreen::new(self.event_sender.clone(), current_mode)?;
+                let screen = ModeScreen::new(
+                    self.event_sender.clone(),
+                    &self.theme.mode_select, current_mode
+                )?;
+
                 self.screens.push(Box::new(screen));
             }
         }

@@ -26,6 +26,7 @@ mod main_screen;
 mod mode_screen;
 mod screen_manager;
 mod sound;
+mod theme;
 #[cfg(feature = "device")]
 mod window_fb;
 #[cfg(feature = "simulate")]
@@ -39,14 +40,17 @@ use crate::events::{Event, EventHandler, EventSender, EventSource};
 use crate::home_assistant::HomeAssistant;
 use crate::main_screen::MainScreen;
 use crate::screen_manager::ScreenManager;
+use crate::theme::Theme;
 
 fn main() -> Result<()> {
     let mut event_source = get_event_source()?;
 
     let mut window = get_window()?;
 
+    let theme = Theme::default()?;
+
     let main_screen = MainScreen::new(event_source.event_sender())?;
-    let mut screen_manager = ScreenManager::new(main_screen, event_source.event_sender());
+    let mut screen_manager = ScreenManager::new(theme, main_screen, event_source.event_sender());
 
     start_threads(&event_source)?;
 
