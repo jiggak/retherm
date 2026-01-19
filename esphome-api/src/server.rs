@@ -92,6 +92,14 @@ pub trait ConnectionObserver<S> {
     fn disconnect(&self) -> Result<()>;
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum MessageThreadError {
+    #[error("Message send failed {0}")]
+    SenderError(#[from] std::sync::mpsc::SendError<ProtoMessage>),
+    #[error("Can't send message; not connected")]
+    NonConnected
+}
+
 #[derive(Clone)]
 pub struct MessageSenderThread {
     message_sender: Arc<Mutex<Option<Sender<ProtoMessage>>>>
@@ -102,14 +110,14 @@ impl MessageSenderThread {
         Self { message_sender: Arc::new(Mutex::new(None)) }
     }
 
-    pub fn send_message(&self, message: ProtoMessage) -> Result<()> {
+    pub fn send_message(&self, message: ProtoMessage) -> Result<(), MessageThreadError> {
         let guard = self.message_sender.lock().unwrap();
 
         if let Some(sender) = guard.as_ref() {
             sender.send(message)?;
             Ok(())
         } else {
-            Err(anyhow!("Can't send message; not connected"))
+            Err(MessageThreadError::NonConnected)
         }
     }
 }

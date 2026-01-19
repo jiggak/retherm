@@ -22,8 +22,7 @@ use anyhow::Result;
 use esphome_api::{
     proto::*,
     server::{
-        DefaultHandler, MessageSenderThread, MessageStreamProvider, RequestHandler,
-        ResponseStatus, start_server
+        DefaultHandler, MessageSenderThread, MessageStreamProvider, MessageThreadError, RequestHandler, ResponseStatus, start_server
     }
 };
 
@@ -74,8 +73,15 @@ impl EventHandler for HomeAssistant {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         if let Event::HvacState(state) = event {
             *self.hvac_state.lock().unwrap() = state.clone();
-            let message = state.into();
-            self.message_sender.send_message(ProtoMessage::ClimateStateResponse(message))?;
+
+            let message = ProtoMessage::ClimateStateResponse(state.into());
+
+            let result = self.message_sender.send_message(message);
+            match result {
+                // Ignoring non-connected errors
+                Err(MessageThreadError::NonConnected) => { },
+                r => r?
+            }
         }
 
         Ok(())
