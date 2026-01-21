@@ -21,6 +21,13 @@ use std::{io::{BufReader, Read, Result as IoResult, Write}, thread, time::Durati
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serial2::{SerialPort, Settings};
 
+// Implementation based on information gathered from:
+// https://github.com/cuckoo-nest/wiki/blob/main/backplate/Protocol.md
+// https://wiki.exploitee.rs/index.php/Nest_Hacking
+// Other implementations for reference:
+// https://github.com/cuckoo-nest/cuckoo_hello/
+// https://github.com/cuckoo-nest/cuckoo_nest/
+
 #[derive(thiserror::Error, Debug)]
 pub enum BackplateError {
     #[error("IoError {0}")]
@@ -57,20 +64,74 @@ pub fn open(path: &str) -> Result<()> {
 
     let mut reader = MessageReader::new(&port)?;
 
-    loop {
+    let mut rcv_brk = false;
+    let mut fet_payload: Option<Vec<u8>> = None;
+
+    while !rcv_brk || fet_payload.is_none() {
         if let Some(message) = reader.read_message()? {
-            let message: BackplateMessage = message.try_into()?;
             match message {
-                BackplateMessage::Text(s) => {
-                    println!("Message (Text): {}", s);
-                },
-                BackplateMessage::Raw(m) => {
-                    println!("Message {:?}", m);
+                BackplateMessage::FetPresence(data) => {
+                    println!("Received FET 0x04");
+                    fet_payload = Some(data);
+                }
+                BackplateMessage::Text(s) if s == "BRK" => {
+                    println!("Received BRK");
+                    rcv_brk = true;
+                }
+                m => {
+                    println!("{:?}", m);
                 }
             }
         }
 
         thread::sleep(Duration::from_millis(250));
+    }
+
+    println!("Sending FET ACK");
+    let ack = Message {
+        command_id: 0x008f, // FetPresenceAck
+        payload: fet_payload.unwrap()
+    };
+    ack.write(&mut port)?;
+
+    // These info gather requests might not be required by the backplate
+    // But the cuckoo nest implementation has them
+    // TODO When message loop is implemented, try removing these
+
+    let msg = Message {
+        command_id: 0x0098, // GetTfeVersion
+        payload: vec![]
+    };
+    msg.write(&mut port)?;
+    let response = reader.read_message()?;
+    if let Some(BackplateMessage::TfeVersion(ver)) = response {
+        println!("TfeVersion {}", ver);
+    } else {
+        panic!("Expected TfeVersion");
+    }
+
+    let msg = Message {
+        command_id: 0x0099, // GetTfeBuildInfo
+        payload: vec![]
+    };
+    msg.write(&mut port)?;
+    let response = reader.read_message()?;
+    if let Some(BackplateMessage::TfeBuildInfo(info)) = response {
+        println!("TfeBuildInfo {}", info);
+    } else {
+        panic!("Expected TfeBuildInfo");
+    }
+
+    let msg = Message {
+        command_id: 0x009d, // GetBackplateModelAndBslId
+        payload: vec![]
+    };
+    msg.write(&mut port)?;
+    let response = reader.read_message()?;
+    if let Some(BackplateMessage::BackplateModelAndBslId(data)) = response {
+        println!("BackplateModelAndBslId {:x?}", data);
+    } else {
+        panic!("Expected BackplateModelAndBslId");
     }
 
     Ok(())
@@ -107,7 +168,9 @@ pub struct Message {
 impl Message {
     const PREAMBLE_WRITE: [u8; 3] = [0xd5, 0xaa, 0x96];
     const PREAMBLE_READ: [u8; 4] = [0xd5, 0xd5, 0xaa, 0x96];
-    const MIN_RAW_LEN: usize = 10; // Header(4) + Cmd(2) + Len(2) + CRC(2)
+
+    /// Preamble(4) + Cmd(2) + Len(2) + CRC(2)
+    const MIN_RAW_LEN: usize = 10;
 
     pub fn write<W: Write>(&self, stream: &mut W) -> IoResult<()> {
         let mut buf = BytesMut::new();
@@ -162,8 +225,13 @@ impl Message {
     }
 }
 
+#[derive(Debug)]
 pub enum BackplateMessage {
     Text(String),
+    FetPresence(Vec<u8>),
+    TfeVersion(String),
+    TfeBuildInfo(String),
+    BackplateModelAndBslId(Vec<u8>),
     Raw(Message)
 }
 
@@ -171,14 +239,26 @@ impl TryFrom<Message> for BackplateMessage {
     type Error = BackplateError;
 
     fn try_from(value: Message) -> std::result::Result<Self, Self::Error> {
-        let msg = match value {
+        let result = match value {
             Message { command_id: 0x0001, payload } => {
                 BackplateMessage::Text(String::from_utf8(payload)?)
-            },
-            msg => BackplateMessage::Raw(msg)
+            }
+            Message { command_id: 0x0004, payload } => {
+                BackplateMessage::FetPresence(payload)
+            }
+            Message { command_id: 0x0018, payload } => {
+                BackplateMessage::TfeVersion(String::from_utf8(payload)?)
+            }
+            Message { command_id: 0x0019, payload } => {
+                BackplateMessage::TfeBuildInfo(String::from_utf8(payload)?)
+            }
+            Message { command_id: 0x001d, payload } => {
+                BackplateMessage::BackplateModelAndBslId(payload)
+            }
+            val => BackplateMessage::Raw(val)
         };
 
-        Ok(msg)
+        Ok(result)
     }
 }
 
@@ -203,7 +283,7 @@ impl MessageReader {
         Ok(len)
     }
 
-    fn read_message(&mut self) -> Result<Option<Message>> {
+    fn read_message(&mut self) -> Result<Option<BackplateMessage>> {
         // read from stream and append to self.buffer
         if self.buffer.len() < Message::MIN_RAW_LEN {
             self.fill_buffer()?;
@@ -227,10 +307,10 @@ impl MessageReader {
 
             let message_data = Bytes::from(self.buffer.clone());
             if let Some((len, message)) = Message::parse(message_data)? {
-                println!("Parsed message, trimmed {} bytes from buffer", len);
+                println!("Parsed message, consumed {} bytes from buffer", len);
                 // remove parsed message data from buffer
                 self.buffer.drain(..len);
-                return Ok(Some(message))
+                return Ok(Some(message.try_into()?))
             } else {
                 // buffer doesn't contain full messages, read and try again
                 self.fill_buffer()?;
