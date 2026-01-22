@@ -345,7 +345,7 @@ impl TryFrom<Message> for BackplateResponse {
                     ob: payload[6] == 1,
                     w2: payload[7] == 1,
                     y2: payload[9] == 1,
-                    star: payload[10] == 1
+                    star: payload[11] == 1
                 };
                 BackplateResponse::WirePluggedPresence(wires)
             }
