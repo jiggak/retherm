@@ -155,6 +155,14 @@ impl Message {
     /// Preamble(4) + Cmd(2) + Len(2) + CRC(2)
     const MIN_RAW_LEN: usize = 10;
 
+    pub fn command(command_id: u16) -> Self {
+        Self { command_id, payload: Vec::new() }
+    }
+
+    pub fn with_payload(command_id: u16, payload: Vec<u8>) -> Self {
+        Self { command_id, payload }
+    }
+
     pub fn to_bytes(&self) -> Bytes {
         let mut buf = BytesMut::new();
 
@@ -217,25 +225,25 @@ impl From<BackplateCmd> for Message {
     fn from(value: BackplateCmd) -> Self {
         match value {
             BackplateCmd::Reset => {
-                Message { command_id: 0x00ff, payload: vec![] }
+                Message::command(0x00ff)
             }
             BackplateCmd::FetPresenceAck(data) => {
-                Message { command_id: 0x008f, payload: data }
+                Message::with_payload(0x008f, data)
             }
             BackplateCmd::GetTfeVersion => {
-                Message { command_id: 0x0098, payload: vec![] }
+                Message::command(0x0098)
             }
             BackplateCmd::GetTfeBuildInfo => {
-                Message { command_id: 0x0099, payload: vec![] }
+                Message::command(0x0099)
             }
             BackplateCmd::GetBackplateModelAndBslId => {
-                Message { command_id: 0x009d, payload: vec![] }
+                Message::command(0x009d)
             }
             BackplateCmd::SetPowerStealMode => {
-                Message { command_id: 0x00c0, payload: vec![0x00, 0x00, 0x00, 0x00] }
+                Message::with_payload(0x00c0, vec![0x00, 0x00, 0x00, 0x00])
             }
             BackplateCmd::StatusRequest => {
-                Message { command_id: 0x0083, payload: vec![] }
+                Message::command(0x0083)
             }
         }
     }
@@ -250,6 +258,11 @@ pub enum BackplateResponse {
     BackplateModelAndBslId(Vec<u8>),
     ProximitySensor(u16),
     AmbientLightSensor(u16),
+    BackplateState {
+        volts_in: f32,
+        volts_op: f32,
+        volts_bat: f32
+    },
     Climate {
         temperature: f32,
         humidity: f32
@@ -285,6 +298,16 @@ impl TryFrom<Message> for BackplateResponse {
                 // with light shining at device
                 let lux = u16::from_le_bytes(payload[..2].try_into().unwrap());
                 BackplateResponse::AmbientLightSensor(lux)
+            }
+            Message { command_id: 0x000b, payload } => {
+                let vin = u16::from_le_bytes(payload[8..10].try_into().unwrap());
+                let vop = u16::from_le_bytes(payload[10..12].try_into().unwrap());
+                let vbat = u16::from_le_bytes(payload[12..14].try_into().unwrap());
+                BackplateResponse::BackplateState {
+                    volts_in: vin as f32 / 100.0,
+                    volts_op: vop as f32 / 1000.0,
+                    volts_bat: vbat as f32 / 1000.0
+                }
             }
             Message { command_id: 0x0018, payload } => {
                 BackplateResponse::TfeVersion(String::from_utf8(payload)?)
