@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{io::{BufReader, Read, Result as IoResult, Write}, thread, time::Duration};
+use std::{io::{BufReader, Read}, thread, time::Duration};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serial2::{SerialPort, Settings};
@@ -40,101 +40,84 @@ pub enum BackplateError {
 
 pub type Result<T> = std::result::Result<T, BackplateError>;
 
-pub fn open(path: &str) -> Result<()> {
-    let mut port = SerialPort::open(path, |mut settings: Settings| {
-        settings.set_raw();
-        settings.set_baud_rate(115200)?;
-        Ok(settings)
-    })?;
+pub struct BackplateConnection {
+    port: SerialPort,
+    reader: MessageReader
+}
 
-    port.set_break(true)?;
-    thread::sleep(Duration::from_millis(250));
-    port.set_break(false)?;
+impl BackplateConnection {
+    pub fn send_command(&self, cmd: BackplateCmd) -> Result<()> {
+        let message: Message = cmd.into();
+        let message_data = message.to_bytes();
+        // println!("Write {:x?}", &message_data[..]);
+        self.port.write(&message_data)?;
+        Ok(())
+    }
 
-    // Seems to help reduce (not eliminate) unexpected data in first few reads
-    port.discard_buffers()?;
+    pub fn read_message(&mut self) -> Result<Option<BackplateResponse>> {
+        if let Some(message) = self.reader.read_message()? {
+            Ok(Some(message.try_into()?))
+        } else {
+            Ok(None)
+        }
+    }
 
-    let reset = Message {
-        command_id: 0x00ff,
-        payload: vec![]
-    };
+    pub fn open(path: &str) -> Result<Self> {
+        let port = SerialPort::open(path, |mut settings: Settings| {
+            settings.set_raw();
+            settings.set_baud_rate(115200)?;
+            Ok(settings)
+        })?;
 
-    println!("Send reset");
-    reset.write(&mut port)?;
+        port.set_break(true)?;
+        thread::sleep(Duration::from_millis(250));
+        port.set_break(false)?;
 
-    let mut reader = MessageReader::new(&port)?;
+        // Seems to help reduce (not eliminate) unexpected data in first few reads
+        port.discard_buffers()?;
 
-    let mut rcv_brk = false;
-    let mut fet_payload: Option<Vec<u8>> = None;
+        let reader = MessageReader::new(&port)?;
 
-    while !rcv_brk || fet_payload.is_none() {
-        if let Some(message) = reader.read_message()? {
-            match message {
-                BackplateMessage::FetPresence(data) => {
-                    println!("Received FET 0x04");
-                    fet_payload = Some(data);
-                }
-                BackplateMessage::Text(s) if s == "BRK" => {
-                    println!("Received BRK");
-                    rcv_brk = true;
-                }
-                m => {
-                    println!("{:?}", m);
+        let mut backplate = BackplateConnection { port, reader };
+
+        println!("Send reset");
+        backplate.send_command(BackplateCmd::Reset)?;
+
+        let mut rcv_brk = false;
+        let mut fet_payload: Option<Vec<u8>> = None;
+
+        while !rcv_brk || fet_payload.is_none() {
+            if let Some(message) = backplate.read_message()? {
+                println!("{:?}", message);
+                match message {
+                    BackplateResponse::FetPresence(data) => {
+                        fet_payload = Some(data);
+                    }
+                    BackplateResponse::Text(s) if s == "BRK" => {
+                        rcv_brk = true;
+                    }
+                    _ => { }
                 }
             }
+
+            thread::sleep(Duration::from_millis(250));
         }
 
-        thread::sleep(Duration::from_millis(250));
+        println!("Sending FET ACK");
+        backplate.send_command(BackplateCmd::FetPresenceAck(fet_payload.unwrap()))?;
+
+        // The Cuckoo Nest implementation sends a series of commands to fetch
+        // info (e.g. GetTfeVersion) but this doesn't seem to be necessary.
+
+        // What does this do? The backplate will still send/receive messages
+        // without this command as part of the init sequence.
+        // Based on the name, I suspect it turns on device changing via
+        // HVAC wires. Message 11 contains voltage levels, so I should be able
+        // observe effects with/without this command in those values(?)
+        backplate.send_command(BackplateCmd::SetPowerStealMode)?;
+
+        Ok(backplate)
     }
-
-    println!("Sending FET ACK");
-    let ack = Message {
-        command_id: 0x008f, // FetPresenceAck
-        payload: fet_payload.unwrap()
-    };
-    ack.write(&mut port)?;
-
-    // These info gather requests might not be required by the backplate
-    // But the cuckoo nest implementation has them
-    // TODO When message loop is implemented, try removing these
-
-    let msg = Message {
-        command_id: 0x0098, // GetTfeVersion
-        payload: vec![]
-    };
-    msg.write(&mut port)?;
-    let response = reader.read_message()?;
-    if let Some(BackplateMessage::TfeVersion(ver)) = response {
-        println!("TfeVersion {}", ver);
-    } else {
-        panic!("Expected TfeVersion");
-    }
-
-    let msg = Message {
-        command_id: 0x0099, // GetTfeBuildInfo
-        payload: vec![]
-    };
-    msg.write(&mut port)?;
-    let response = reader.read_message()?;
-    if let Some(BackplateMessage::TfeBuildInfo(info)) = response {
-        println!("TfeBuildInfo {}", info);
-    } else {
-        panic!("Expected TfeBuildInfo");
-    }
-
-    let msg = Message {
-        command_id: 0x009d, // GetBackplateModelAndBslId
-        payload: vec![]
-    };
-    msg.write(&mut port)?;
-    let response = reader.read_message()?;
-    if let Some(BackplateMessage::BackplateModelAndBslId(data)) = response {
-        println!("BackplateModelAndBslId {:x?}", data);
-    } else {
-        panic!("Expected BackplateModelAndBslId");
-    }
-
-    Ok(())
 }
 
 // https://github.com/mrhooray/crc-rs/issues/54
@@ -172,25 +155,19 @@ impl Message {
     /// Preamble(4) + Cmd(2) + Len(2) + CRC(2)
     const MIN_RAW_LEN: usize = 10;
 
-    pub fn write<W: Write>(&self, stream: &mut W) -> IoResult<()> {
+    pub fn to_bytes(&self) -> Bytes {
         let mut buf = BytesMut::new();
 
+        buf.put(&Self::PREAMBLE_WRITE[..]);
         buf.put_u16_le(self.command_id);
         buf.put_u16_le(self.payload.len() as u16);
         buf.put(&self.payload[..]);
 
-        let crc_input = buf.clone().freeze();
-        let checksum = crc_from_bytes(&crc_input);
+        // calc crc of ID, Len, Payload (no preamble)
+        let checksum = crc_from_bytes(&buf[3..]);
         buf.put_u16_le(checksum);
 
-        let mut message = vec![];
-        message.extend_from_slice(&Self::PREAMBLE_WRITE);
-        message.extend_from_slice(&buf.freeze());
-
-        println!("Write {:x?}", message);
-        stream.write(&message)?;
-
-        Ok(())
+        buf.freeze()
     }
 
     pub fn parse(mut buffer: Bytes) -> Result<Option<(usize, Self)>> {
@@ -226,36 +203,99 @@ impl Message {
 }
 
 #[derive(Debug)]
-pub enum BackplateMessage {
+pub enum BackplateCmd {
+    Reset,
+    FetPresenceAck(Vec<u8>),
+    GetTfeVersion,
+    GetTfeBuildInfo,
+    GetBackplateModelAndBslId,
+    SetPowerStealMode,
+    StatusRequest
+}
+
+impl From<BackplateCmd> for Message {
+    fn from(value: BackplateCmd) -> Self {
+        match value {
+            BackplateCmd::Reset => {
+                Message { command_id: 0x00ff, payload: vec![] }
+            }
+            BackplateCmd::FetPresenceAck(data) => {
+                Message { command_id: 0x008f, payload: data }
+            }
+            BackplateCmd::GetTfeVersion => {
+                Message { command_id: 0x0098, payload: vec![] }
+            }
+            BackplateCmd::GetTfeBuildInfo => {
+                Message { command_id: 0x0099, payload: vec![] }
+            }
+            BackplateCmd::GetBackplateModelAndBslId => {
+                Message { command_id: 0x009d, payload: vec![] }
+            }
+            BackplateCmd::SetPowerStealMode => {
+                Message { command_id: 0x00c0, payload: vec![0x00, 0x00, 0x00, 0x00] }
+            }
+            BackplateCmd::StatusRequest => {
+                Message { command_id: 0x0083, payload: vec![] }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum BackplateResponse {
     Text(String),
     FetPresence(Vec<u8>),
     TfeVersion(String),
     TfeBuildInfo(String),
     BackplateModelAndBslId(Vec<u8>),
+    ProximitySensor(u16),
+    AmbientLightSensor(u16),
+    Climate {
+        temperature: f32,
+        humidity: f32
+    },
     Raw(Message)
 }
 
-impl TryFrom<Message> for BackplateMessage {
+impl TryFrom<Message> for BackplateResponse {
     type Error = BackplateError;
 
-    fn try_from(value: Message) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: Message) -> Result<Self> {
         let result = match value {
             Message { command_id: 0x0001, payload } => {
-                BackplateMessage::Text(String::from_utf8(payload)?)
+                BackplateResponse::Text(String::from_utf8(payload)?)
+            }
+            Message { command_id: 0x0002, payload } => {
+                let temp = u16::from_le_bytes(payload[..2].try_into().unwrap());
+                let humidity = u16::from_le_bytes(payload[2..4].try_into().unwrap());
+                BackplateResponse::Climate {
+                    temperature: temp as f32 / 100.0,
+                    humidity: humidity as f32 / 10.0
+                }
             }
             Message { command_id: 0x0004, payload } => {
-                BackplateMessage::FetPresence(payload)
+                BackplateResponse::FetPresence(payload)
+            }
+            Message { command_id: 0x0007, payload } => {
+                let proximity = u16::from_le_bytes(payload.try_into().unwrap());
+                BackplateResponse::ProximitySensor(proximity)
+            }
+            Message { command_id: 0x000a, payload } => {
+                // 4 byte payload, but only the first two bytes seem to change
+                // with light shining at device
+                let lux = u16::from_le_bytes(payload[..2].try_into().unwrap());
+                BackplateResponse::AmbientLightSensor(lux)
             }
             Message { command_id: 0x0018, payload } => {
-                BackplateMessage::TfeVersion(String::from_utf8(payload)?)
+                BackplateResponse::TfeVersion(String::from_utf8(payload)?)
             }
             Message { command_id: 0x0019, payload } => {
-                BackplateMessage::TfeBuildInfo(String::from_utf8(payload)?)
+                BackplateResponse::TfeBuildInfo(String::from_utf8(payload)?)
             }
             Message { command_id: 0x001d, payload } => {
-                BackplateMessage::BackplateModelAndBslId(payload)
+                BackplateResponse::BackplateModelAndBslId(payload)
             }
-            val => BackplateMessage::Raw(val)
+            val => BackplateResponse::Raw(val)
         };
 
         Ok(result)
@@ -279,17 +319,17 @@ impl MessageReader {
         let mut buf = vec![0; 512];
         let len = self.reader.read(&mut buf)?;
         self.buffer.put(&buf[..len]);
-        println!("Read {:x?}", &buf[..len]);
+        // println!("Read {:x?}", &buf[..len]);
         Ok(len)
     }
 
-    fn read_message(&mut self) -> Result<Option<BackplateMessage>> {
+    fn read_message(&mut self) -> Result<Option<Message>> {
         // read from stream and append to self.buffer
         if self.buffer.len() < Message::MIN_RAW_LEN {
             self.fill_buffer()?;
         }
 
-        println!("Buffered {:x?}", &self.buffer[..]);
+        // println!("Buffered {:x?}", &self.buffer[..]);
 
         // search for preamble in buffer
         let preamble_pos = self.buffer
@@ -301,16 +341,16 @@ impl MessageReader {
         if let Some(idx) = preamble_pos {
             // discard any data before preamble
             if idx > 0 {
-                println!("MessageReader: discarding unexpected data {:x?}", &self.buffer[..idx]);
+                // println!("MessageReader: discarding unexpected data {:x?}", &self.buffer[..idx]);
                 self.buffer.drain(..idx);
             }
 
             let message_data = Bytes::from(self.buffer.clone());
             if let Some((len, message)) = Message::parse(message_data)? {
-                println!("Parsed message, consumed {} bytes from buffer", len);
+                // println!("Parsed message, consumed {} bytes from buffer", len);
                 // remove parsed message data from buffer
                 self.buffer.drain(..len);
-                return Ok(Some(message.try_into()?))
+                return Ok(Some(message))
             } else {
                 // buffer doesn't contain full messages, read and try again
                 self.fill_buffer()?;
