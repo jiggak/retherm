@@ -84,14 +84,18 @@ impl BackplateConnection {
         backplate.send_command(BackplateCmd::Reset)?;
 
         let mut rcv_brk = false;
-        let mut fet_payload: Option<Vec<u8>> = None;
+        let mut ack_payload: Option<Vec<u8>> = None;
 
-        while !rcv_brk || fet_payload.is_none() {
-            if let Some(message) = backplate.read_message()? {
+        while !rcv_brk || ack_payload.is_none() {
+            if let Some(raw_message) = backplate.reader.read_message()? {
+                let raw_payload = raw_message.payload.clone();
+                let message = raw_message.try_into()?;
+
                 println!("{:?}", message);
+
                 match message {
-                    BackplateResponse::FetPresence(data) => {
-                        fet_payload = Some(data);
+                    BackplateResponse::WirePowerPresence(_) => {
+                        ack_payload = Some(raw_payload);
                     }
                     BackplateResponse::Text(s) if s == "BRK" => {
                         rcv_brk = true;
@@ -103,8 +107,8 @@ impl BackplateConnection {
             thread::sleep(Duration::from_millis(250));
         }
 
-        println!("Sending FET ACK");
-        backplate.send_command(BackplateCmd::FetPresenceAck(fet_payload.unwrap()))?;
+        println!("Sending Reset ACK");
+        backplate.send_command(BackplateCmd::ResetAck(ack_payload.unwrap()))?;
 
         // The Cuckoo Nest implementation sends a series of commands to fetch
         // info (e.g. GetTfeVersion) but this doesn't seem to be necessary.
@@ -215,7 +219,7 @@ impl Message {
 #[derive(Debug)]
 pub enum BackplateCmd {
     Reset,
-    FetPresenceAck(Vec<u8>),
+    ResetAck(Vec<u8>),
     GetTfeVersion,
     GetTfeBuildInfo,
     GetBackplateModelAndBslId,
@@ -229,7 +233,7 @@ impl From<BackplateCmd> for Message {
             BackplateCmd::Reset => {
                 Message::command(0x00ff)
             }
-            BackplateCmd::FetPresenceAck(data) => {
+            BackplateCmd::ResetAck(data) => {
                 Message::with_payload(0x008f, data)
             }
             BackplateCmd::GetTfeVersion => {
@@ -252,9 +256,25 @@ impl From<BackplateCmd> for Message {
 }
 
 #[derive(Debug)]
+pub struct BackplateWires<T> {
+    pub y1: T,
+    pub y2: T,
+    pub g: T,
+    pub ob: T,
+    pub rc: T,
+
+    pub w1: T,
+    pub w2: T,
+    pub c: T,
+    pub star: T,
+    pub rh: T
+}
+
+#[derive(Debug)]
 pub enum BackplateResponse {
     Text(String),
-    FetPresence(Vec<u8>),
+    WirePowerPresence(BackplateWires<bool>),
+    WirePluggedPresence(BackplateWires<bool>),
     TfeVersion(String),
     TfeBuildInfo(String),
     BackplateModelAndBslId(Vec<u8>),
@@ -290,11 +310,44 @@ impl TryFrom<Message> for BackplateResponse {
                 }
             }
             Message { command_id: 0x0004, payload } => {
-                BackplateResponse::FetPresence(payload)
+                // W1, Y1, G, OB, W2, ?0, ?0, Y2, C, RC, RH, *, ?0
+                // Mapping from https://wiki.exploitee.rs/index.php/Nest_Hacking
+                // I was able to confirm Rc and Rh by testing with 9V batt
+                // connected to R[c,h] and C. Other mapping is unconfirmed.
+                let wires = BackplateWires {
+                    w1: payload[0] == 1,
+                    y1: payload[1] == 1,
+                    g: payload[2] == 1,
+                    ob: payload[3] == 1,
+                    w2: payload[4] == 1,
+                    y2: payload[7] == 1,
+                    c: payload[8] == 1,
+                    rc: payload[9] == 1,
+                    rh: payload[10] == 1,
+                    star: payload[11] == 1
+                };
+
+                BackplateResponse::WirePowerPresence(wires)
             }
             Message { command_id: 0x0007, payload } => {
                 let proximity = u16::from_le_bytes(payload.try_into().unwrap());
                 BackplateResponse::ProximitySensor(proximity)
+            }
+            Message { command_id: 0x0009, payload } => {
+                // Mapping observed by testing each wire on Model 02A backplate
+                let wires = BackplateWires {
+                    w1: payload[0] == 1,
+                    y1: payload[1] == 1,
+                    c: payload[2] == 1,
+                    rc: payload[3] == 1,
+                    rh: payload[4] == 1,
+                    g: payload[5] == 1,
+                    ob: payload[6] == 1,
+                    w2: payload[7] == 1,
+                    y2: payload[9] == 1,
+                    star: payload[10] == 1
+                };
+                BackplateResponse::WirePluggedPresence(wires)
             }
             Message { command_id: 0x000a, payload } => {
                 // 4 byte payload, but only the first two bytes seem to change
