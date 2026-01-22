@@ -109,11 +109,13 @@ impl BackplateConnection {
         // The Cuckoo Nest implementation sends a series of commands to fetch
         // info (e.g. GetTfeVersion) but this doesn't seem to be necessary.
 
-        // What does this do? The backplate will still send/receive messages
-        // without this command as part of the init sequence.
-        // Based on the name, I suspect it turns on device changing via
-        // HVAC wires. Message 11 contains voltage levels, so I should be able
-        // observe effects with/without this command in those values(?)
+        // What does SetPowerStealMode do?
+        // I've tested with/without this command and I don't notice any difference.
+        // My assumption is this command has some effect on charging.
+        // With a 9V batt connected to Rh/C the voltage levels in state messages
+        // show voltage readings and a bit is flipped seemingly to indicate
+        // charging state (byte 1, bit 6 [zero based]).
+        // These values do not change with/without this command.
         backplate.send_command(BackplateCmd::SetPowerStealMode)?;
 
         Ok(backplate)
@@ -259,6 +261,7 @@ pub enum BackplateResponse {
     ProximitySensor(u16),
     AmbientLightSensor(u16),
     BackplateState {
+        charging: bool,
         volts_in: f32,
         volts_op: f32,
         volts_bat: f32
@@ -300,10 +303,12 @@ impl TryFrom<Message> for BackplateResponse {
                 BackplateResponse::AmbientLightSensor(lux)
             }
             Message { command_id: 0x000b, payload } => {
+                let charging = payload[1] & 0x40 != 0;
                 let vin = u16::from_le_bytes(payload[8..10].try_into().unwrap());
                 let vop = u16::from_le_bytes(payload[10..12].try_into().unwrap());
                 let vbat = u16::from_le_bytes(payload[12..14].try_into().unwrap());
                 BackplateResponse::BackplateState {
+                    charging,
                     volts_in: vin as f32 / 100.0,
                     volts_op: vop as f32 / 1000.0,
                     volts_bat: vbat as f32 / 1000.0
