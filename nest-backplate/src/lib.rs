@@ -35,7 +35,9 @@ pub enum BackplateError {
     #[error("ChecksumMismatch")]
     ChecksumMismatch,
     #[error("InvalidAscii {0}")]
-    InvalidAscii(#[from] std::string::FromUtf8Error)
+    InvalidAscii(#[from] std::string::FromUtf8Error),
+    #[error("Error parsing message data: {0}")]
+    ParseError(String)
 }
 
 pub type Result<T> = std::result::Result<T, BackplateError>;
@@ -224,14 +226,20 @@ pub enum BackplateCmd {
     GetTfeBuildInfo,
     GetBackplateModelAndBslId,
     SetPowerStealMode,
-    StatusRequest
+    StatusRequest,
+    SwitchWire(Wire, bool)
 }
 
 impl From<BackplateCmd> for Message {
     fn from(value: BackplateCmd) -> Self {
         match value {
-            BackplateCmd::Reset => {
-                Message::command(0x00ff)
+            BackplateCmd::StatusRequest => {
+                Message::command(0x0083)
+            }
+            BackplateCmd::SwitchWire(wire, enabled) => {
+                let wire = wire.to_byte();
+                let enabled = if enabled { 0x01 } else { 0x00 };
+                Message::with_payload(0x0082, vec![wire, enabled])
             }
             BackplateCmd::ResetAck(data) => {
                 Message::with_payload(0x008f, data)
@@ -248,9 +256,41 @@ impl From<BackplateCmd> for Message {
             BackplateCmd::SetPowerStealMode => {
                 Message::with_payload(0x00c0, vec![0x00, 0x00, 0x00, 0x00])
             }
-            BackplateCmd::StatusRequest => {
-                Message::command(0x0083)
+            BackplateCmd::Reset => {
+                Message::command(0x00ff)
             }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Wire {
+    W1, Y1, G, OB, W2, Y2, Star
+}
+
+impl Wire {
+    fn to_byte(&self) -> u8 {
+        match self {
+            Self::W1 => 0x00,
+            Self::Y1 => 0x01,
+            Self::G => 0x02,
+            Self::OB => 0x03,
+            Self::W2 => 0x04,
+            Self::Y2 => 0x07,
+            Self::Star => 0x0b
+        }
+    }
+
+    fn try_from_byte(id: u8) -> Result<Self> {
+        match id {
+            0x00 => Ok(Self::W1),
+            0x01 => Ok(Self::Y1),
+            0x02 => Ok(Self::G),
+            0x03 => Ok(Self::OB),
+            0x04 => Ok(Self::W2),
+            0x07 => Ok(Self::Y2),
+            0x0b => Ok(Self::Star),
+            _ => Err(BackplateError::ParseError(format!("Unexpected value({}) for wire ID", id)))
         }
     }
 }
@@ -275,6 +315,7 @@ pub enum BackplateResponse {
     Text(String),
     WirePowerPresence(BackplateWires<bool>),
     WirePluggedPresence(BackplateWires<bool>),
+    WireSwitched(Wire, bool),
     TfeVersion(String),
     TfeBuildInfo(String),
     BackplateModelAndBslId(Vec<u8>),
@@ -328,6 +369,11 @@ impl TryFrom<Message> for BackplateResponse {
                 };
 
                 BackplateResponse::WirePowerPresence(wires)
+            }
+            Message { command_id: 0x0006, payload } => {
+                let wire = Wire::try_from_byte(payload[0])?;
+                let enabled = payload[1] == 1;
+                BackplateResponse::WireSwitched(wire, enabled)
             }
             Message { command_id: 0x0007, payload } => {
                 let proximity = u16::from_le_bytes(payload.try_into().unwrap());
