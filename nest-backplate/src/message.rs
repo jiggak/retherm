@@ -79,7 +79,10 @@ impl Message {
         let checksum = buffer.get_u16_le();
         let calc_checksum = crc_from_message(&message);
         if checksum != calc_checksum {
-            return Err(BackplateError::ChecksumMismatch);
+            return Err(BackplateError::ChecksumMismatch {
+                recv: checksum,
+                calc: calc_checksum
+            });
         }
 
         let read_len = Self::MIN_RAW_LEN + data_len;
@@ -134,38 +137,6 @@ impl From<BackplateCmd> for Message {
 }
 
 #[derive(Debug)]
-pub enum Wire {
-    W1, Y1, G, OB, W2, Y2, Star
-}
-
-impl Wire {
-    fn to_byte(&self) -> u8 {
-        match self {
-            Self::W1 => 0x00,
-            Self::Y1 => 0x01,
-            Self::G => 0x02,
-            Self::OB => 0x03,
-            Self::W2 => 0x04,
-            Self::Y2 => 0x07,
-            Self::Star => 0x0b
-        }
-    }
-
-    fn try_from_byte(id: u8) -> Result<Self> {
-        match id {
-            0x00 => Ok(Self::W1),
-            0x01 => Ok(Self::Y1),
-            0x02 => Ok(Self::G),
-            0x03 => Ok(Self::OB),
-            0x04 => Ok(Self::W2),
-            0x07 => Ok(Self::Y2),
-            0x0b => Ok(Self::Star),
-            _ => Err(BackplateError::ParseError(format!("Unexpected value({}) for wire ID", id)))
-        }
-    }
-}
-
-#[derive(Debug)]
 pub enum BackplateResponse {
     Text(String),
     WirePowerPresence(BackplateWires<bool>),
@@ -198,14 +169,27 @@ impl TryFrom<Message> for BackplateResponse {
                 BackplateResponse::Text(String::from_utf8(payload)?)
             }
             Message { command_id: 0x0002, payload } => {
-                let temp = u16::from_le_bytes(payload[..2].try_into().unwrap());
-                let humidity = u16::from_le_bytes(payload[2..4].try_into().unwrap());
+                let (temp, hum) = match payload.as_chunks::<2>() {
+                    ([t, h, ..], _) => {
+                        Ok((u16::from_le_bytes(*t), u16::from_le_bytes(*h)))
+                    },
+                    _ => Err(BackplateError::PayloadLength {
+                        id: 0x0002, expected: 4, found: payload.len()
+                    })
+                }?;
+
                 BackplateResponse::Climate {
                     temperature: temp as f32 / 100.0,
-                    humidity: humidity as f32 / 10.0
+                    humidity: hum as f32 / 10.0
                 }
             }
             Message { command_id: 0x0004, payload } => {
+                if payload.len() < 12 {
+                    return Err(BackplateError::PayloadLength {
+                        id: 0x0004, expected: 12, found: payload.len()
+                    });
+                }
+
                 // W1, Y1, G, OB, W2, ?0, ?0, Y2, C, RC, RH, *, ?0
                 // Mapping from https://wiki.exploitee.rs/index.php/Nest_Hacking
                 // I was able to confirm Rc and Rh by testing with 9V batt
@@ -226,15 +210,36 @@ impl TryFrom<Message> for BackplateResponse {
                 BackplateResponse::WirePowerPresence(wires)
             }
             Message { command_id: 0x0006, payload } => {
-                let wire = Wire::try_from_byte(payload[0])?;
-                let enabled = payload[1] == 1;
+                let (wire, enabled) = match payload.as_slice() {
+                    [b0, b1, ..] => {
+                        Ok((Wire::try_from_byte(*b0)?, *b1 == 1))
+                    },
+                    _ => Err(BackplateError::PayloadLength {
+                        id: 0x0006, expected: 2, found: payload.len()
+                    })
+                }?;
+
                 BackplateResponse::WireSwitched(wire, enabled)
             }
             Message { command_id: 0x0007, payload } => {
-                let proximity = u16::from_le_bytes(payload.try_into().unwrap());
+                let proximity = match payload.as_slice() {
+                    [b0, b1, ..] => {
+                        Ok(u16::from_le_bytes([*b0, *b1]))
+                    },
+                    _ => Err(BackplateError::PayloadLength {
+                        id: 0x0007, expected: 2, found: payload.len()
+                    })
+                }?;
+
                 BackplateResponse::ProximitySensor(proximity)
             }
             Message { command_id: 0x0009, payload } => {
+                if payload.len() < 12 {
+                    return Err(BackplateError::PayloadLength {
+                        id: 0x0009, expected: 12, found: payload.len()
+                    });
+                }
+
                 // Mapping observed by testing each wire on Model 02A backplate
                 let wires = BackplateWires {
                     w1: payload[0] == 1,
@@ -253,14 +258,29 @@ impl TryFrom<Message> for BackplateResponse {
             Message { command_id: 0x000a, payload } => {
                 // 4 byte payload, but only the first two bytes seem to change
                 // with light shining at device
-                let lux = u16::from_le_bytes(payload[..2].try_into().unwrap());
+                let lux = match payload.as_slice() {
+                    [b0, b1, ..] => {
+                        Ok(u16::from_le_bytes([*b0, *b1]))
+                    },
+                    _ => Err(BackplateError::PayloadLength {
+                        id: 0x000a, expected: 2, found: payload.len()
+                    })
+                }?;
+
                 BackplateResponse::AmbientLightSensor(lux)
             }
             Message { command_id: 0x000b, payload } => {
+                if payload.len() < 14 {
+                    return Err(BackplateError::PayloadLength {
+                        id: 0x0009, expected: 12, found: payload.len()
+                    });
+                }
+
                 let charging = payload[1] & 0x40 != 0;
-                let vin = u16::from_le_bytes(payload[8..10].try_into().unwrap());
-                let vop = u16::from_le_bytes(payload[10..12].try_into().unwrap());
-                let vbat = u16::from_le_bytes(payload[12..14].try_into().unwrap());
+                let vin = u16::from_le_bytes([payload[8], payload[9]]);
+                let vop = u16::from_le_bytes([payload[10], payload[11]]);
+                let vbat = u16::from_le_bytes([payload[12], payload[13]]);
+
                 BackplateResponse::BackplateState {
                     charging,
                     volts_in: vin as f32 / 100.0,
@@ -277,7 +297,7 @@ impl TryFrom<Message> for BackplateResponse {
             Message { command_id: 0x001d, payload } => {
                 BackplateResponse::BackplateModelAndBslId(payload)
             }
-            val => BackplateResponse::Raw(val)
+            msg => BackplateResponse::Raw(msg)
         };
 
         Ok(result)
@@ -297,6 +317,38 @@ pub struct BackplateWires<T> {
     pub c: T,
     pub star: T,
     pub rh: T
+}
+
+#[derive(Debug)]
+pub enum Wire {
+    W1, Y1, G, OB, W2, Y2, Star
+}
+
+impl Wire {
+    fn to_byte(&self) -> u8 {
+        match self {
+            Self::W1 => 0x00,
+            Self::Y1 => 0x01,
+            Self::G => 0x02,
+            Self::OB => 0x03,
+            Self::W2 => 0x04,
+            Self::Y2 => 0x07,
+            Self::Star => 0x0b
+        }
+    }
+
+    fn try_from_byte(id: u8) -> Result<Self> {
+        match id {
+            0x00 => Ok(Self::W1),
+            0x01 => Ok(Self::Y1),
+            0x02 => Ok(Self::G),
+            0x03 => Ok(Self::OB),
+            0x04 => Ok(Self::W2),
+            0x07 => Ok(Self::Y2),
+            0x0b => Ok(Self::Star),
+            _ => Err(BackplateError::InvalidWireId(id))
+        }
+    }
 }
 
 // https://github.com/mrhooray/crc-rs/issues/54

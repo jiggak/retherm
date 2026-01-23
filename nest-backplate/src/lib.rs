@@ -23,14 +23,16 @@ pub use message::*;
 
 #[derive(thiserror::Error, Debug)]
 pub enum BackplateError {
-    #[error("IoError {0}")]
+    #[error("IoError `{0}`")]
     IoError(#[from] std::io::Error),
-    #[error("ChecksumMismatch")]
-    ChecksumMismatch,
-    #[error("InvalidAscii {0}")]
+    #[error("Checksum {recv} != {calc}")]
+    ChecksumMismatch { recv: u16, calc: u16 },
+    #[error("Error `{0}` parsing payload as text")]
     InvalidAscii(#[from] std::string::FromUtf8Error),
-    #[error("{0}")]
-    ParseError(String)
+    #[error("Unexpected wire id `{0}` in message payload")]
+    InvalidWireId(u8),
+    #[error("Message `{id:x}` payload length too short; {found} < {expected}")]
+    PayloadLength { id: u16, expected: usize, found: usize }
 }
 
 pub type Result<T> = std::result::Result<T, BackplateError>;
