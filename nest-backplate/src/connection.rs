@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{io::{BufReader, Read}, thread, time::Duration};
+use std::{io::{BufReader, Read}};
 
 use bytes::{BufMut, Bytes};
 use serial2::{SerialPort, Settings};
@@ -52,8 +52,13 @@ impl BackplateConnection {
             Ok(settings)
         })?;
 
+        // Nest Hacking wiki has tcsendbreak(fd, 1), Cuckoo Nest uses tcsendbreak(fd, 0)
+        // Duration(1) = 1ms, Duration(0) = at least 250ms (< 500ms)
+        // In my testing there doesn't appear to be any need for a delay at all.
+        // In fact, when removing the `set_break` calls, everything still works
+        // but I'm leaving them there since it doesn't hurt anything either.
         port.set_break(true)?;
-        thread::sleep(Duration::from_millis(250));
+        // thread::sleep(Duration::from_millis(250));
         port.set_break(false)?;
 
         // Seems to help reduce (not eliminate) unexpected data in first few reads
@@ -83,10 +88,9 @@ impl BackplateConnection {
                     _ => { }
                 }
             }
-
-            thread::sleep(Duration::from_millis(250));
         }
 
+        // This "Ack" command is required before messaging can be intitiated
         backplate.send_command(BackplateCmd::ResetAck(ack_payload.unwrap()))?;
 
         // The Cuckoo Nest implementation sends a series of commands to fetch
@@ -145,7 +149,7 @@ impl MessageReader {
         if let Some(idx) = preamble_pos {
             // discard any data before preamble
             if idx > 0 {
-                // println!("MessageReader: discarding unexpected data {:x?}", &self.buffer[..idx]);
+                // println!("Discarding unexpected data {:x?}", &self.buffer[..idx]);
                 self.buffer.drain(..idx);
             }
 
