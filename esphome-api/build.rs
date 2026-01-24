@@ -25,10 +25,6 @@ use quote::{format_ident, quote};
 use regex::Regex;
 
 fn main() -> Result<()> {
-    // https://github.com/esphome/esphome/
-    // path: esphome/components/api/
-    // tag: 2025.12.2
-
     prost_build::Config::new()
         .default_package_filename("esphome_proto")
         .compile_protos(
