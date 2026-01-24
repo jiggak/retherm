@@ -11,11 +11,13 @@ Thermostat.
 - [x] Bi-directional Home Assistant connection using esphome API
 - [ ] Automatic device discovery in Home Assistant (mDNS)
 - [x] Dial interface similar to stock Nest UI with mode select
+- [ ] Turning the HVAC system on/off to reach target temp.
 - [ ] Configurable interface look/feel (separate from app config)
 - [ ] Configuration file for settings such as:
   - [ ] HA related parameters (api key, device name, etc)
   - [ ] Wifi network settings
   - [ ] Screen brightness, auto-off timeout
+  - [ ] HVAC wiring settings
 - [ ] Integrate with system wifi manager (Connman 1.29)
 - [x] Screen auto-off, wake on user input
 
