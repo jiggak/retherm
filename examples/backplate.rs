@@ -16,9 +16,7 @@ fn main() -> Result<()> {
     loop {
         match backplate.read_message() {
             Ok(message) => {
-                if let Some(message) = message {
-                    println!("{:?}", message);
-                }
+                println!("{:?}", message);
             }
             Err(error) => {
                 println!("Read error {}", error);

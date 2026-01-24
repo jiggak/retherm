@@ -37,11 +37,14 @@ impl BackplateConnection {
         Ok(())
     }
 
-    pub fn read_message(&mut self) -> Result<Option<BackplateResponse>> {
+    /// Read message from backplate. This method will not block forever. It will
+    /// return a timeout error.
+    pub fn read_message(&mut self) -> Result<BackplateResponse> {
         if let Some(message) = self.reader.read_message()? {
-            Ok(Some(message.try_into()?))
+            Ok(message.try_into()?)
         } else {
-            Ok(None)
+            // There is more data to read (parial message) when read_message() returns `None`.
+            self.read_message()
         }
     }
 
