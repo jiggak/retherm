@@ -1,6 +1,17 @@
 #!/bin/bash
 
-if cargo build --no-default-features --features "device" --target=armv7-unknown-linux-gnueabihf --release; then
+HOST=nest-dev
+
+EXAMPLE=$1
+if [ "${EXAMPLE}" != "" ]; then
+   ARGS="--example ${EXAMPLE}"
+   OUTPUT=target/armv7-unknown-linux-gnueabihf/examples/${EXAMPLE}
+else
+   ARGS="--no-default-features --features device"
+   OUTPUT=target/armv7-unknown-linux-gnueabihf/retherm
+fi
+
+if cargo build ${ARGS} --target=armv7-unknown-linux-gnueabihf --release; then
    echo "Sending build via netcat"
-   cat target/armv7-unknown-linux-gnueabihf/release/nest-app | nc -q0 nest-dev 51234
+   cat ${OUTPUT} | nc -q0 ${HOST} 51234
 fi

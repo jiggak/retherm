@@ -1,6 +1,6 @@
 #/bin/sh
 
-APP_NAME=nest-app
+APP_NAME=retherm
 
 stop_app() {
    APP_PID=$(pidof ${APP_NAME})
