@@ -1,0 +1,10 @@
+[package]
+name = "nest-backplate"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytes = "1.11.0"
+crc16 = "0.4.0"
+serial2 = "0.2.33"
+thiserror = "2.0.18"
