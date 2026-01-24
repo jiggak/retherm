@@ -658,24 +658,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
 
 [[package]]
-name = "nest-app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "debounce",
- "embedded-graphics",
- "embedded-graphics-framebuf",
- "embedded-ttf",
- "esphome-api",
- "evdev",
- "linuxfb",
- "nest-backplate",
- "rusttype",
- "sdl2",
- "throttle",
-]
-
-[[package]]
 name = "nest-backplate"
 version = "0.1.0"
 dependencies = [
@@ -897,6 +879,24 @@ name = "regex-syntax"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
+
+[[package]]
+name = "retherm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "debounce",
+ "embedded-graphics",
+ "embedded-graphics-framebuf",
+ "embedded-ttf",
+ "esphome-api",
+ "evdev",
+ "linuxfb",
+ "nest-backplate",
+ "rusttype",
+ "sdl2",
+ "throttle",
+]
 
 [[package]]
 name = "ring"

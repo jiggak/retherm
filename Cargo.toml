@@ -2,7 +2,7 @@
 members = ["esphome-api", "nest-backplate"]
 
 [package]
-name = "nest-app"
+name = "retherm"
 version = "0.1.0"
 edition = "2024"
 

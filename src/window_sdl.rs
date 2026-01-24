@@ -1,6 +1,6 @@
 /*
- * Nest UI - Home Assistant native thermostat interface
- * Copyright (C) 2025 Josh Kropf <josh@slashdev.ca>
+ * ReTherm - Home Assistant native interface for Gen2 Nest thermostat
+ * Copyright (C) 2026 Josh Kropf <josh@slashdev.ca>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
