@@ -6,10 +6,19 @@ name = "retherm"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+# All threads are critical. If they panic, we crash.
+panic = "abort"
+
 [features]
 default = ["simulate"]
 simulate = ["dep:sdl2"]
-device = ["dep:linuxfb"]
+device = ["dep:linuxfb", "dep:nest-backplate"]
+
+[[example]]
+name = "backplate"
+path = "examples/backplate.rs"
+required-features = ["device"]
 
 [dependencies]
 anyhow = "1.0.100"
@@ -20,7 +29,7 @@ embedded-ttf = "0.2.2"
 esphome-api = { path = "./esphome-api" }
 evdev = "0.13.2"
 linuxfb = { version = "0.3.1", optional = true }
-nest-backplate = { path = "./nest-backplate" }
+nest-backplate = { path = "./nest-backplate", optional = true }
 rusttype = { version = "0.9.3", default-features = false }
 sdl2 = { version = "0.38.0", optional = true }
 throttle = "0.1.0"
