@@ -40,7 +40,7 @@ impl SdlWindow {
 
         let window = sdl_context.video()
             .map_err(|e| anyhow!(e))?
-            .window("Nest App", 320, 320)
+            .window("ReTherm", 320, 320)
             .position_centered()
             .build()?;
 

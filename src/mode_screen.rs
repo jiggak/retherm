@@ -147,7 +147,14 @@ impl<T> ListView<T> {
         &row.value
     }
 
-    fn draw_row_text<D>(&self, target: &mut D, text_color: Bgr888, row_rect: Rectangle, text: &str) -> Result<(), D::Error>
+    fn draw_row_text<D>(
+        &self,
+        target: &mut D,
+        text_color: Bgr888,
+        text_bg_color: Bgr888,
+        row_rect: Rectangle,
+        text: &str
+    ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
         let center = row_rect.center();
@@ -159,7 +166,7 @@ impl<T> ListView<T> {
         Text::with_alignment(
             text,
             text_pos,
-            self.theme.label_font.font_style(text_color, self.theme.bg_colour),
+            self.theme.label_font.font_style(text_color, text_bg_color),
             Alignment::Center
         )
         .draw(target)?;
@@ -167,7 +174,14 @@ impl<T> ListView<T> {
         Ok(())
     }
 
-    fn draw_checkmark<D>(&self, target: &mut D, text_color: Bgr888, row_rect: Rectangle, text: &str) -> Result<(), D::Error>
+    fn draw_checkmark<D>(
+        &self,
+        target: &mut D,
+        text_color: Bgr888,
+        text_bg_color: Bgr888,
+        row_rect: Rectangle,
+        text: &str
+    ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
         let top_left = row_rect.top_left;
@@ -180,7 +194,7 @@ impl<T> ListView<T> {
         Text::with_alignment(
             text,
             text_pos,
-            self.theme.icon_font.font_style(text_color, self.theme.bg_colour),
+            self.theme.icon_font.font_style(text_color, text_bg_color),
             Alignment::Left
         )
         .draw(target)?;
@@ -244,15 +258,19 @@ impl<T> AppDrawable for ListView<T> {
                 self.theme.fg_colour
             };
 
-            self.draw_row_text(target, text_colour, row_rect, &row.label)?;
+            let text_bg_colour = if i == self.highlight_row {
+                self.draw_highlight(target, row_rect)?;
+                self.theme.highlight_rect.fill_colour
+                    .unwrap_or(self.theme.bg_colour)
+            } else {
+                self.theme.bg_colour
+            };
 
             if i == self.selected_row {
-                self.draw_checkmark(target, text_colour, row_rect, &self.theme.checkmark)?;
+                self.draw_checkmark(target, text_colour, text_bg_colour, row_rect, &self.theme.checkmark)?;
             }
 
-            if i == self.highlight_row {
-                self.draw_highlight(target, row_rect)?;
-            }
+            self.draw_row_text(target, text_colour, text_bg_colour, row_rect, &row.label)?;
 
             row_rect = row_rect.translate(Point::new(0, row_height as i32));
         }

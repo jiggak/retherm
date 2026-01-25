@@ -172,21 +172,21 @@ impl Theme {
                 arc_temp_text_dia: 248
             },
             mode_select: ModeSelectTheme {
-                fg_colour: Bgr888::WHITE,
+                fg_colour: Bgr888::CSS_LIGHT_GRAY,
                 bg_colour: Bgr888::BLACK,
 
                 label_font: FontDef::new(&bold_font, 36),
-                icon_font: FontDef::new(&icon_font, 26),
+                icon_font: FontDef::new(&icon_font, 20),
 
-                row_size: Size::new(150, 40),
+                row_size: Size::new(140, 40),
                 checkmark: "\u{f00c}".to_string(),
 
                 highlight_text_colour: Bgr888::WHITE,
                 highlight_rect: RectTheme {
-                    stroke_width: Some(4),
-                    stroke_colour: Some(Bgr888::WHITE),
-                    fill_colour: None,
-                    corner_radius: Some(10)
+                    stroke_width: None,
+                    stroke_colour: None,
+                    fill_colour: Some(Bgr888::CSS_DODGER_BLUE),
+                    corner_radius: Some(18)
                 }
             }
         })
