@@ -8,7 +8,7 @@ if [ "${EXAMPLE}" != "" ]; then
    OUTPUT=target/armv7-unknown-linux-gnueabihf/examples/${EXAMPLE}
 else
    ARGS="--no-default-features --features device"
-   OUTPUT=target/armv7-unknown-linux-gnueabihf/retherm
+   OUTPUT=target/armv7-unknown-linux-gnueabihf/release/retherm
 fi
 
 if cargo build ${ARGS} --target=armv7-unknown-linux-gnueabihf --release; then
