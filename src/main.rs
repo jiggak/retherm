@@ -35,7 +35,7 @@ mod window_sdl;
 use anyhow::Result;
 use esphome_api::server::EncryptedStreamProvider;
 
-use crate::backplate::Backplate;
+use crate::backplate::{Backplate, hvac_control};
 use crate::events::{Event, EventHandler, EventSender, EventSource};
 use crate::home_assistant::HomeAssistant;
 use crate::main_screen::MainScreen;
@@ -67,7 +67,8 @@ fn main() -> Result<()> {
         event_source.event_sender()
     );
 
-    let mut backplate = Backplate::new(event_source.event_sender());
+    let hvac_control = hvac_control(event_source.event_sender())?;
+    let mut backplate = Backplate::new(event_source.event_sender(), hvac_control)?;
 
     'running: loop {
         window.draw_screen(screen_manager.active_screen())?;

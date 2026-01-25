@@ -19,31 +19,131 @@
 use anyhow::{Result, anyhow};
 use esphome_api::proto::{ClimateAction, ClimateFanMode, ClimateMode, ClimateStateResponse};
 
-use crate::events::{Event, EventHandler, EventSender};
+use crate::{events::{Event, EventHandler, EventSender}};
 
-pub struct Backplate<S> {
-    event_sender: S,
-    hvac_state: HvacState
+mod backplate_device;
+mod backplate_simulated;
+
+#[cfg(feature = "device")]
+pub fn hvac_control<S>(event_sender: S) -> Result<impl HvacControl>
+    where S: EventSender + Send + 'static
+{
+    use backplate_device::DeviceBackplateThread;
+
+    let backplate_thread = DeviceBackplateThread::start("/dev/ttyO2", event_sender)?;
+    Ok(backplate_thread)
 }
 
-impl<S: EventSender> Backplate<S> {
-    pub fn new(event_sender: S) -> Self {
-        Self {
+#[cfg(feature = "simulate")]
+pub fn hvac_control<S>(event_sender: S) -> Result<impl HvacControl>
+    where S: EventSender + Send + 'static
+{
+    use backplate_simulated::SimulatedBackplate;
+
+    Ok(SimulatedBackplate::new())
+}
+
+pub trait HvacControl {
+    fn switch_hvac(&self, action: &HvacAction) -> Result<()>;
+}
+
+pub struct Backplate<S, C> {
+    event_sender: S,
+    hvac_state: HvacState,
+    hvac_control: C
+}
+
+impl<S: EventSender, C: HvacControl> Backplate<S, C> {
+    pub fn new(event_sender: S, hvac_control: C) -> Result<Self> {
+        Ok(Self {
             event_sender,
-            hvac_state: HvacState::default()
+            hvac_state: HvacState::default(),
+            hvac_control
+        })
+    }
+
+    fn set_target_temp(&mut self, temp: f32) -> Result<bool> {
+        let changed = if temp != self.hvac_state.target_temp {
+            self.hvac_state.target_temp = temp;
+            self.apply_hvac_action()?;
+            true
+        } else {
+            false
+        };
+
+        Ok(changed)
+    }
+
+    fn set_current_temp(&mut self, temp: f32) -> Result<bool> {
+        let changed = if temp != self.hvac_state.current_temp {
+            self.hvac_state.current_temp = temp;
+            self.apply_hvac_action()?;
+            true
+        } else {
+            false
+        };
+
+        Ok(changed)
+    }
+
+    fn set_mode(&mut self, mode: HvacMode) -> Result<bool> {
+        let changed = if mode != self.hvac_state.mode {
+            self.hvac_state.mode = mode;
+            self.apply_hvac_action()?;
+            true
+        } else {
+            false
+        };
+
+        Ok(changed)
+    }
+
+    fn set_action(&mut self, action: HvacAction) -> Result<bool> {
+        let changed = if action != self.hvac_state.action {
+            self.hvac_state.action = action;
+            self.hvac_control.switch_hvac(&action)?;
+            true
+        } else {
+            false
+        };
+
+        Ok(changed)
+    }
+
+    fn apply_hvac_action(&mut self) -> Result<()> {
+        match self.hvac_state.mode {
+            HvacMode::Heat => {
+                if self.hvac_state.current_temp < self.hvac_state.target_temp {
+                    self.set_action(HvacAction::Heating)?;
+                } else {
+                    self.set_action(HvacAction::Idle)?;
+                }
+            }
+            HvacMode::Cool => {
+                if self.hvac_state.current_temp > self.hvac_state.target_temp {
+                    self.set_action(HvacAction::Cooling)?;
+                } else {
+                    self.set_action(HvacAction::Idle)?;
+                }
+            }
+            _ => { }
         }
+
+        Ok(())
     }
 }
 
-impl<S: EventSender> EventHandler for Backplate<S> {
+impl<S: EventSender, C: HvacControl> EventHandler for Backplate<S, C> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         let send_state_event = match event {
             Event::SetMode(mode) => {
-                self.hvac_state.mode = *mode;
-                true
+                self.set_mode(*mode)?
             }
             Event::SetTargetTemp(temp) => {
-                self.hvac_state.set_target_temp(*temp)
+                self.set_target_temp(*temp)?
+            }
+            Event::SetCurrentTemp(temp) => {
+                self.set_current_temp(*temp)?
             }
             _ => false
         };
@@ -152,7 +252,7 @@ impl From<HvacMode> for ClimateMode {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HvacAction {
     Idle,
     Heating,
