@@ -23,6 +23,7 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use base64::prelude::*;
+use log::{debug, info};
 
 use crate::{
     proto::*,
@@ -229,8 +230,12 @@ pub fn start_server<S>(
 {
     let listener = TcpListener::bind(addr)?;
 
+    info!("Listening for HA connection {}", listener.local_addr()?);
+
     for stream in listener.incoming() {
         let stream = stream?;
+
+        info!("Establishing HA connection to {}", stream.peer_addr()?);
 
         let message_stream = match stream_factory.setup_stream(stream) {
             // allow handshake disconnect to re-connect
@@ -254,6 +259,7 @@ fn message_loop<S, H>(mut stream: S, handler: &H) -> Result<()>
 {
     loop {
         let request = stream.read()?;
+        debug!("Request {:?}", request);
 
         let status = handler.handle_request(&request, &mut stream)?;
         if matches!(status, ResponseStatus::Disconnect) {

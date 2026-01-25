@@ -18,6 +18,7 @@
 
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream};
 
+use log::{debug, trace};
 use prost::{bytes::{Buf, BufMut, Bytes, BytesMut}, encoding::{decode_varint, encode_varint}};
 
 use crate::proto::{MessageReader, MessageStream, MessageWriter, ProtoError, ProtoMessage};
@@ -70,6 +71,7 @@ impl MessageReader for PlaintextMessageStream {
             Bytes::new()
         };
 
+        trace!("Read msgid:{} {:x?}", message_type, &buffer[..]);
         let message = ProtoMessage::decode(message_type, &mut buffer)?;
         self.reader.consume(message_size);
 
@@ -79,11 +81,14 @@ impl MessageReader for PlaintextMessageStream {
 
 impl MessageWriter for PlaintextMessageStream {
     fn write(&mut self, message: &ProtoMessage) -> Result<(), ProtoError> {
+        debug!("Response {:?}", message);
+
         let mut buffer = BytesMut::with_capacity(512);
         encode_message(message, &mut buffer)?;
 
         let buf = buffer.freeze();
         self.reader.get_ref().write_all(&buf)?;
+        trace!("Write {:x?}", buf);
 
         Ok(())
     }

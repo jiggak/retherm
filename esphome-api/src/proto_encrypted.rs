@@ -18,6 +18,7 @@
 
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream, sync::{Arc, Mutex}};
 
+use log::{debug, trace};
 use prost::bytes::{Buf, BufMut, Bytes, BytesMut};
 use snow::TransportState;
 
@@ -108,16 +109,20 @@ impl MessageReader for EncryptedMessageStream {
         let message_type = buffer.get_u16() as u64;
         let _message_size = buffer.get_u16();
 
+        trace!("Read msgid:{} {:x?}", message_type, &buffer[..]);
         Ok(ProtoMessage::decode(message_type, &mut buffer)?)
     }
 }
 
 impl MessageWriter for EncryptedMessageStream {
     fn write(&mut self, message: &ProtoMessage) -> Result<(), ProtoError> {
+        debug!("Response {:?}", message);
+
         let mut message_buffer = BytesMut::with_capacity(512);
         encode_message(message, &mut message_buffer)?;
 
         let buf = message_buffer.freeze();
+        trace!("Write {:x?}", &buf[..]);
 
         let mut buffer = vec![0u8; 512];
         let len = self.codec.lock().unwrap().write_message(&buf, &mut buffer)?;

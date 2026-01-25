@@ -34,6 +34,7 @@ mod window_sdl;
 
 use anyhow::Result;
 use esphome_api::server::EncryptedStreamProvider;
+use log::debug;
 
 use crate::backplate::{Backplate, hvac_control};
 use crate::events::{Event, EventHandler, EventSender, EventSource};
@@ -43,6 +44,8 @@ use crate::screen_manager::ScreenManager;
 use crate::theme::Theme;
 
 fn main() -> Result<()> {
+    env_logger::init();
+
     let mut event_source = get_event_source()?;
 
     let mut window = get_window()?;
@@ -77,6 +80,8 @@ fn main() -> Result<()> {
         if matches!(event, Event::Quit) {
             break 'running;
         }
+
+        debug!("{:?}", event);
 
         let handlers: [&mut dyn EventHandler; _] = [
             &mut window, &mut screen_manager, &mut home_assistant, &mut backplate

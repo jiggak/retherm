@@ -19,6 +19,7 @@
 use std::{io::{BufReader, Read}};
 
 use bytes::{BufMut, Bytes};
+use log::trace;
 use serial2::{SerialPort, Settings};
 
 use crate::{BackplateCmd, BackplateResponse, Message, Result};
@@ -32,7 +33,7 @@ impl BackplateConnection {
     pub fn send_command(&self, cmd: BackplateCmd) -> Result<()> {
         let message: Message = cmd.into();
         let message_data = message.to_bytes();
-        // println!("Write {:x?}", &message_data[..]);
+        trace!("Write {:x?}", &message_data[..]);
         self.port.write(&message_data)?;
         Ok(())
     }
@@ -130,7 +131,7 @@ impl MessageReader {
         let mut buf = vec![0; 512];
         let len = self.reader.read(&mut buf)?;
         self.buffer.put(&buf[..len]);
-        // println!("Read {:x?}", &buf[..len]);
+        trace!("Read {:x?}", &buf[..len]);
         Ok(len)
     }
 
@@ -140,7 +141,7 @@ impl MessageReader {
             self.fill_buffer()?;
         }
 
-        // println!("Buffered {:x?}", &self.buffer[..]);
+        trace!("Buffered {:x?}", &self.buffer[..]);
 
         // search for preamble in buffer
         let preamble_pos = self.buffer
@@ -152,13 +153,13 @@ impl MessageReader {
         if let Some(idx) = preamble_pos {
             // discard any data before preamble
             if idx > 0 {
-                // println!("Discarding unexpected data {:x?}", &self.buffer[..idx]);
+                trace!("Discarding unexpected data {:x?}", &self.buffer[..idx]);
                 self.buffer.drain(..idx);
             }
 
             let message_data = Bytes::from(self.buffer.clone());
             if let Some((len, message)) = Message::parse(message_data)? {
-                // println!("Parsed message, consumed {} bytes from buffer", len);
+                trace!("Parsed message, consumed {} bytes from buffer", len);
                 // remove parsed message data from buffer
                 self.buffer.drain(..len);
                 return Ok(Some(message))

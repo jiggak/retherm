@@ -19,6 +19,7 @@
 use std::{sync::mpsc::{Receiver, Sender, channel}, thread, time::Duration};
 
 use anyhow::Result;
+use log::{debug, error};
 use nest_backplate::{BackplateCmd, BackplateConnection, BackplateError, BackplateResponse, Wire};
 
 use crate::{backplate::{HvacAction, HvacControl}, events::{Event, EventSender}};
@@ -28,6 +29,8 @@ pub struct DeviceBackplateThread {
 }
 
 impl DeviceBackplateThread {
+    const RECONNECT_TIMEOUT: Duration = Duration::from_secs(1);
+
     pub fn start<S>(dev_path: &'static str, event_sender: S) -> Result<Self>
         where S: EventSender + Send + 'static
     {
@@ -40,13 +43,15 @@ impl DeviceBackplateThread {
         thread::spawn(move || {
             loop {
                 match backplate_main_loop(dev_path, &event_sender, &cmd_receiver) {
-                    Ok(()) => unreachable!("Backplate message loop should not exit with Ok"),
+                    Ok(()) => unreachable!("Backplate message loop should not return Ok"),
                     Err(error) => {
                         if let Some(error) = error.downcast_ref::<BackplateError>() {
                             if let BackplateError::IoError(error) = error {
-                                println!("{}", error);
-                                println!("Error in backplate thread, attempting reconnect");
-                                thread::sleep(Duration::from_secs(1));
+                                error!(
+                                    "Backplate thread IoError `{}`, reconnect in {:?}",
+                                    error, Self::RECONNECT_TIMEOUT
+                                );
+                                thread::sleep(Self::RECONNECT_TIMEOUT);
                                 continue;
                             }
                         }
@@ -79,10 +84,13 @@ fn backplate_main_loop<S: EventSender>(
                 event_sender.send_event(Event::SetCurrentTemp(temperature))?;
             }
             BackplateResponse::WireSwitched(wire, state) => {
-                println!("Wire:{:?} state:{}", wire, state);
+                // FIXME I sort of "set it and forget it" with the hvac
+                // action. Seems like a good idea to do something with this
+                // message to confirm the state changed somehow.
+                // println!("Wire:{:?} state:{}", wire, state);
             }
             msg => {
-                println!("{:?}", msg);
+                debug!("{:?}", msg);
             }
         }
 
