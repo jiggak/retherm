@@ -11,6 +11,7 @@ Thermostat.
 - [x] Bi-directional Home Assistant connection using esphome API
 - [ ] Automatic device discovery in Home Assistant (mDNS)
 - [x] Dial interface similar to stock Nest UI with mode select
+- [ ] Away mode based on presence sensors
 - [x] Turning the HVAC system on/off to reach target temp.
 - [ ] Configurable interface look/feel (separate from app config)
 - [ ] Configuration file for settings such as:
