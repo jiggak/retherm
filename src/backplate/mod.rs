@@ -19,7 +19,7 @@
 use anyhow::{Result, anyhow};
 use esphome_api::proto::{ClimateAction, ClimateFanMode, ClimateMode, ClimateStateResponse};
 
-use crate::{events::{Event, EventHandler, EventSender}};
+use crate::events::{Event, EventHandler, EventSender};
 
 #[cfg(feature = "device")]
 mod backplate_device;
@@ -100,16 +100,13 @@ impl<S: EventSender, C: HvacControl> Backplate<S, C> {
         Ok(changed)
     }
 
-    fn set_action(&mut self, action: HvacAction) -> Result<bool> {
-        let changed = if action != self.hvac_state.action {
+    fn set_action(&mut self, action: HvacAction) -> Result<()> {
+        if action != self.hvac_state.action {
             self.hvac_state.action = action;
             self.hvac_control.switch_hvac(&action)?;
-            true
-        } else {
-            false
-        };
+        }
 
-        Ok(changed)
+        Ok(())
     }
 
     fn apply_hvac_action(&mut self) -> Result<()> {
