@@ -21,7 +21,9 @@ use esphome_api::proto::{ClimateAction, ClimateFanMode, ClimateMode, ClimateStat
 
 use crate::{events::{Event, EventHandler, EventSender}};
 
+#[cfg(feature = "device")]
 mod backplate_device;
+#[cfg(feature = "simulate")]
 mod backplate_simulated;
 
 #[cfg(feature = "device")]
