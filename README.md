@@ -21,6 +21,11 @@ Thermostat.
 - [ ] Integrate with system wifi manager (Connman 1.29)
 - [x] Screen auto-off, wake on user input
 
+## Development Mode
+
+Run `cargo run` to start retherm in a simulated window (uses SDL, which needs
+to be installed). Some device specific features don't work in this mode.
+
 ## Build Requirements
 
 Add target with `rustup`
