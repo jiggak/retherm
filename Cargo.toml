@@ -6,6 +6,10 @@ name = "retherm"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+# All threads are critical. If they panic, we crash.
+panic = "abort"
+
 [features]
 default = ["simulate"]
 simulate = ["dep:sdl2"]

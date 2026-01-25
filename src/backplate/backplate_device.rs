@@ -16,63 +16,79 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{sync::mpsc::{Sender, channel}, thread::{self, JoinHandle}};
+use std::{sync::mpsc::{Receiver, Sender, channel}, thread, time::Duration};
 
 use anyhow::Result;
-use nest_backplate::{BackplateCmd, BackplateConnection, BackplateResponse, Wire};
+use nest_backplate::{BackplateCmd, BackplateConnection, BackplateError, BackplateResponse, Wire};
 
 use crate::{backplate::{HvacAction, HvacControl}, events::{Event, EventSender}};
 
 pub struct DeviceBackplateThread {
-    handle: JoinHandle<Result<()>>,
-    cmd_sender: Sender<ThreadCmd>
+    cmd_sender: Sender<BackplateCmd>
 }
 
 impl DeviceBackplateThread {
-    pub fn start<S>(dev_path: &str, event_sender: S) -> Result<Self>
+    pub fn start<S>(dev_path: &'static str, event_sender: S) -> Result<Self>
         where S: EventSender + Send + 'static
     {
         let (cmd_sender, cmd_receiver) = channel();
 
-        let mut backplate = BackplateConnection::open(dev_path)?;
-
-        // This triggers a constant stream of messages
-        backplate.send_command(BackplateCmd::StatusRequest)?;
-
         // Should I have spearate read/write threads?
         // With a single thread, I am relying on the backplate to send a message
         // before I can send one back. Maybe that's OK though, since the backplate
-        // seems to constanty send message wh
-        let handle = thread::spawn(move || {
+        // seems to constanty send messages.
+        thread::spawn(move || {
             loop {
-                match backplate.read_message()? {
-                    BackplateResponse::Climate { temperature, .. } => {
-                        event_sender.send_event(Event::SetCurrentTemp(temperature))?;
-                    }
-                    _ => { }
-                }
-
-                if let Ok(cmd) = cmd_receiver.try_recv() {
-                    match cmd {
-                        ThreadCmd::Stop => break,
-                        ThreadCmd::Backplate(cmd) => {
-                            backplate.send_command(cmd)?;
+                match backplate_main_loop(dev_path, &event_sender, &cmd_receiver) {
+                    Ok(()) => unreachable!("Backplate message loop should not exit with Ok"),
+                    Err(error) => {
+                        if let Some(error) = error.downcast_ref::<BackplateError>() {
+                            if let BackplateError::IoError(error) = error {
+                                println!("{}", error);
+                                println!("Error in backplate thread, attempting reconnect");
+                                thread::sleep(Duration::from_secs(1));
+                                continue;
+                            }
                         }
-                    }
-                }
-            }
 
-            Ok(())
+                        Err::<(), anyhow::Error>(error)
+                    }
+                }.expect("Backplate thread error");
+            }
         });
 
         Ok(Self {
-            handle, cmd_sender
+            cmd_sender
         })
     }
+}
 
-    pub fn stop(self) -> Result<()> {
-        self.cmd_sender.send(ThreadCmd::Stop)?;
-        self.handle.join().unwrap()
+fn backplate_main_loop<S: EventSender>(
+    dev_path: &str,
+    event_sender: &S,
+    cmd_receiver: &Receiver<BackplateCmd>
+) -> Result<()> {
+    let mut backplate = BackplateConnection::open(dev_path)?;
+
+    // This triggers a constant stream of messages
+    backplate.send_command(BackplateCmd::StatusRequest)?;
+
+    loop {
+        match backplate.read_message()? {
+            BackplateResponse::Climate { temperature, .. } => {
+                event_sender.send_event(Event::SetCurrentTemp(temperature))?;
+            }
+            BackplateResponse::WireSwitched(wire, state) => {
+                println!("Wire:{:?} state:{}", wire, state);
+            }
+            msg => {
+                println!("{:?}", msg);
+            }
+        }
+
+        if let Ok(cmd) = cmd_receiver.try_recv() {
+            backplate.send_command(cmd)?;
+        }
     }
 }
 
@@ -100,14 +116,9 @@ impl HvacControl for DeviceBackplateThread {
         };
 
         for cmd in cmds {
-            self.cmd_sender.send(ThreadCmd::Backplate(cmd))?;
+            self.cmd_sender.send(cmd)?;
         }
 
         Ok(())
     }
-}
-
-pub enum ThreadCmd {
-    Backplate(BackplateCmd),
-    Stop
 }
