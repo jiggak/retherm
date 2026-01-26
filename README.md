@@ -14,8 +14,8 @@ Thermostat.
 - [ ] Away mode based on presence sensors
 - [x] Turning the HVAC system on/off to reach target temp.
 - [ ] Configurable interface look/feel (separate from app config)
-- [ ] Configuration file for settings such as:
-  - [ ] HA related parameters (api key, device name, etc)
+- [x] Configuration file for settings such as:
+  - [x] HA related parameters (api key, device name, etc)
   - [ ] Wifi network settings
   - [ ] Screen brightness, auto-off timeout
   - [ ] HVAC wiring settings

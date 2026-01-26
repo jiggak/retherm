@@ -27,7 +27,7 @@ use esphome_api::{
     }
 };
 
-use crate::{backplate::HvacState, events::{Event, EventHandler, EventSender}};
+use crate::{backplate::HvacState, config::HomeAssistantConfig, events::{Event, EventHandler, EventSender}};
 
 pub struct HomeAssistant {
     message_sender: MessageSenderThread,
@@ -44,23 +44,23 @@ impl HomeAssistant {
 
     pub fn start_listener<S>(
         &self,
-        addr: &str,
+        config: &HomeAssistantConfig,
         stream_provider: impl MessageStreamProvider<S> + Send + 'static,
         event_sender: impl EventSender + Send + 'static
     ) -> JoinHandle<Result<()>>
         where S: MessageStream + Send + 'static
     {
-        let addr = addr.to_string();
+        let addr = config.listen_addr.clone();
 
         let connection_observer = self.message_sender.clone();
 
         let handler = DefaultHandler {
             delegate: HvacRequestHandler::new(event_sender, self.hvac_state.clone()),
-            server_info: "Nest App 0.0.1".to_string(),
-            node_name: "test-thermostat".to_string(),
-            friendly_name: "Test Thermostat".to_string(),
-            manufacturer: "Nest".to_string(),
-            model: "Gen2 Thermostat".to_string(),
+            server_info: config.server_info.clone(),
+            node_name: config.node_name.clone(),
+            friendly_name: config.friendly_name.clone(),
+            manufacturer: config.manufacturer.clone(),
+            model: config.model.clone(),
             mac_address: "01:02:03:04:05:06".to_string()
         };
 

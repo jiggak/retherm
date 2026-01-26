@@ -35,7 +35,7 @@ mod window_fb;
 mod window_sdl;
 
 use anyhow::Result;
-use esphome_api::server::EncryptedStreamProvider;
+use esphome_api::server::{EncryptedStreamProvider, PlaintextStreamProvider};
 use log::debug;
 
 use crate::backplate::{Backplate, hvac_control};
@@ -69,18 +69,26 @@ fn main() -> Result<()> {
 
     start_threads(&event_source)?;
 
-    let stream_factory = EncryptedStreamProvider::new(
-        "jfD5V1SMKAPXNC8+d6BvE1EGBHJbyw2dSc0Q+ymNMhU=",
-        &config.home_assistant.node_name,
-        "01:02:03:04:05:06"
-    )?;
-
     let mut home_assistant = HomeAssistant::new();
-    home_assistant.start_listener(
-        "0.0.0.0:6053",
-        stream_factory,
-        event_source.event_sender()
-    );
+    if let Some(key) = &config.home_assistant.encryption_key {
+        let stream_factory = EncryptedStreamProvider::new(
+            key,
+            &config.home_assistant.node_name,
+            "01:02:03:04:05:06"
+        )?;
+
+        home_assistant.start_listener(
+            &config.home_assistant,
+            stream_factory,
+            event_source.event_sender()
+        );
+    } else {
+        home_assistant.start_listener(
+            &config.home_assistant,
+            PlaintextStreamProvider::new(),
+            event_source.event_sender()
+        );
+    }
 
     let hvac_control = hvac_control(event_source.event_sender())?;
     let mut backplate = Backplate::new(event_source.event_sender(), hvac_control)?;
