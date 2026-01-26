@@ -57,7 +57,7 @@ fn main() -> Result<()> {
     let theme = if let Some(file_path) = cli.theme {
         theme::Theme::load(file_path)?
     } else {
-        theme::Theme::default()?
+        theme::Theme::default()
     };
 
     let mut event_source = get_event_source()?;

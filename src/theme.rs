@@ -18,41 +18,34 @@
 
 use std::{fs, path::Path};
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 use embedded_ttf::{FontTextStyle, FontTextStyleBuilder};
 use rusttype::Font;
+use serde::Deserialize;
 
+use crate::theme::font::{FontName, Fonts};
+
+mod font;
+mod theme_de;
+
+#[derive(Deserialize)]
 pub struct Theme {
-    // pub icon_font: Font<'static>,
-    // pub regular_font: Font<'static>,
-    // pub bold_font: Font<'static>,
     pub gauge: GaugeTheme,
     pub mode_select: ModeSelectTheme
 }
 
 impl Theme {
     pub fn load<P: AsRef<Path>>(file_path: P) -> Result<Self> {
-        // let toml_src = fs::read_to_string(file_path)?;
-        // let config = toml::from_str(&toml_src)?;
-        // Ok(config)
-        Self::default()
+        let toml_src = fs::read_to_string(file_path)?;
+        let theme = toml::from_str(&toml_src)?;
+        Ok(theme)
     }
 
-    pub fn default() -> Result<Self> {
-        let regular_font = Font::try_from_bytes(include_bytes!("../assets/roboto/Roboto-Regular.ttf"))
-            .ok_or(anyhow!("Invalid font data"))?;
+    pub fn default() -> Self {
+        let fonts = Fonts::new();
 
-        let bold_font = Font::try_from_bytes(include_bytes!("../assets/roboto/Roboto-Bold.ttf"))
-            .ok_or(anyhow!("Invalid font data"))?;
-
-        let icon_font = Font::try_from_bytes(include_bytes!("../assets/fontawesome-free-7.1.0/Font Awesome 7 Free-Solid-900.otf"))
-            .ok_or(anyhow!("Invalid font data"))?;
-
-        Ok(Theme {
-            // icon_font: icon_font.clone(),
-            // regular_font: regular_font.clone(),
-            // bold_font: bold_font.clone(),
+        Theme {
             gauge: GaugeTheme {
                 fg_colour: Bgr888::WHITE,
                 bg_colour: Bgr888::BLACK,
@@ -62,9 +55,9 @@ impl Theme {
                 arc_start_deg: 120.0,
                 arc_sweed_deg: 300.0,
 
-                target_font: FontDef::new(&bold_font, 100),
-                target_decimal_font: FontDef::new(&bold_font, 40),
-                current_font: FontDef::new(&regular_font, 20),
+                target_font: fonts.font_def(FontName::Bold, 100),
+                target_decimal_font: fonts.font_def(FontName::Bold, 40),
+                current_font: fonts.font_def(FontName::Regular, 20),
 
                 arc_bg_colour: Bgr888::CSS_DIM_GRAY,
 
@@ -84,8 +77,8 @@ impl Theme {
                 fg_colour: Bgr888::CSS_LIGHT_GRAY,
                 bg_colour: Bgr888::BLACK,
 
-                label_font: FontDef::new(&bold_font, 36),
-                icon_font: FontDef::new(&icon_font, 20),
+                label_font: fonts.font_def(FontName::Bold, 36),
+                icon_font: fonts.font_def(FontName::Icon, 20),
 
                 row_size: Size::new(140, 40),
                 checkmark: "\u{f00c}".to_string(),
@@ -98,11 +91,11 @@ impl Theme {
                     corner_radius: Some(18)
                 }
             }
-        })
+        }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FontDef<'a> {
     pub font: Font<'a>,
     pub size: u32
@@ -128,17 +121,21 @@ pub trait FontStyle<C: PixelColor> {
     fn font_style(&self, font: &FontDef<'static>) -> FontTextStyle<C>;
 }
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone)]
 pub struct RectTheme {
     pub stroke_width: Option<u32>,
+    #[serde(deserialize_with = "theme_de::optional_colour")]
     pub stroke_colour: Option<Bgr888>,
+    #[serde(deserialize_with = "theme_de::optional_colour")]
     pub fill_colour: Option<Bgr888>,
     pub corner_radius: Option<u32>
 }
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone)]
 pub struct GaugeTheme {
+    #[serde(deserialize_with = "theme_de::colour")]
     pub fg_colour: Bgr888,
+    #[serde(deserialize_with = "theme_de::colour")]
     pub bg_colour: Bgr888,
 
     /// Diameter of guage arch
@@ -150,18 +147,26 @@ pub struct GaugeTheme {
     pub arc_sweed_deg: f32,
 
     /// Target temp decimal digit font
+    #[serde(deserialize_with = "theme_de::font")]
     pub target_font: FontDef<'static>,
     /// Target temp fraction digit font
+    #[serde(deserialize_with = "theme_de::font")]
     pub target_decimal_font: FontDef<'static>,
     /// Current temp font
+    #[serde(deserialize_with = "theme_de::font")]
     pub current_font: FontDef<'static>,
 
+    #[serde(deserialize_with = "theme_de::colour")]
     pub arc_bg_colour: Bgr888,
 
+    #[serde(deserialize_with = "theme_de::colour")]
     pub arc_heat_colour: Bgr888,
+    #[serde(deserialize_with = "theme_de::colour")]
     pub arc_heat_dot_colour: Bgr888,
 
+    #[serde(deserialize_with = "theme_de::colour")]
     pub arc_cool_colour: Bgr888,
+    #[serde(deserialize_with = "theme_de::colour")]
     pub arc_cool_dot_colour: Bgr888,
 
     /// Diameter of target temp dot
@@ -170,6 +175,7 @@ pub struct GaugeTheme {
     /// Current temp dot diameter
     pub arc_temp_dot_dia: u32,
     /// Current temp dot colour
+    #[serde(deserialize_with = "theme_de::colour")]
     pub arc_temp_dot_colour: Bgr888,
     /// Current temp label
     pub arc_temp_text_dia: u32
@@ -181,17 +187,23 @@ impl FontStyle<Bgr888> for GaugeTheme {
     }
 }
 
-#[derive(Clone)]
+#[derive(Deserialize, Clone)]
 pub struct ModeSelectTheme {
+    #[serde(deserialize_with = "theme_de::colour")]
     pub fg_colour: Bgr888,
+    #[serde(deserialize_with = "theme_de::colour")]
     pub bg_colour: Bgr888,
 
+    #[serde(deserialize_with = "theme_de::font")]
     pub label_font: FontDef<'static>,
+    #[serde(deserialize_with = "theme_de::font")]
     pub icon_font: FontDef<'static>,
 
+    #[serde(deserialize_with = "theme_de::size")]
     pub row_size: Size,
     pub checkmark: String,
 
+    #[serde(deserialize_with = "theme_de::colour")]
     pub highlight_text_colour: Bgr888,
     pub highlight_rect: RectTheme
 }
