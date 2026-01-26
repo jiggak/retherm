@@ -24,7 +24,8 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct Config {
-    pub home_assistant: HomeAssistantConfig
+    pub home_assistant: HomeAssistantConfig,
+    pub backlight: BacklightConfig
 }
 
 impl Config {
@@ -38,7 +39,8 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            home_assistant: HomeAssistantConfig::default()
+            home_assistant: HomeAssistantConfig::default(),
+            backlight: BacklightConfig::default()
         }
     }
 }
@@ -65,6 +67,22 @@ impl Default for HomeAssistantConfig {
             friendly_name: "ReTherm Thermostat".to_string(),
             manufacturer: "Nest".to_string(),
             model: "Gen2 Thermostat".to_string()
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(default)]
+pub struct BacklightConfig {
+    pub brightness: u32,
+    pub timeout_sec: u32
+}
+
+impl Default for BacklightConfig {
+    fn default() -> Self {
+        Self {
+            brightness: 108,
+            timeout_sec: 15
         }
     }
 }

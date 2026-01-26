@@ -62,7 +62,7 @@ fn main() -> Result<()> {
 
     let mut event_source = get_event_source()?;
 
-    let mut window = get_window()?;
+    let mut window = get_window(&config.backlight)?;
 
     let main_screen = MainScreen::new(&theme.gauge, event_source.event_sender())?;
     let mut screen_manager = ScreenManager::new(theme, main_screen, event_source.event_sender());
@@ -116,8 +116,8 @@ fn main() -> Result<()> {
 }
 
 #[cfg(feature = "device")]
-fn get_window() -> Result<crate::window_fb::FramebufferWindow> {
-    crate::window_fb::FramebufferWindow::new()
+fn get_window(config: &config::BacklightConfig) -> Result<crate::window_fb::FramebufferWindow> {
+    crate::window_fb::FramebufferWindow::new(config)
 }
 
 #[cfg(feature = "device")]
@@ -138,7 +138,7 @@ fn start_threads<E, S>(events: &E) -> Result<()>
 }
 
 #[cfg(feature = "simulate")]
-fn get_window() -> Result<crate::window_sdl::SdlWindow> {
+fn get_window(config: &config::BacklightConfig) -> Result<crate::window_sdl::SdlWindow> {
     crate::window_sdl::SdlWindow::new()
 }
 

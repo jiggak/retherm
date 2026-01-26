@@ -17,7 +17,7 @@ Thermostat.
 - [x] Configuration file for settings such as:
   - [x] HA related parameters (api key, device name, etc)
   - [ ] Wifi network settings
-  - [ ] Screen brightness, auto-off timeout
+  - [x] Screen brightness, auto-off timeout
   - [ ] HVAC wiring settings
 - [ ] Integrate with system wifi manager (Connman 1.29)
 - [x] Screen auto-off, wake on user input
