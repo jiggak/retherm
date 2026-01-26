@@ -18,6 +18,8 @@
 
 mod backlight;
 mod backplate;
+mod cli;
+mod config;
 mod drawable;
 mod events;
 mod home_assistant;
@@ -41,16 +43,26 @@ use crate::events::{Event, EventHandler, EventSender, EventSource};
 use crate::home_assistant::HomeAssistant;
 use crate::main_screen::MainScreen;
 use crate::screen_manager::ScreenManager;
-use crate::theme::Theme;
 
 fn main() -> Result<()> {
     env_logger::init();
 
+    let cli = cli::Cli::load();
+    let config = if let Some(file_path) = cli.config {
+        config::Config::load(file_path)?
+    } else {
+        config::Config::default()
+    };
+
+    let theme = if let Some(file_path) = cli.theme {
+        theme::Theme::load(file_path)?
+    } else {
+        theme::Theme::default()?
+    };
+
     let mut event_source = get_event_source()?;
 
     let mut window = get_window()?;
-
-    let theme = Theme::default()?;
 
     let main_screen = MainScreen::new(&theme.gauge, event_source.event_sender())?;
     let mut screen_manager = ScreenManager::new(theme, main_screen, event_source.event_sender());
@@ -59,7 +71,7 @@ fn main() -> Result<()> {
 
     let stream_factory = EncryptedStreamProvider::new(
         "jfD5V1SMKAPXNC8+d6BvE1EGBHJbyw2dSc0Q+ymNMhU=",
-        "test-thermostat",
+        &config.home_assistant.node_name,
         "01:02:03:04:05:06"
     )?;
 

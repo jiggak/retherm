@@ -22,7 +22,8 @@ use anyhow::Result;
 use esphome_api::{
     proto::*,
     server::{
-        DefaultHandler, MessageSenderThread, MessageStreamProvider, MessageThreadError, RequestHandler, ResponseStatus, start_server
+        DefaultHandler, MessageSenderThread, MessageStreamProvider,
+        MessageThreadError, RequestHandler, ResponseStatus, start_server
     }
 };
 
