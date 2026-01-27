@@ -24,9 +24,9 @@ use embedded_ttf::{FontTextStyle, FontTextStyleBuilder};
 use rusttype::Font;
 use serde::Deserialize;
 
-use crate::theme::font::{FontName, Fonts};
+use crate::theme::fonts::{FontName, Fonts};
 
-mod font;
+mod fonts;
 mod theme_de;
 
 #[derive(Deserialize)]

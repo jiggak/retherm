@@ -19,7 +19,7 @@
 use embedded_graphics::{pixelcolor::Bgr888, prelude::Size};
 use serde::{Deserializer, de::{self, SeqAccess, Visitor}};
 
-use crate::theme::{FontDef, font::{FontName, Fonts}};
+use crate::theme::{FontDef, fonts::{FontName, Fonts}};
 
 pub fn colour<'de, D>(deserializer: D) -> Result<Bgr888, D::Error>
     where D: Deserializer<'de>
