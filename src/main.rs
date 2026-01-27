@@ -138,7 +138,7 @@ fn start_threads<E, S>(events: &E) -> Result<()>
 }
 
 #[cfg(feature = "simulate")]
-fn get_window(config: &config::BacklightConfig) -> Result<crate::window_sdl::SdlWindow> {
+fn get_window(_config: &config::BacklightConfig) -> Result<crate::window_sdl::SdlWindow> {
     crate::window_sdl::SdlWindow::new()
 }
 

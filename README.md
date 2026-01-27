@@ -13,7 +13,7 @@ Thermostat.
 - [x] Dial interface similar to stock Nest UI with mode select
 - [ ] Away mode based on presence sensors
 - [x] Turning the HVAC system on/off to reach target temp.
-- [ ] Configurable interface look/feel (separate from app config)
+- [x] Configurable interface look/feel (separate from app config)
 - [x] Configuration file for settings such as:
   - [x] HA related parameters (api key, device name, etc)
   - [ ] Wifi network settings

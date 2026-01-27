@@ -30,6 +30,7 @@ mod font;
 mod theme_de;
 
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct Theme {
     pub gauge: GaugeTheme,
     pub mode_select: ModeSelectTheme
@@ -41,8 +42,10 @@ impl Theme {
         let theme = toml::from_str(&toml_src)?;
         Ok(theme)
     }
+}
 
-    pub fn default() -> Self {
+impl Default for Theme {
+    fn default() -> Self {
         let fonts = Fonts::new();
 
         Theme {
@@ -132,6 +135,7 @@ pub struct RectTheme {
 }
 
 #[derive(Deserialize, Clone)]
+#[serde(default)]
 pub struct GaugeTheme {
     #[serde(deserialize_with = "theme_de::colour")]
     pub fg_colour: Bgr888,
@@ -181,6 +185,12 @@ pub struct GaugeTheme {
     pub arc_temp_text_dia: u32
 }
 
+impl Default for GaugeTheme {
+    fn default() -> Self {
+        Theme::default().gauge
+    }
+}
+
 impl FontStyle<Bgr888> for GaugeTheme {
     fn font_style(&self, font: &FontDef<'static>) -> FontTextStyle<Bgr888> {
         font.font_style(self.fg_colour, self.bg_colour)
@@ -188,6 +198,7 @@ impl FontStyle<Bgr888> for GaugeTheme {
 }
 
 #[derive(Deserialize, Clone)]
+#[serde(default)]
 pub struct ModeSelectTheme {
     #[serde(deserialize_with = "theme_de::colour")]
     pub fg_colour: Bgr888,
@@ -206,6 +217,12 @@ pub struct ModeSelectTheme {
     #[serde(deserialize_with = "theme_de::colour")]
     pub highlight_text_colour: Bgr888,
     pub highlight_rect: RectTheme
+}
+
+impl Default for ModeSelectTheme {
+    fn default() -> Self {
+        Theme::default().mode_select
+    }
 }
 
 impl FontStyle<Bgr888> for ModeSelectTheme {
