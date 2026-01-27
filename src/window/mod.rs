@@ -18,19 +18,29 @@
 
 use anyhow::Result;
 
-use crate::backplate::{HvacAction, HvacControl};
+use crate::config::BacklightConfig;
 
-pub struct SimulatedBackplate {
+#[cfg(feature = "device")]
+mod window_linuxfb;
+#[cfg(feature = "simulate")]
+mod window_sdl;
+
+#[cfg(feature = "device")]
+pub fn new_window(config: &BacklightConfig) -> Result<window_linuxfb::FramebufferWindow> {
+    window_linuxfb::FramebufferWindow::new(config)
 }
 
-impl SimulatedBackplate {
-    pub fn new() -> Self {
-        Self { }
-    }
+#[cfg(feature = "simulate")]
+pub fn new_window(_config: &BacklightConfig) -> Result<window_sdl::SdlWindow> {
+    window_sdl::SdlWindow::new()
 }
 
-impl HvacControl for SimulatedBackplate {
-    fn switch_hvac(&self, _action: &HvacAction) -> Result<()> {
-        Ok(())
-    }
+#[cfg(feature = "device")]
+pub fn new_event_source() -> Result<crate::events::DefaultEventSource> {
+    Ok(crate::events::DefaultEventSource::new())
+}
+
+#[cfg(feature = "simulate")]
+pub fn new_event_source() -> Result<window_sdl::SdlEventSource> {
+    window_sdl::SdlEventSource::new()
 }

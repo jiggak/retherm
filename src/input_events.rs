@@ -21,7 +21,7 @@ use std::thread::{self, JoinHandle};
 use anyhow::{Result, anyhow};
 use evdev::{Device, EventSummary, KeyCode};
 
-use crate::events::{Event, EventSender};
+use crate::events::{Event, EventSender, EventSource};
 
 struct InputDevice {
     device: Device,
@@ -81,9 +81,8 @@ impl InputDeviceThread {
 pub fn start_dial_events<S>(sender: S) -> Result<InputDeviceThread>
     where S: EventSender + Send + 'static
 {
-    let input_events = InputDevice::open(
-        "/dev/input/event1",
-        |e| match e {
+    fn handle_event(e: EventSummary) -> Option<Event> {
+        match e {
             // value > 0 = counter clockwise, value < 0 clockwise
             EventSummary::RelativeAxis(_, _, value) => {
                 // invert value so clockwise is increasing
@@ -91,6 +90,11 @@ pub fn start_dial_events<S>(sender: S) -> Result<InputDeviceThread>
             }
             _ => None
         }
+    }
+
+    let input_events = InputDevice::open(
+        "/dev/input/event1",
+        handle_event
     )?;
 
     Ok(InputDeviceThread::start(input_events, sender))
@@ -99,16 +103,41 @@ pub fn start_dial_events<S>(sender: S) -> Result<InputDeviceThread>
 pub fn start_button_events<S>(sender: S) -> Result<InputDeviceThread>
     where S: EventSender + Send + 'static
 {
-    let input_events = InputDevice::open(
-        "/dev/input/event2",
-        |e| match e {
+    fn handle_event(e: EventSummary) -> Option<Event> {
+        match e {
             // value 1 = down, followed by value 0 = up
             EventSummary::Key(_, KeyCode::KEY_POWER, 1) => {
                 Some(Event::ButtonDown)
             }
             _ => None
         }
+    }
+
+    let input_events = InputDevice::open(
+        "/dev/input/event2",
+        handle_event
     )?;
 
     Ok(InputDeviceThread::start(input_events, sender))
+}
+
+#[cfg(feature = "device")]
+pub fn start_threads<E, S>(events: &E) -> Result<()>
+    where E: EventSource<S>, S: EventSender + Send + 'static
+{
+    use crate::events::ThrottledEventSender;
+
+    start_button_events(events.event_sender())?;
+
+    // Slow down events from dial to make it feel less twitchy
+    // And spam the event loop less
+    let dial_event_sender = ThrottledEventSender::new(events.event_sender(), 40, 1);
+    start_dial_events(dial_event_sender)?;
+
+    Ok(())
+}
+
+#[cfg(feature = "simulate")]
+pub fn start_threads<E: EventSource<S>, S: EventSender>(_events: &E) -> Result<()> {
+    Ok(())
 }

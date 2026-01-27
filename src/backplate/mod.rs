@@ -37,7 +37,7 @@ pub fn hvac_control<S>(event_sender: S) -> Result<impl HvacControl>
 }
 
 #[cfg(feature = "simulate")]
-pub fn hvac_control<S>(event_sender: S) -> Result<impl HvacControl>
+pub fn hvac_control<S>(_event_sender: S) -> Result<impl HvacControl>
     where S: EventSender + Send + 'static
 {
     use backplate_simulated::SimulatedBackplate;
