@@ -30,12 +30,12 @@ use anyhow::Result;
 #[derive(Clone)]
 pub struct Backlight {
     device_dir: PathBuf,
-    max_brightness: i32,
-    default_brightness: i32
+    max_brightness: u32,
+    default_brightness: u32
 }
 
 impl Backlight {
-    pub fn new<P>(device_dir: P) -> Result<Self>
+    pub fn new<P>(device_dir: P, default_brightness: u32) -> Result<Self>
         where P: AsRef<Path>
     {
         let device_dir = device_dir.as_ref();
@@ -49,11 +49,11 @@ impl Backlight {
         Ok(Self {
             device_dir: device_dir.to_path_buf(),
             max_brightness,
-            default_brightness: 108
+            default_brightness
         })
     }
 
-    pub fn set_brightness(&self, value: i32) -> Result<()> {
+    pub fn set_brightness(&self, value: u32) -> Result<()> {
         let value = min(value, self.max_brightness);
         let file_path = self.device_dir.join("brightness");
         Ok(fs::write(file_path, value.to_string())?)
@@ -66,8 +66,8 @@ impl Backlight {
         Ok(brightness)
     }
 
-    pub fn start_timeout(&self, timeout_sec: u64) -> BacklightTimer {
-        let timeout = Duration::from_secs(timeout_sec);
+    pub fn start_timeout(&self, timeout_sec: u32) -> BacklightTimer {
+        let timeout = Duration::from_secs(timeout_sec as u64);
         BacklightTimer {
             backlight: self.clone(),
             timeout: timeout,
