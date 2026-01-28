@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{cell::RefCell, sync::mpsc::{Receiver, Sender, channel}, time::Duration};
+use std::{cell::RefCell, sync::mpsc::{Receiver, Sender, channel}, time::{Duration, Instant}};
 
 use anyhow::Result;
 use debounce::EventDebouncer;
@@ -113,6 +113,8 @@ impl EventSender for Sender<Event> {
     }
 }
 
+/// Emit a maximum number of events over a specified period of time, dropping
+/// events as necessary.
 pub struct ThrottledEventSender<S> {
     event_sender: S,
     throttle: RefCell<Throttle>
@@ -139,6 +141,7 @@ impl<S: EventSender> EventSender for ThrottledEventSender<S> {
     }
 }
 
+/// Emit the last event that occurred within a debounce interval
 pub struct TrailingEventSender {
     event_debounce: EventDebouncer<Event>
 }
@@ -161,3 +164,69 @@ impl EventSender for TrailingEventSender {
         Ok(())
     }
 }
+
+/// Smooth out dial events by accumulating the delta values and emitting
+/// the accumulated value at the specified interval
+pub struct SmoothEventSender<S> {
+    event_sender: S,
+    smooting: RefCell<Smoothing>
+}
+
+impl<S: EventSender> SmoothEventSender<S> {
+    pub fn new(event_sender: S, tick_ms: u64) -> Self {
+        let tick_rate = Duration::from_millis(tick_ms);
+        Self {
+            event_sender,
+            smooting: RefCell::new(Smoothing::new(tick_rate))
+        }
+    }
+}
+
+impl<S: EventSender> EventSender for SmoothEventSender<S> {
+    fn send_event(&self, event: Event) -> Result<()> {
+        match event {
+            Event::Dial(val) => {
+                if let Some(val) = self.smooting.borrow_mut().tick(val) {
+                    self.event_sender.send_event(Event::Dial(val))?;
+                }
+            },
+            event => {
+                self.event_sender.send_event(event)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+struct Smoothing {
+    last_tick: Instant,
+    tick_rate: Duration,
+    pending_delta: i32
+}
+
+impl Smoothing {
+    fn new(tick_rate: Duration) -> Self {
+        Self {
+            last_tick: Instant::now(),
+            tick_rate,
+            pending_delta: 0
+        }
+    }
+
+    fn tick(&mut self, value: i32) -> Option<i32> {
+        self.pending_delta = self.pending_delta + value;
+
+        let now = Instant::now();
+        if now >= self.last_tick + self.tick_rate {
+            self.last_tick = now;
+            let delta = self.pending_delta;
+            self.pending_delta = 0;
+
+            return Some(delta);
+        }
+
+        None
+    }
+}
+

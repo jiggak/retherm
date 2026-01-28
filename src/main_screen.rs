@@ -50,12 +50,8 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Dial(dir) => {
-                let mut target_temp = self.gauge.hvac_state.target_temp;
-                if *dir > 0 {
-                    target_temp = target_temp + 0.1;
-                } else if *dir < 0 {
-                    target_temp = target_temp - 0.1;
-                }
+                let target_temp = self.gauge.hvac_state.target_temp
+                    + (*dir as f32 * 0.01);
 
                 if self.gauge.hvac_state.set_target_temp(target_temp) {
                     self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;

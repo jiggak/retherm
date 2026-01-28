@@ -125,13 +125,12 @@ pub fn start_button_events<S>(sender: S) -> Result<InputDeviceThread>
 pub fn start_threads<E, S>(events: &E) -> Result<()>
     where E: EventSource<S>, S: EventSender + Send + 'static
 {
-    use crate::events::ThrottledEventSender;
+    use crate::events::SmoothEventSender;
 
     start_button_events(events.event_sender())?;
 
-    // Slow down events from dial to make it feel less twitchy
-    // And spam the event loop less
-    let dial_event_sender = ThrottledEventSender::new(events.event_sender(), 40, 1);
+    // 32ms (~30Hz) "feels" pretty good, 16ms causes the main loop to get overwhelmed
+    let dial_event_sender = SmoothEventSender::new(events.event_sender(), 32);
     start_dial_events(dial_event_sender)?;
 
     Ok(())
