@@ -122,13 +122,16 @@ impl SdlEventSource {
 impl EventSource<SdlEventSenderHandle> for SdlEventSource {
     fn wait_event(&mut self) -> Result<Event> {
         match self.event_pump.wait_event() {
-            SdlEvent::Quit { .. } => Ok(Event::Quit),
-            SdlEvent::MouseButtonDown { .. } => Ok(Event::ButtonDown),
-            SdlEvent::MouseWheel { y, .. } => Ok(Event::Dial(y * 2)),
-            SdlEvent::KeyDown { keycode, .. }
-                if keycode == Some(Keycode::Up) => Ok(Event::Dial(10)),
-            SdlEvent::KeyDown { keycode, .. }
-                if keycode == Some(Keycode::Down) => Ok(Event::Dial(-10)),
+            SdlEvent::Quit { .. } =>
+                Ok(Event::Quit),
+            SdlEvent::MouseButtonDown { .. } =>
+                Ok(Event::ButtonDown),
+            SdlEvent::MouseWheel { y, .. } if y != 0 =>
+                Ok(Event::Dial(y * 10)),
+            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Up) =>
+                Ok(Event::Dial(20)),
+            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Down) =>
+                Ok(Event::Dial(-20)),
             sdl_event => {
                 if sdl_event.is_user_event() {
                     let event = sdl_event.as_user_event_type::<Event>().unwrap();

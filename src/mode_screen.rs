@@ -59,11 +59,9 @@ impl<S: EventSender> EventHandler for ModeScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Dial(dir) => {
-                if *dir != 0 {
-                    let inc = dir / dir.abs();
-                    let highlight = self.mode_list.highlight_row as i32 + inc;
-                    self.mode_list.set_highlight_row(highlight);
-                }
+                let inc = dir / dir.abs();
+                let highlight = self.mode_list.highlight_row as i32 + inc;
+                self.mode_list.set_highlight_row(highlight);
             }
             Event::ButtonDown => {
                 let mode = self.mode_list.get_selected_value();
@@ -132,7 +130,7 @@ impl<T> ListView<T> {
             theme,
             rows,
             selected_row,
-            highlight_row: 0
+            highlight_row: selected_row
         })
     }
 
