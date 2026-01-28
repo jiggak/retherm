@@ -31,7 +31,8 @@ use crate::{
 
 pub struct ModeScreen<S> {
     mode_list: ListView<HvacMode>,
-    event_sender: S
+    event_sender: S,
+    highlight_row: f32
 }
 
 impl<S: EventSender> ModeScreen<S> {
@@ -48,7 +49,8 @@ impl<S: EventSender> ModeScreen<S> {
 
         Ok(Self {
             mode_list: ListView::new(theme.clone(), &modes, selected_row)?,
-            event_sender
+            event_sender,
+            highlight_row: selected_row as f32
         })
     }
 }
@@ -59,9 +61,10 @@ impl<S: EventSender> EventHandler for ModeScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Dial(dir) => {
-                let inc = dir / dir.abs();
-                let highlight = self.mode_list.highlight_row as i32 + inc;
-                self.mode_list.set_highlight_row(highlight);
+                let highlight = self.highlight_row + (*dir as f32 * 0.01);
+                if self.mode_list.set_highlight_row(highlight as i32) {
+                    self.highlight_row = highlight;
+                }
             }
             Event::ButtonDown => {
                 let mode = self.mode_list.get_selected_value();
@@ -134,9 +137,12 @@ impl<T> ListView<T> {
         })
     }
 
-    fn set_highlight_row(&mut self, row: i32) {
-        if row >= 0 && row < self.rows.len() as i32 && row != self.highlight_row as i32 {
+    fn set_highlight_row(&mut self, row: i32) -> bool {
+        if row >= 0 && row < self.rows.len() as i32 {
             self.highlight_row = row as usize;
+            true
+        } else {
+            false
         }
     }
 
