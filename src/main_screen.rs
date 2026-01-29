@@ -23,9 +23,9 @@ use embedded_graphics::{
 };
 
 use crate::{
-    backplate::{HvacMode, HvacState}, drawable::{AppDrawable, AppFrameBuf},
+    backplate::{HvacAction, HvacMode, HvacState}, drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender, TrailingEventSender},
-    screen_manager::{Screen, ScreenId}, theme::{FontStyle, GaugeTheme}
+    screen_manager::{Screen, ScreenId}, theme::GaugeTheme
 };
 
 pub struct MainScreen<S> {
@@ -103,13 +103,19 @@ impl ThermostatGauge {
         )
     }
 
-    fn draw_temp_text<D>(&self, target: &mut D, center: Point) -> Result<(), D::Error>
+    fn draw_temp_text<D>(
+        &self,
+        target: &mut D,
+        bg_color: Bgr888,
+        center: Point
+    ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
         let (temp_int, temp_frac) = round_temperature(self.hvac_state.target_temp);
         let (temp_int_s, temp_frac_s) = (temp_int.to_string(), temp_frac.to_string());
 
-        let font_style = self.theme.font_style(&self.theme.target_font);
+        let font_style = self.theme.target_font
+            .font_style(self.theme.fg_colour, bg_color);
 
         let text_pos = Point::new(
             center.x,
@@ -126,7 +132,8 @@ impl ThermostatGauge {
         text.draw(target)?;
 
         if temp_frac > 0 {
-            let font_style = self.theme.font_style(&self.theme.target_decimal_font);
+            let font_style = self.theme.target_decimal_font
+                .font_style(self.theme.fg_colour, bg_color);
 
             let text_pos = Point::new(
                 center.x + (text.bounding_box().size.width / 2) as i32,
@@ -146,10 +153,17 @@ impl ThermostatGauge {
         Ok(())
     }
 
-    fn draw_sm_text<D>(&self, target: &mut D, center: Point, s: String) -> Result<(), D::Error>
+    fn draw_sm_text<D>(
+        &self,
+        target: &mut D,
+        bg_color: Bgr888,
+        center: Point,
+        s: String
+    ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let font_style = self.theme.font_style(&self.theme.current_font);
+        let font_style = self.theme.current_font
+            .font_style(self.theme.fg_colour, bg_color);
 
         let text = Text::with_alignment(
             &s,
@@ -194,7 +208,14 @@ impl ThermostatGauge {
         Ok(())
     }
 
-    fn draw_arc_point<D>(&self, target: &mut D, percent: f32, center: Point, dia: u32, colour: D::Color) -> Result<(), D::Error>
+    fn draw_arc_point<D>(
+        &self,
+        target: &mut D,
+        percent: f32,
+        center: Point,
+        dia: u32,
+        colour: D::Color
+    ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
         let point_center = self.get_arc_point(center, percent, self.theme.arc_dia);
@@ -209,13 +230,19 @@ impl ThermostatGauge {
 
 impl AppDrawable for ThermostatGauge {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        target.clear(self.theme.bg_colour)?;
+        let bg_colour = match self.hvac_state.action {
+            HvacAction::Cooling => self.theme.bg_cool_colour,
+            HvacAction::Heating => self.theme.bg_heat_colour,
+            HvacAction::Idle => self.theme.bg_colour
+        };
+
+        target.clear(bg_colour)?;
 
         let center = target.bounding_box().center();
         let target_temp_percent = get_temp_percent(self.hvac_state.target_temp);
         let current_temp_percent = get_temp_percent(self.hvac_state.current_temp);
 
-        self.draw_temp_text(target, center)?;
+        self.draw_temp_text(target, bg_colour, center)?;
 
         // gauge background
         self.draw_arc(target, 0.0, 1.0, center, self.theme.arc_bg_colour)?;
@@ -241,7 +268,7 @@ impl AppDrawable for ThermostatGauge {
         // draw current temp label along the current temp angle
         let current_temp = format!("{:.1}", self.hvac_state.current_temp);
         let current_temp_center = self.get_arc_point(center, current_temp_percent, self.theme.arc_temp_text_dia);
-        self.draw_sm_text(target, current_temp_center, current_temp)?;
+        self.draw_sm_text(target, bg_colour, current_temp_center, current_temp)?;
 
         Ok(())
     }

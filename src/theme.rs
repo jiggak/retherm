@@ -52,6 +52,8 @@ impl Default for Theme {
             gauge: GaugeTheme {
                 fg_colour: Bgr888::WHITE,
                 bg_colour: Bgr888::BLACK,
+                bg_heat_colour: Bgr888::CSS_ORANGE_RED,
+                bg_cool_colour: Bgr888::CSS_BLUE,
 
                 arc_dia: 280,
                 arc_width: 12,
@@ -120,10 +122,6 @@ impl<'a> FontDef<'a> where 'a: 'static {
     }
 }
 
-pub trait FontStyle<C: PixelColor> {
-    fn font_style(&self, font: &FontDef<'static>) -> FontTextStyle<C>;
-}
-
 #[derive(Deserialize, Clone)]
 pub struct RectTheme {
     pub stroke_width: Option<u32>,
@@ -141,6 +139,10 @@ pub struct GaugeTheme {
     pub fg_colour: Bgr888,
     #[serde(deserialize_with = "theme_de::colour")]
     pub bg_colour: Bgr888,
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub bg_heat_colour: Bgr888,
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub bg_cool_colour: Bgr888,
 
     /// Diameter of guage arch
     pub arc_dia: u32,
@@ -191,12 +193,6 @@ impl Default for GaugeTheme {
     }
 }
 
-impl FontStyle<Bgr888> for GaugeTheme {
-    fn font_style(&self, font: &FontDef<'static>) -> FontTextStyle<Bgr888> {
-        font.font_style(self.fg_colour, self.bg_colour)
-    }
-}
-
 #[derive(Deserialize, Clone)]
 #[serde(default)]
 pub struct ModeSelectTheme {
@@ -222,11 +218,5 @@ pub struct ModeSelectTheme {
 impl Default for ModeSelectTheme {
     fn default() -> Self {
         Theme::default().mode_select
-    }
-}
-
-impl FontStyle<Bgr888> for ModeSelectTheme {
-    fn font_style(&self, font: &FontDef<'static>) -> FontTextStyle<Bgr888> {
-        font.font_style(self.fg_colour, self.bg_colour)
     }
 }
