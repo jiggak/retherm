@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use embedded_graphics::{pixelcolor::Bgr888, prelude::Size};
+use embedded_graphics::{pixelcolor::Bgr888, prelude::{Point, Size}};
 use serde::{Deserializer, de::{self, SeqAccess, Visitor}};
 
 use crate::theme::{FontDef, fonts::{FontName, Fonts}};
@@ -120,6 +120,33 @@ pub fn size<'de, D>(deserializer: D) -> Result<Size, D::Error>
     }
 
     deserializer.deserialize_any(SizeVisitor)
+}
+
+pub fn point<'de, D>(deserializer: D) -> Result<Point, D::Error>
+    where D: Deserializer<'de>
+{
+    struct PointVisitor;
+
+    impl<'de> Visitor<'de> for PointVisitor {
+        type Value = Point;
+
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("[x, y]")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where A: SeqAccess<'de>
+        {
+            let x: i32 = seq.next_element()?
+                .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+            let y: i32 = seq.next_element()?
+                .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+
+            Ok(Point::new(x, y))
+        }
+    }
+
+    deserializer.deserialize_any(PointVisitor)
 }
 
 pub fn font<'de, D>(deserializer: D) -> Result<FontDef<'static>, D::Error>

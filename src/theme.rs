@@ -79,21 +79,34 @@ impl Default for Theme {
                 arc_temp_text_dia: 248
             },
             mode_select: ModeSelectTheme {
-                fg_colour: Bgr888::CSS_LIGHT_GRAY,
                 bg_colour: Bgr888::BLACK,
 
-                label_font: fonts.font_def(FontName::Bold, 36),
-                icon_font: fonts.font_def(FontName::Icon, 20),
+                icon_heat_colour: Bgr888::CSS_PERU,
+                icon_cool_colour: Bgr888::CSS_ROYAL_BLUE,
+                icon_center: Point { x: 160, y: 25 },
 
-                row_size: Size::new(140, 40),
-                checkmark: "\u{f00c}".to_string(),
+                mode_icon: IconTheme {
+                    icon_font: fonts.font_def(FontName::Icon, 42),
+                    icon: "\u{f72e}".to_string(),
+                    colour: Bgr888::CSS_LIGHT_GRAY
+                },
 
-                highlight_text_colour: Bgr888::WHITE,
-                highlight_rect: RectTheme {
-                    stroke_width: None,
-                    stroke_colour: None,
-                    fill_colour: Some(Bgr888::CSS_DODGER_BLUE),
-                    corner_radius: Some(18)
+                mode_list: ListTheme {
+                    colour: Bgr888::CSS_LIGHT_GRAY,
+                    label_font: fonts.font_def(FontName::Bold, 36),
+
+                    icon_font: fonts.font_def(FontName::Icon, 20),
+                    selected_icon: "\u{f00c}".to_string(),
+
+                    highlight_text_colour: Bgr888::WHITE,
+                    highlight_rect: RectTheme {
+                        stroke_width: None,
+                        stroke_colour: None,
+                        fill_colour: Some(Bgr888::CSS_DODGER_BLUE),
+                        corner_radius: Some(18)
+                    },
+
+                    row_size: Size::new(140, 40)
                 }
             }
         }
@@ -197,26 +210,51 @@ impl Default for GaugeTheme {
 #[serde(default)]
 pub struct ModeSelectTheme {
     #[serde(deserialize_with = "theme_de::colour")]
-    pub fg_colour: Bgr888,
-    #[serde(deserialize_with = "theme_de::colour")]
     pub bg_colour: Bgr888,
 
-    #[serde(deserialize_with = "theme_de::font")]
-    pub label_font: FontDef<'static>,
-    #[serde(deserialize_with = "theme_de::font")]
-    pub icon_font: FontDef<'static>,
-
-    #[serde(deserialize_with = "theme_de::size")]
-    pub row_size: Size,
-    pub checkmark: String,
-
     #[serde(deserialize_with = "theme_de::colour")]
-    pub highlight_text_colour: Bgr888,
-    pub highlight_rect: RectTheme
+    pub icon_heat_colour: Bgr888,
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub icon_cool_colour: Bgr888,
+    #[serde(deserialize_with = "theme_de::point")]
+    pub icon_center: Point,
+
+    pub mode_icon: IconTheme,
+
+    pub mode_list: ListTheme
 }
 
 impl Default for ModeSelectTheme {
     fn default() -> Self {
         Theme::default().mode_select
     }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct ListTheme {
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub colour: Bgr888,
+
+    #[serde(deserialize_with = "theme_de::font")]
+    pub label_font: FontDef<'static>,
+
+    #[serde(deserialize_with = "theme_de::font")]
+    pub icon_font: FontDef<'static>,
+    pub selected_icon: String,
+
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub highlight_text_colour: Bgr888,
+    pub highlight_rect: RectTheme,
+
+    #[serde(deserialize_with = "theme_de::size")]
+    pub row_size: Size
+}
+
+#[derive(Deserialize, Clone)]
+pub struct IconTheme {
+    #[serde(deserialize_with = "theme_de::font")]
+    pub icon_font: FontDef<'static>,
+    pub icon: String,
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub colour: Bgr888
 }

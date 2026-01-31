@@ -26,17 +26,19 @@ use embedded_graphics::{
 use crate::{
     backplate::HvacMode, drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender},
-    screen_manager::Screen, theme::ModeSelectTheme
+    screen_manager::Screen, theme::{IconTheme, ListTheme, ModeSelectTheme}
 };
 
 pub struct ModeScreen<S> {
+    mode_icon: IconView,
     mode_list: ListView<HvacMode>,
     event_sender: S,
-    highlight_row: f32
+    highlight_row: f32,
+    theme: ModeSelectTheme
 }
 
 impl<S: EventSender> ModeScreen<S> {
-    pub fn new(theme: &ModeSelectTheme, event_sender: S, current_mode: &HvacMode) -> Result<Self> {
+    pub fn new(theme: ModeSelectTheme, event_sender: S, current_mode: &HvacMode) -> Result<Self> {
         let modes = [
             HvacMode::Heat,
             HvacMode::Cool,
@@ -48,9 +50,15 @@ impl<S: EventSender> ModeScreen<S> {
             .unwrap_or_default();
 
         Ok(Self {
-            mode_list: ListView::new(theme.clone(), &modes, selected_row)?,
+            mode_icon: IconView::new(theme.mode_icon.clone()),
+            mode_list: ListView::new(
+                theme.mode_list.clone(),
+                &modes,
+                selected_row
+            )?,
             event_sender,
-            highlight_row: selected_row as f32
+            highlight_row: selected_row as f32,
+            theme
         })
     }
 }
@@ -67,7 +75,7 @@ impl<S: EventSender> EventHandler for ModeScreen<S> {
                 }
             }
             Event::ButtonDown => {
-                let mode = self.mode_list.get_selected_value();
+                let mode = self.mode_list.get_highlighted_value();
                 self.event_sender.send_event(Event::SetMode(*mode))?;
                 self.event_sender.send_event(Event::NavigateBack)?;
             },
@@ -79,7 +87,65 @@ impl<S: EventSender> EventHandler for ModeScreen<S> {
 
 impl<S: EventSender> AppDrawable for ModeScreen<S> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        self.mode_list.draw(target)?;
+        target.clear(self.theme.bg_colour)?;
+
+        // draw icon view
+
+        let icon_color = match self.mode_list.get_highlighted_value() {
+            HvacMode::Heat => Some(self.theme.icon_heat_colour),
+            HvacMode::Cool => Some(self.theme.icon_cool_colour),
+            _ => None
+        };
+        self.mode_icon.draw(target, self.theme.icon_center, self.theme.bg_colour, icon_color)?;
+
+        // draw list view
+
+        let list_size = self.mode_list.get_list_size();
+        let list_x = (target.width() as u32 - list_size.width) / 2;
+        let list_y = (target.height() as u32 - list_size.height) / 2;
+
+        let list_rect = Rectangle {
+            size: list_size,
+            top_left: Point {
+                x: list_x as i32,
+                y: list_y as i32
+            }
+        };
+
+        let mut list_target = target.cropped(&list_rect);
+        self.mode_list.draw(&mut list_target, self.theme.bg_colour)?;
+
+        Ok(())
+    }
+}
+
+struct IconView {
+    theme: IconTheme
+}
+
+impl IconView {
+    fn new(theme: IconTheme) -> Self {
+        Self { theme }
+    }
+
+    fn draw<D>(
+        &self,
+        target: &mut D,
+        position: Point,
+        bg_colour: Bgr888,
+        fg_colour: Option<Bgr888>
+    ) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let colour = fg_colour.unwrap_or(self.theme.colour);
+
+        Text::with_alignment(
+            &self.theme.icon,
+            position,
+            self.theme.icon_font.font_style(colour, bg_colour),
+            Alignment::Center
+        )
+        .draw(target)?;
 
         Ok(())
     }
@@ -117,11 +183,11 @@ struct ListView<T> {
     rows: Vec<ListItem<T>>,
     selected_row: usize,
     highlight_row: usize,
-    theme: ModeSelectTheme
+    theme: ListTheme
 }
 
 impl<T> ListView<T> {
-    fn new<R>(theme: ModeSelectTheme, rows: &[R], selected_row: usize) -> Result<Self>
+    fn new<R>(theme: ListTheme, rows: &[R], selected_row: usize) -> Result<Self>
         where R: Clone + Into<ListItem<T>>
     {
         let rows = rows.iter()
@@ -146,9 +212,16 @@ impl<T> ListView<T> {
         }
     }
 
-    fn get_selected_value(&self) -> &T {
+    fn get_highlighted_value(&self) -> &T {
         let row = self.rows.get(self.highlight_row).unwrap();
         &row.value
+    }
+
+    fn get_list_size(&self) -> Size {
+        Size {
+            width: self.theme.row_size.width,
+            height: self.rows.len() as u32 * self.theme.row_size.height
+        }
     }
 
     fn draw_row_text<D>(
@@ -178,7 +251,7 @@ impl<T> ListView<T> {
         Ok(())
     }
 
-    fn draw_checkmark<D>(
+    fn draw_selected_icon<D>(
         &self,
         target: &mut D,
         text_color: Bgr888,
@@ -236,47 +309,41 @@ impl<T> ListView<T> {
 
         Ok(())
     }
-}
 
-impl<T> AppDrawable for ListView<T> {
-    fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        target.clear(self.theme.bg_colour)?;
-
-        let (row_width, row_height) = (
-            self.theme.row_size.width as usize, self.theme.row_size.height as usize
-        );
-        let list_height = self.rows.len() * row_height;
-
-        let start_x = (target.width() - row_width) / 2;
-        let start_y = (target.height() - list_height) / 2;
-
-        let mut row_rect = Rectangle::new(
-            Point::new(start_x as i32, start_y as i32),
-            self.theme.row_size
-        );
+    fn draw<D>(&self, target: &mut D, bg_colour: Bgr888) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let mut row_rect = Rectangle::new(Point::zero(), self.theme.row_size);
+        let row_offset = Point::new(0, self.theme.row_size.height as i32);
 
         for (i, row) in self.rows.iter().enumerate() {
             let text_colour = if i == self.highlight_row {
                 self.theme.highlight_text_colour
             } else {
-                self.theme.fg_colour
+                self.theme.colour
             };
 
             let text_bg_colour = if i == self.highlight_row {
                 self.draw_highlight(target, row_rect)?;
                 self.theme.highlight_rect.fill_colour
-                    .unwrap_or(self.theme.bg_colour)
+                    .unwrap_or(bg_colour)
             } else {
-                self.theme.bg_colour
+                bg_colour
             };
 
             if i == self.selected_row {
-                self.draw_checkmark(target, text_colour, text_bg_colour, row_rect, &self.theme.checkmark)?;
+                self.draw_selected_icon(
+                    target,
+                    text_colour,
+                    text_bg_colour,
+                    row_rect,
+                    &self.theme.selected_icon
+                )?;
             }
 
             self.draw_row_text(target, text_colour, text_bg_colour, row_rect, &row.label)?;
 
-            row_rect = row_rect.translate(Point::new(0, row_height as i32));
+            row_rect = row_rect.translate(row_offset);
         }
 
         Ok(())
