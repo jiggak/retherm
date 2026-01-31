@@ -67,7 +67,7 @@ impl<S: EventSender + Clone + 'static> ScreenManager<S> {
                     self.theme.mode_select.clone(),
                     self.event_sender.clone(),
                     current_mode
-                )?;
+                );
 
                 self.screens.push(Box::new(screen));
             }

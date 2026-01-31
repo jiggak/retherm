@@ -22,12 +22,20 @@ use anyhow::Result;
 use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
 use serde::Deserialize;
 
-use fonts::{FontName, Fonts};
-use font_def::FontDef;
+pub use self::{
+    fonts::{FontName, Fonts},
+    font_def::FontDef,
+    icon_style::IconStyle,
+    list_style::ListStyle,
+    primitives::RectStyle
+};
 
 mod font_def_de;
 mod font_def;
 mod fonts;
+mod icon_style;
+mod list_style;
+mod primitives;
 mod theme_de;
 
 #[derive(Deserialize)]
@@ -86,13 +94,13 @@ impl Default for Theme {
                 icon_cool_colour: Bgr888::CSS_ROYAL_BLUE,
                 icon_center: Point { x: 160, y: 25 },
 
-                mode_icon: IconTheme {
+                mode_icon: IconStyle {
                     icon_font: fonts.font_def(FontName::Icon, 42),
                     icon: "\u{f72e}".to_string(),
                     colour: Bgr888::CSS_LIGHT_GRAY
                 },
 
-                mode_list: ListTheme {
+                mode_list: ListStyle {
                     colour: Bgr888::CSS_LIGHT_GRAY,
                     label_font: fonts.font_def(FontName::Bold, 36),
 
@@ -100,11 +108,10 @@ impl Default for Theme {
                     selected_icon: "\u{f00c}".to_string(),
 
                     highlight_text_colour: Bgr888::WHITE,
-                    highlight_rect: RectTheme {
-                        stroke_width: None,
-                        stroke_colour: None,
+                    highlight_rect: RectStyle {
+                        stroke: None,
                         fill_colour: Some(Bgr888::CSS_DODGER_BLUE),
-                        corner_radius: Some(18)
+                        corner_radius: 18
                     },
 
                     row_size: Size::new(140, 40)
@@ -112,16 +119,6 @@ impl Default for Theme {
             }
         }
     }
-}
-
-#[derive(Deserialize, Clone)]
-pub struct RectTheme {
-    pub stroke_width: Option<u32>,
-    #[serde(deserialize_with = "theme_de::optional_colour")]
-    pub stroke_colour: Option<Bgr888>,
-    #[serde(deserialize_with = "theme_de::optional_colour")]
-    pub fill_colour: Option<Bgr888>,
-    pub corner_radius: Option<u32>
 }
 
 #[derive(Deserialize, Clone)]
@@ -195,39 +192,13 @@ pub struct ModeSelectTheme {
     #[serde(deserialize_with = "theme_de::point")]
     pub icon_center: Point,
 
-    pub mode_icon: IconTheme,
+    pub mode_icon: IconStyle,
 
-    pub mode_list: ListTheme
+    pub mode_list: ListStyle
 }
 
 impl Default for ModeSelectTheme {
     fn default() -> Self {
         Theme::default().mode_select
     }
-}
-
-#[derive(Deserialize, Clone)]
-pub struct ListTheme {
-    #[serde(deserialize_with = "theme_de::colour")]
-    pub colour: Bgr888,
-
-    pub label_font: FontDef<'static>,
-
-    pub icon_font: FontDef<'static>,
-    pub selected_icon: String,
-
-    #[serde(deserialize_with = "theme_de::colour")]
-    pub highlight_text_colour: Bgr888,
-    pub highlight_rect: RectTheme,
-
-    #[serde(deserialize_with = "theme_de::size")]
-    pub row_size: Size
-}
-
-#[derive(Deserialize, Clone)]
-pub struct IconTheme {
-    pub icon_font: FontDef<'static>,
-    pub icon: String,
-    #[serde(deserialize_with = "theme_de::colour")]
-    pub colour: Bgr888
 }

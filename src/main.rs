@@ -29,6 +29,7 @@ mod mode_screen;
 mod screen_manager;
 mod sound;
 mod theme;
+mod widgets;
 mod window;
 
 use anyhow::Result;
