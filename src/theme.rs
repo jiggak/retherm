@@ -20,12 +20,13 @@ use std::{fs, path::Path};
 
 use anyhow::Result;
 use embedded_graphics::{pixelcolor::Bgr888, prelude::*};
-use embedded_ttf::{FontTextStyle, FontTextStyleBuilder};
-use rusttype::Font;
 use serde::Deserialize;
 
-use crate::theme::fonts::{FontName, Fonts};
+use fonts::{FontName, Fonts};
+use font_def::FontDef;
 
+mod font_def_de;
+mod font_def;
 mod fonts;
 mod theme_de;
 
@@ -113,28 +114,6 @@ impl Default for Theme {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct FontDef<'a> {
-    pub font: Font<'a>,
-    pub size: u32
-}
-
-impl<'a> FontDef<'a> {
-    pub fn new(font: &Font<'a>, size: u32) -> Self {
-        Self { font: font.clone(), size }
-    }
-}
-
-impl<'a> FontDef<'a> where 'a: 'static {
-    pub fn font_style<C: PixelColor>(&self, fg_color: C, bg_color: C) -> FontTextStyle<C> {
-        FontTextStyleBuilder::new(self.font.clone())
-            .font_size(self.size)
-            .text_color(fg_color)
-            .anti_aliasing_color(bg_color)
-            .build()
-    }
-}
-
 #[derive(Deserialize, Clone)]
 pub struct RectTheme {
     pub stroke_width: Option<u32>,
@@ -166,13 +145,10 @@ pub struct GaugeTheme {
     pub arc_sweed_deg: f32,
 
     /// Target temp decimal digit font
-    #[serde(deserialize_with = "theme_de::font")]
     pub target_font: FontDef<'static>,
     /// Target temp fraction digit font
-    #[serde(deserialize_with = "theme_de::font")]
     pub target_decimal_font: FontDef<'static>,
     /// Current temp font
-    #[serde(deserialize_with = "theme_de::font")]
     pub current_font: FontDef<'static>,
 
     #[serde(deserialize_with = "theme_de::colour")]
@@ -235,10 +211,8 @@ pub struct ListTheme {
     #[serde(deserialize_with = "theme_de::colour")]
     pub colour: Bgr888,
 
-    #[serde(deserialize_with = "theme_de::font")]
     pub label_font: FontDef<'static>,
 
-    #[serde(deserialize_with = "theme_de::font")]
     pub icon_font: FontDef<'static>,
     pub selected_icon: String,
 
@@ -252,7 +226,6 @@ pub struct ListTheme {
 
 #[derive(Deserialize, Clone)]
 pub struct IconTheme {
-    #[serde(deserialize_with = "theme_de::font")]
     pub icon_font: FontDef<'static>,
     pub icon: String,
     #[serde(deserialize_with = "theme_de::colour")]

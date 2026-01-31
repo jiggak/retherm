@@ -19,8 +19,6 @@
 use embedded_graphics::{pixelcolor::Bgr888, prelude::{Point, Size}};
 use serde::{Deserializer, de::{self, SeqAccess, Visitor}};
 
-use crate::theme::{FontDef, fonts::{FontName, Fonts}};
-
 pub fn colour<'de, D>(deserializer: D) -> Result<Bgr888, D::Error>
     where D: Deserializer<'de>
 {
@@ -147,40 +145,4 @@ pub fn point<'de, D>(deserializer: D) -> Result<Point, D::Error>
     }
 
     deserializer.deserialize_any(PointVisitor)
-}
-
-pub fn font<'de, D>(deserializer: D) -> Result<FontDef<'static>, D::Error>
-    where D: Deserializer<'de>
-{
-    struct FontDefVisitor {
-        fonts: Fonts
-    }
-
-    impl<'de> Visitor<'de> for FontDefVisitor {
-        type Value = FontDef<'static>;
-
-        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            f.write_str("string in the format <font>:<font_size>")
-        }
-
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-            where E: de::Error
-        {
-            let (name, size) = v.split_once(":")
-                .ok_or(de::Error::custom("Missing `:` in font def string"))?;
-
-            let name: FontName = name.parse()
-                .map_err(|e| de::Error::custom(e))?;
-
-            let size: u32 = size.parse()
-                .map_err(|_| de::Error::custom(format!("Invalid font size `{}`", size)))?;
-
-            Ok(self.fonts.font_def(name, size))
-        }
-    }
-
-    // TODO can I somehow have a single instance of `Fonts`?
-    deserializer.deserialize_any(
-        FontDefVisitor { fonts: Fonts::new() }
-    )
 }
