@@ -100,7 +100,9 @@ pub enum BackplateCmd {
     GetBackplateModelAndBslId,
     SetPowerStealMode,
     StatusRequest,
-    SwitchWire(Wire, bool)
+    SwitchWire(Wire, bool),
+    GetSensorBuffers,
+    AckSensorBuffers
 }
 
 impl From<BackplateCmd> for Message {
@@ -125,6 +127,12 @@ impl From<BackplateCmd> for Message {
             }
             BackplateCmd::GetBackplateModelAndBslId => {
                 Message::command(0x009d)
+            }
+            BackplateCmd::GetSensorBuffers => {
+                Message::command(0x00a2)
+            }
+            BackplateCmd::AckSensorBuffers => {
+                Message::command(0x00a3)
             }
             BackplateCmd::SetPowerStealMode => {
                 Message::with_payload(0x00c0, vec![0x00, 0x00, 0x00, 0x00])
@@ -157,6 +165,8 @@ pub enum BackplateResponse {
         temperature: f32,
         humidity: f32
     },
+    EndSensorBuffers,
+    BufferedPowerData(Vec<PowerState>),
     Raw(Message)
 }
 
@@ -297,10 +307,45 @@ impl TryFrom<Message> for BackplateResponse {
             Message { command_id: 0x001d, payload } => {
                 BackplateResponse::BackplateModelAndBslId(payload)
             }
+            Message { command_id: 0x002b, payload } => {
+                // Payload is chunks of 8 bytes
+                // Based on comparing payload data to the vin/vbat fields of the
+                // state message (0x000b), each chunk appears to contain:
+                //    2 bytes volts in, 2 bytes volts bat, 4 bytes of zeros
+                // The chunks appear to be a running history of power state
+                // and continues to grow over time (oldest to newest).
+
+                let (chunks, _remainder) = payload.as_chunks::<8>();
+                let history = chunks.iter()
+                    .map(|d| PowerState::from_bytes(d))
+                    .collect();
+
+                BackplateResponse::BufferedPowerData(history)
+            }
+            Message { command_id: 0x002f, .. } => {
+                BackplateResponse::EndSensorBuffers
+            }
             msg => BackplateResponse::Raw(msg)
         };
 
         Ok(result)
+    }
+}
+
+#[derive(Debug)]
+pub struct PowerState {
+    pub volts_in: f32,
+    pub volts_bat: f32
+}
+
+impl PowerState {
+    fn from_bytes(data: &[u8; 8]) -> Self {
+        let vin = u16::from_le_bytes([data[0], data[1]]);
+        let vbat = u16::from_le_bytes([data[2], data[3]]);
+        Self {
+            volts_in: vin as f32 / 100.0,
+            volts_bat: vbat as f32 / 1000.0
+        }
     }
 }
 
