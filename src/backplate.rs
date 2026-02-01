@@ -125,6 +125,9 @@ impl<S: EventSender, C: HvacControl> Backplate<S, C> {
                     self.set_action(HvacAction::Idle)?;
                 }
             }
+            HvacMode::Off => {
+                self.set_action(HvacAction::Idle)?;
+            }
             _ => { }
         }
 
