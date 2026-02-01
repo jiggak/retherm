@@ -25,8 +25,9 @@ use embedded_graphics::{
 use crate::{
     backplate::{HvacAction, HvacMode, HvacState}, drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender, TrailingEventSender},
-    screen_manager::{Screen, ScreenId}, theme::GaugeTheme
+    theme::GaugeTheme
 };
+use super::{Screen, ScreenId};
 
 pub struct MainScreen<S> {
     gauge: ThermostatGauge,

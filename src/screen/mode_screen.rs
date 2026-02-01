@@ -22,9 +22,10 @@ use embedded_graphics::{prelude::*, primitives::Rectangle};
 use crate::{
     backplate::HvacMode, drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender},
-    screen_manager::Screen, theme::ModeSelectTheme,
+    theme::ModeSelectTheme,
     widgets::{IconWidget, ListItem, ListWidget}
 };
+use super::Screen;
 
 pub struct ModeScreen<S> {
     mode_icon: IconWidget,

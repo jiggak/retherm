@@ -24,9 +24,7 @@ mod drawable;
 mod events;
 mod home_assistant;
 mod input_events;
-mod main_screen;
-mod mode_screen;
-mod screen_manager;
+mod screen;
 mod sound;
 mod theme;
 mod widgets;
@@ -39,8 +37,7 @@ use log::debug;
 use crate::backplate::{Backplate, hvac_control};
 use crate::events::{Event, EventHandler, EventSource};
 use crate::home_assistant::HomeAssistant;
-use crate::main_screen::MainScreen;
-use crate::screen_manager::ScreenManager;
+use crate::screen::{MainScreen, ScreenManager};
 
 fn main() -> Result<()> {
     env_logger::init();
