@@ -16,10 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+mod gauge;
 mod icon;
 mod list;
 
 pub use self::{
+    gauge::GaugeWidget,
     icon::IconWidget,
     list::{ListItem, ListWidget}
 };
