@@ -18,7 +18,7 @@
 
 use rusttype::Font;
 
-use crate::theme::FontDef;
+use super::FontDef;
 
 pub struct Fonts {
     regular: Font<'static>,

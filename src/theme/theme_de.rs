@@ -16,10 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use embedded_graphics::{pixelcolor::Bgr888, prelude::Size};
+use embedded_graphics::{pixelcolor::Bgr888, prelude::{Point, Size}};
 use serde::{Deserializer, de::{self, SeqAccess, Visitor}};
-
-use crate::theme::{FontDef, fonts::{FontName, Fonts}};
 
 pub fn colour<'de, D>(deserializer: D) -> Result<Bgr888, D::Error>
     where D: Deserializer<'de>
@@ -122,38 +120,29 @@ pub fn size<'de, D>(deserializer: D) -> Result<Size, D::Error>
     deserializer.deserialize_any(SizeVisitor)
 }
 
-pub fn font<'de, D>(deserializer: D) -> Result<FontDef<'static>, D::Error>
+pub fn point<'de, D>(deserializer: D) -> Result<Point, D::Error>
     where D: Deserializer<'de>
 {
-    struct FontDefVisitor {
-        fonts: Fonts
-    }
+    struct PointVisitor;
 
-    impl<'de> Visitor<'de> for FontDefVisitor {
-        type Value = FontDef<'static>;
+    impl<'de> Visitor<'de> for PointVisitor {
+        type Value = Point;
 
         fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            f.write_str("string in the format <font>:<font_size>")
+            f.write_str("[x, y]")
         }
 
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-            where E: de::Error
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where A: SeqAccess<'de>
         {
-            let (name, size) = v.split_once(":")
-                .ok_or(de::Error::custom("Missing `:` in font def string"))?;
+            let x: i32 = seq.next_element()?
+                .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+            let y: i32 = seq.next_element()?
+                .ok_or_else(|| de::Error::invalid_length(1, &self))?;
 
-            let name: FontName = name.parse()
-                .map_err(|e| de::Error::custom(e))?;
-
-            let size: u32 = size.parse()
-                .map_err(|_| de::Error::custom(format!("Invalid font size `{}`", size)))?;
-
-            Ok(self.fonts.font_def(name, size))
+            Ok(Point::new(x, y))
         }
     }
 
-    // TODO can I somehow have a single instance of `Fonts`?
-    deserializer.deserialize_any(
-        FontDefVisitor { fonts: Fonts::new() }
-    )
+    deserializer.deserialize_any(PointVisitor)
 }

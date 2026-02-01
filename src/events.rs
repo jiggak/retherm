@@ -22,7 +22,7 @@ use anyhow::Result;
 use debounce::EventDebouncer;
 use throttle::Throttle;
 
-use crate::{backplate::{HvacMode, HvacState}, screen_manager::ScreenId};
+use crate::{backplate::{HvacMode, HvacState}, screen::ScreenId};
 
 #[derive(Debug)]
 pub enum Event {
