@@ -5,7 +5,7 @@ HOST=nest-dev
 EXAMPLE=$1
 if [ "${EXAMPLE}" != "" ]; then
    ARGS="--example ${EXAMPLE}"
-   OUTPUT=target/armv7-unknown-linux-gnueabihf/examples/${EXAMPLE}
+   OUTPUT=target/armv7-unknown-linux-gnueabihf/release/examples/${EXAMPLE}
 else
    ARGS="--no-default-features --features device"
    OUTPUT=target/armv7-unknown-linux-gnueabihf/release/retherm
