@@ -153,7 +153,16 @@ pub enum BackplateResponse {
     TfeVersion(String),
     TfeBuildInfo(String),
     BackplateModelAndBslId(Vec<u8>),
+    /// Repeats every second. Values increase from zero when there is sustained
+    /// movement in proximity. Larger values indicate movement at a close
+    /// proximity, smaller values mean movement is farther away.
     ProximitySensor(u16),
+    /// Non-zero data indicates motion detected, followed by another message
+    /// containing all zeros when motion stops.
+    MotionSensor {
+        raw: [u8; 4],
+        begin_motion: bool
+    },
     AmbientLightSensor(u16),
     BackplateState {
         charging: bool,
@@ -163,10 +172,24 @@ pub enum BackplateResponse {
     },
     Climate(Climate),
     EndSensorBuffers,
-    /// Historical power readings, oldest to newest
+    /// Historical power readings, oldest to newest (GetSensorBuffers response)
     BufferedPowerData(Vec<PowerState>),
-    /// Historical climate readings, oldest to newest
+    /// Historical climate readings, oldest to newest (GetSensorBuffers response)
     BufferedClimateData(Vec<Climate>),
+    /// Various ADC values? (GetSensorBuffers response)
+    RawAdcData {
+        /// High'ish values with small changes over time. Seems to increase
+        /// slightly with close proximity.
+        pir: u16,
+        px1: u16,
+        /// Movement detection? Small frequent spikes with close proximity.
+        px1_div: u16,
+        px2: u16,     // always zero?
+        px2_div: u16, // always zero?
+        /// Mirrors values in AmbientLightSensor message
+        alir: u16,
+        av: u16
+    },
     Raw(Message)
 }
 
@@ -214,6 +237,19 @@ impl TryFrom<Message> for BackplateResponse {
 
                 BackplateResponse::WirePowerPresence(wires)
             }
+            Message { command_id: 0x0005, payload } => {
+                let non_zero = payload.iter().any(|v| *v > 0);
+                let payload = payload.try_into()
+                    .map_err(|p: Vec<_>| BackplateError::PayloadLength {
+                        id: 0x0005, expected: 4, found: p.len()
+                    })?;
+
+
+                BackplateResponse::MotionSensor {
+                    raw: payload,
+                    begin_motion: non_zero
+                }
+            }
             Message { command_id: 0x0006, payload } => {
                 let (wire, enabled) = match payload.as_slice() {
                     [b0, b1, ..] => {
@@ -228,7 +264,7 @@ impl TryFrom<Message> for BackplateResponse {
             }
             Message { command_id: 0x0007, payload } => {
                 let proximity = match payload.as_slice() {
-                    [b0, b1, ..] => {
+                    [b0, b1] => {
                         Ok(u16::from_le_bytes([*b0, *b1]))
                     },
                     _ => Err(BackplateError::PayloadLength {
@@ -261,8 +297,9 @@ impl TryFrom<Message> for BackplateResponse {
                 BackplateResponse::WirePluggedPresence(wires)
             }
             Message { command_id: 0x000a, payload } => {
-                // 4 byte payload, but only the first two bytes seem to change
-                // with light shining at device
+                // 4 byte payload
+                // 16 bit light intensity
+                // 16 bit aperture value? voltage reference?
                 let lux = match payload.as_slice() {
                     [b0, b1, ..] => {
                         Ok(u16::from_le_bytes([*b0, *b1]))
@@ -292,6 +329,30 @@ impl TryFrom<Message> for BackplateResponse {
                     volts_op: vop as f32 / 1000.0,
                     volts_bat: vbat as f32 / 1000.0
                 }
+            }
+            Message { command_id: 0x000c, payload } => {
+                let (chunks, _remainder) = payload.as_chunks::<2>();
+
+                let fields: Vec<u16> = chunks.iter()
+                    .map(|b| u16::from_le_bytes(*b))
+                    .collect();
+
+                match &fields[..] {
+                    [f0, f1, f2, f3, f4, f5, f6] => {
+                        Ok(BackplateResponse::RawAdcData {
+                            pir: *f0,
+                            px1: *f1,
+                            px1_div: *f2,
+                            px2: *f3,
+                            px2_div: *f4,
+                            alir: *f5,
+                            av: *f6
+                        })
+                    },
+                    _ => Err(BackplateError::PayloadLength {
+                        id: 0x000c, expected: 14, found: payload.len()
+                    })
+                }?
             }
             Message { command_id: 0x0018, payload } => {
                 BackplateResponse::TfeVersion(String::from_utf8(payload)?)
