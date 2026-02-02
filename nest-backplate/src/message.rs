@@ -161,12 +161,12 @@ pub enum BackplateResponse {
         volts_op: f32,
         volts_bat: f32
     },
-    Climate {
-        temperature: f32,
-        humidity: f32
-    },
+    Climate(Climate),
     EndSensorBuffers,
+    /// Historical power readings, oldest to newest
     BufferedPowerData(Vec<PowerState>),
+    /// Historical climate readings, oldest to newest
+    BufferedClimateData(Vec<Climate>),
     Raw(Message)
 }
 
@@ -179,19 +179,14 @@ impl TryFrom<Message> for BackplateResponse {
                 BackplateResponse::Text(String::from_utf8(payload)?)
             }
             Message { command_id: 0x0002, payload } => {
-                let (temp, hum) = match payload.as_chunks::<2>() {
-                    ([t, h, ..], _) => {
-                        Ok((u16::from_le_bytes(*t), u16::from_le_bytes(*h)))
-                    },
-                    _ => Err(BackplateError::PayloadLength {
+                if payload.len() < 4 {
+                    return Err(BackplateError::PayloadLength {
                         id: 0x0002, expected: 4, found: payload.len()
-                    })
-                }?;
-
-                BackplateResponse::Climate {
-                    temperature: temp as f32 / 100.0,
-                    humidity: hum as f32 / 10.0
+                    });
                 }
+
+                let bytes = payload[..4].try_into().unwrap();
+                BackplateResponse::Climate(Climate::from_bytes(bytes))
             }
             Message { command_id: 0x0004, payload } => {
                 if payload.len() < 12 {
@@ -307,6 +302,15 @@ impl TryFrom<Message> for BackplateResponse {
             Message { command_id: 0x001d, payload } => {
                 BackplateResponse::BackplateModelAndBslId(payload)
             }
+            Message { command_id: 0x0022, payload } => {
+                let (chunks, _remainder) = payload.as_chunks::<4>();
+
+                let history = chunks.iter()
+                    .map(|d| Climate::from_bytes(d))
+                    .collect();
+
+                BackplateResponse::BufferedClimateData(history)
+            }
             Message { command_id: 0x002b, payload } => {
                 // Payload is chunks of 8 bytes
                 // Based on comparing payload data to the vin/vbat fields of the
@@ -329,6 +333,24 @@ impl TryFrom<Message> for BackplateResponse {
         };
 
         Ok(result)
+    }
+}
+
+#[derive(Debug)]
+pub struct Climate {
+    pub temperature: f32,
+    pub humidity: f32
+}
+
+impl Climate {
+    fn from_bytes(data: &[u8; 4]) -> Self {
+        let t = u16::from_le_bytes([data[0], data[1]]);
+        let h = u16::from_le_bytes([data[2], data[3]]);
+
+        Self {
+            temperature: t as f32 / 100.0,
+            humidity: h as f32 / 10.0
+        }
     }
 }
 

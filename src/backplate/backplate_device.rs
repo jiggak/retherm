@@ -80,10 +80,10 @@ fn backplate_main_loop<S: EventSender>(
 
     loop {
         match backplate.read_message()? {
-            BackplateResponse::Climate { temperature, .. } => {
-                event_sender.send_event(Event::SetCurrentTemp(temperature))?;
+            BackplateResponse::Climate(c) => {
+                event_sender.send_event(Event::SetCurrentTemp(c.temperature))?;
             }
-            BackplateResponse::WireSwitched(wire, state) => {
+            BackplateResponse::WireSwitched(_wire, _state) => {
                 // FIXME I sort of "set it and forget it" with the hvac
                 // action. Seems like a good idea to do something with this
                 // message to confirm the state changed somehow.
