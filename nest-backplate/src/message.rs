@@ -95,14 +95,20 @@ impl Message {
 pub enum BackplateCmd {
     Reset,
     ResetAck(Vec<u8>),
+    GetTfeId,
     GetTfeVersion,
     GetTfeBuildInfo,
-    GetBackplateModelAndBslId,
+    GetBslId,
+    GetBslVersion,
+    GetBslInfo,
+    GetHardwareVersion,
+    GetSerial,
     SetPowerStealMode,
     StatusRequest,
     SwitchWire(Wire, bool),
     GetSensorBuffers,
-    AckSensorBuffers
+    AckSensorBuffers,
+    TempLock
 }
 
 impl From<BackplateCmd> for Message {
@@ -119,20 +125,38 @@ impl From<BackplateCmd> for Message {
             BackplateCmd::ResetAck(data) => {
                 Message::with_payload(0x008f, data)
             }
+            BackplateCmd::GetTfeId => {
+                Message::command(0x0090)
+            }
             BackplateCmd::GetTfeVersion => {
                 Message::command(0x0098)
             }
             BackplateCmd::GetTfeBuildInfo => {
                 Message::command(0x0099)
             }
-            BackplateCmd::GetBackplateModelAndBslId => {
+            BackplateCmd::GetBslVersion => {
+                Message::command(0x009b)
+            }
+            BackplateCmd::GetBslInfo => {
+                Message::command(0x009c)
+            }
+            BackplateCmd::GetBslId => {
                 Message::command(0x009d)
+            }
+            BackplateCmd::GetHardwareVersion => {
+                Message::command(0x009e)
+            }
+            BackplateCmd::GetSerial => {
+                Message::command(0x009f)
             }
             BackplateCmd::GetSensorBuffers => {
                 Message::command(0x00a2)
             }
             BackplateCmd::AckSensorBuffers => {
                 Message::command(0x00a3)
+            }
+            BackplateCmd::TempLock => {
+                Message::command(0x00b1)
             }
             BackplateCmd::SetPowerStealMode => {
                 Message::with_payload(0x00c0, vec![0x00, 0x00, 0x00, 0x00])
@@ -150,21 +174,26 @@ pub enum BackplateResponse {
     WirePowerPresence(BackplateWires<bool>),
     WirePluggedPresence(BackplateWires<bool>),
     WireSwitched(Wire, bool),
+    TfeId(Vec<u8>),
     TfeVersion(String),
     TfeBuildInfo(String),
-    BackplateModelAndBslId(Vec<u8>),
+    BslId(Vec<u8>),
+    BslVersion(String),
+    BslInfo(String),
+    HardwareVersion(String),
+    Serial(String),
     /// Repeats every second. Values increase from zero when there is sustained
     /// movement in proximity. Larger values indicate movement at a close
     /// proximity, smaller values mean movement is farther away.
-    ProximitySensor(u16),
+    NearPir(u16),
     /// Non-zero data indicates motion detected, followed by another message
     /// containing all zeros when motion stops.
-    MotionSensor {
-        raw: [u8; 4],
-        begin_motion: bool
+    Pir {
+        val1: u16,
+        val2: u16
     },
     AmbientLightSensor(u16),
-    BackplateState {
+    PowerState {
         charging: bool,
         volts_in: f32,
         volts_op: f32,
@@ -180,15 +209,18 @@ pub enum BackplateResponse {
     RawAdcData {
         /// High'ish values with small changes over time. Seems to increase
         /// slightly with close proximity.
+        /// Both `pir` and `px1` are close to 8192 and according to PYD 1794
+        /// datasheet that value corresponds to "PIR ADC Offset".
         pir: u16,
         px1: u16,
         /// Movement detection? Small frequent spikes with close proximity.
+        /// nlclient logs this as "{px1}/{px1_div}""
         px1_div: u16,
         px2: u16,     // always zero?
         px2_div: u16, // always zero?
         /// Mirrors values in AmbientLightSensor message
         alir: u16,
-        av: u16
+        alv: u16
     },
     Raw(Message)
 }
@@ -238,17 +270,22 @@ impl TryFrom<Message> for BackplateResponse {
                 BackplateResponse::WirePowerPresence(wires)
             }
             Message { command_id: 0x0005, payload } => {
-                let non_zero = payload.iter().any(|v| *v > 0);
-                let payload = payload.try_into()
-                    .map_err(|p: Vec<_>| BackplateError::PayloadLength {
-                        id: 0x0005, expected: 4, found: p.len()
-                    })?;
+                let (chunks, _remainder) = payload.as_chunks::<2>();
 
+                // nlclient logs show a message like:
+                // "publishing pir msg true (0x7fff 0x7e00), threshold 100"
+                // where payload contains two u16 values
 
-                BackplateResponse::MotionSensor {
-                    raw: payload,
-                    begin_motion: non_zero
+                if chunks.len() < 2 {
+                    return Err(BackplateError::PayloadLength {
+                        id: 0x0005, expected: 4, found: payload.len()
+                    });
                 }
+
+                let val1 = u16::from_le_bytes(chunks[0]);
+                let val2 = u16::from_le_bytes(chunks[1]);
+
+                BackplateResponse::Pir { val1, val2 }
             }
             Message { command_id: 0x0006, payload } => {
                 let (wire, enabled) = match payload.as_slice() {
@@ -272,7 +309,7 @@ impl TryFrom<Message> for BackplateResponse {
                     })
                 }?;
 
-                BackplateResponse::ProximitySensor(proximity)
+                BackplateResponse::NearPir(proximity)
             }
             Message { command_id: 0x0009, payload } => {
                 if payload.len() < 12 {
@@ -323,7 +360,7 @@ impl TryFrom<Message> for BackplateResponse {
                 let vop = u16::from_le_bytes([payload[10], payload[11]]);
                 let vbat = u16::from_le_bytes([payload[12], payload[13]]);
 
-                BackplateResponse::BackplateState {
+                BackplateResponse::PowerState {
                     charging,
                     volts_in: vin as f32 / 100.0,
                     volts_op: vop as f32 / 1000.0,
@@ -333,6 +370,7 @@ impl TryFrom<Message> for BackplateResponse {
             Message { command_id: 0x000c, payload } => {
                 let (chunks, _remainder) = payload.as_chunks::<2>();
 
+                // split payload into u16 fields
                 let fields: Vec<u16> = chunks.iter()
                     .map(|b| u16::from_le_bytes(*b))
                     .collect();
@@ -346,7 +384,7 @@ impl TryFrom<Message> for BackplateResponse {
                             px2: *f3,
                             px2_div: *f4,
                             alir: *f5,
-                            av: *f6
+                            alv: *f6
                         })
                     },
                     _ => Err(BackplateError::PayloadLength {
@@ -354,14 +392,31 @@ impl TryFrom<Message> for BackplateResponse {
                     })
                 }?
             }
+            Message { command_id: 0x0010, payload } => {
+                BackplateResponse::TfeId(payload)
+            }
             Message { command_id: 0x0018, payload } => {
                 BackplateResponse::TfeVersion(String::from_utf8(payload)?)
             }
             Message { command_id: 0x0019, payload } => {
                 BackplateResponse::TfeBuildInfo(String::from_utf8(payload)?)
             }
+            Message { command_id: 0x001b, payload } => {
+                BackplateResponse::BslVersion(String::from_utf8(payload)?)
+            }
+            Message { command_id: 0x001c, payload } => {
+                // Always "BSL" with my Nest
+                BackplateResponse::BslInfo(String::from_utf8(payload)?)
+            }
             Message { command_id: 0x001d, payload } => {
-                BackplateResponse::BackplateModelAndBslId(payload)
+                // Always [0xbb, 0xbb] with my Nest
+                BackplateResponse::BslId(payload)
+            }
+            Message { command_id: 0x001e, payload } => {
+                BackplateResponse::HardwareVersion(String::from_utf8(payload)?)
+            }
+            Message { command_id: 0x001f, payload } => {
+                BackplateResponse::Serial(String::from_utf8(payload)?)
             }
             Message { command_id: 0x0022, payload } => {
                 let (chunks, _remainder) = payload.as_chunks::<4>();
