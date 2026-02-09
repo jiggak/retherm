@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use bitflags::bitflags;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::{BackplateError, Result};
@@ -108,19 +109,26 @@ pub enum BackplateCmd {
     SwitchWire(Wire, bool),
     GetSensorBuffers,
     AckSensorBuffers,
-    TempLock
+    TempLock,
+    /// Set threshold for near pir wakeup? nlclient uses 15
+    SetNearPirThreshold(u16),
+    /// Stop reporting messages. The argument is logged as "max_sleep_seconds"
+    /// in nlclient. Backplate doesn't automatically start sending messages
+    /// after the sleep timeout; sending `StatusRequest` message is required
+    /// to "wakeup".
+    Quiet(u16)
 }
 
 impl From<BackplateCmd> for Message {
     fn from(value: BackplateCmd) -> Self {
         match value {
-            BackplateCmd::StatusRequest => {
-                Message::command(0x0083)
-            }
             BackplateCmd::SwitchWire(wire, enabled) => {
                 let wire = wire.to_byte();
                 let enabled = if enabled { 0x01 } else { 0x00 };
                 Message::with_payload(0x0082, vec![wire, enabled])
+            }
+            BackplateCmd::StatusRequest => {
+                Message::command(0x0083)
             }
             BackplateCmd::ResetAck(data) => {
                 Message::with_payload(0x008f, data)
@@ -149,6 +157,9 @@ impl From<BackplateCmd> for Message {
             BackplateCmd::GetSerial => {
                 Message::command(0x009f)
             }
+            BackplateCmd::Quiet(sleep_max_sec) => {
+                Message::with_payload(0x00a1, sleep_max_sec.to_le_bytes().to_vec())
+            }
             BackplateCmd::GetSensorBuffers => {
                 Message::command(0x00a2)
             }
@@ -157,6 +168,9 @@ impl From<BackplateCmd> for Message {
             }
             BackplateCmd::TempLock => {
                 Message::command(0x00b1)
+            }
+            BackplateCmd::SetNearPirThreshold(threshold) => {
+                Message::with_payload(0x00b5, threshold.to_le_bytes().to_vec())
             }
             BackplateCmd::SetPowerStealMode => {
                 Message::with_payload(0x00c0, vec![0x00, 0x00, 0x00, 0x00])
@@ -222,6 +236,8 @@ pub enum BackplateResponse {
         alir: u16,
         alv: u16
     },
+    /// Message sent after resuming from sleep with `StatusRequest` message
+    WakeupVector(WakeupMask),
     Raw(Message)
 }
 
@@ -395,6 +411,18 @@ impl TryFrom<Message> for BackplateResponse {
             Message { command_id: 0x0010, payload } => {
                 BackplateResponse::TfeId(payload)
             }
+            Message { command_id: 0x0014, payload } => {
+                if payload.len() < 2 {
+                    return Err(BackplateError::PayloadLength {
+                        id: 0x0014, expected: 2, found: payload.len()
+                    });
+                }
+
+                let mask = u16::from_le_bytes(payload.try_into().unwrap());
+                let wakeup_mask = WakeupMask::from_bits_truncate(mask);
+
+                BackplateResponse::WakeupVector(wakeup_mask)
+            }
             Message { command_id: 0x0018, payload } => {
                 BackplateResponse::TfeVersion(String::from_utf8(payload)?)
             }
@@ -449,6 +477,24 @@ impl TryFrom<Message> for BackplateResponse {
         };
 
         Ok(result)
+    }
+}
+
+bitflags! {
+    #[derive(Debug)]
+    pub struct WakeupMask: u16 {
+        /// Wakeup occurred after `max_sleep_seconds` sent in `Quiet` message
+        const TIMER        = 0b_0000_0000_0001;
+        const BUFFERS_FULL = 0b_0000_0000_0010;
+        const TEMPERATURE  = 0b_0000_0000_0100;
+        const PIR          = 0b_0000_0000_1000;
+        const PROXIMITY    = 0b_0000_0001_0000;
+        const ALS          = 0b_0000_0010_0000;
+        const HUMIDITY     = 0b_0000_0100_0000;
+        /// Near PIR sensor activity occurred during sleep
+        const NEAR_PIR     = 0b_0000_1000_0000;
+        const VERGENCE     = 0b_0001_0000_0000;
+        const VBAT         = 0b_0010_0000_0000;
     }
 }
 
