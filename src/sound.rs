@@ -16,32 +16,58 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{thread, time::Duration};
+use std::{sync::mpsc::{Sender, channel}, thread, time::Duration};
 
 use anyhow::Result;
 use evdev::{Device, SoundCode, SoundEvent};
 
 pub struct Sound {
-    evdev: Device
+    thread: SoundThread
 }
 
 impl Sound {
     pub fn new() -> Result<Self> {
-        let evdev = Device::open("/dev/input/event0")?;
-        Ok(Self { evdev })
+        let thread = SoundThread::start("/dev/input/event0")?;
+        Ok(Self { thread })
     }
 
-    pub fn click(&mut self) -> Result<()> {
-        self.play_beep(1)
+    pub fn click(&self) -> Result<()> {
+        Ok(self.thread.sender.send(())?)
     }
+}
 
-    pub fn play_beep(&mut self, duration_ms: u64) -> Result<()> {
-        // I tested all the other SoundCode types
-        // SND_BELL is the only one that makes a sound
-        // The `value/tone` parameter to the event has no effect (to my ears)
-        self.evdev.send_events(&[*SoundEvent::new(SoundCode::SND_BELL, 1)])?;
-        thread::sleep(Duration::from_millis(duration_ms));
-        self.evdev.send_events(&[*SoundEvent::new(SoundCode::SND_BELL, 0)])?;
-        Ok(())
+struct SoundThread {
+    sender: Sender<()>
+}
+
+impl SoundThread {
+    const CLICK_DURATION: Duration = Duration::from_millis(3);
+    const CLICK_FREQ: i32 = 2000;
+
+    fn start(dev_path: &str) -> Result<Self> {
+        let (sender, receiver) = channel();
+
+        let mut evdev = Device::open(dev_path)?;
+
+        // SND_BELL makes a makes a low pitch noise
+        //    - `value/tone` param has no effect
+        // SND_TONE matches the sound made by nlclient input events
+        //    - `value/tone` param changes freq. (higher = higher pitch sound)
+
+        thread::spawn(move || {
+            while let Ok(_) = receiver.recv() {
+                // sound on
+                evdev.send_events(&[*SoundEvent::new(SoundCode::SND_TONE, SoundThread::CLICK_FREQ)])
+                    .expect("Send sound on event");
+
+                thread::sleep(SoundThread::CLICK_DURATION);
+
+                // sound off
+                evdev.send_events(&[*SoundEvent::new(SoundCode::SND_TONE, 0)])
+                    .expect("Send sound off event");
+            }
+        });
+
+        Ok(Self { sender })
     }
 }
