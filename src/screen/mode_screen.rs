@@ -68,8 +68,14 @@ impl<S: EventSender> EventHandler for ModeScreen<S> {
         match event {
             Event::Dial(dir) => {
                 let highlight = self.highlight_row + (*dir as f32 * 0.01);
+                let last_selected = self.mode_list.get_highlight_row();
+
                 if self.mode_list.set_highlight_row(highlight as i32) {
                     self.highlight_row = highlight;
+
+                    if last_selected != self.mode_list.get_highlight_row() {
+                        self.event_sender.send_event(Event::ClickSound)?;
+                    }
                 }
             }
             Event::ButtonDown => {

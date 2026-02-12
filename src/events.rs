@@ -34,6 +34,7 @@ pub enum Event {
     HvacState(HvacState),
     NavigateTo(ScreenId),
     NavigateBack,
+    ClickSound,
     Quit
 }
 
@@ -49,7 +50,7 @@ impl Event {
 
 // This impl is here to support the TrailingEventSender which sends the last
 // event variant after a delay (ignoring content of event).
-// If this because a problem due to needing equality to include event content,
+// If this becomes a problem due to needing equality to include event content,
 // add a new event type specifically for the TrailingEventSender with it's own
 // equality impl.
 impl PartialEq for Event {
@@ -63,6 +64,7 @@ impl PartialEq for Event {
             Self::HvacState(_) => matches!(other, Self::HvacState(_)),
             Self::NavigateTo(_) => matches!(other, Self::NavigateTo(_)),
             Self::NavigateBack => matches!(other, Self::NavigateBack),
+            Self::ClickSound => matches!(other, Self::ClickSound),
             Self::Quit => matches!(other, Self::Quit),
         }
     }
