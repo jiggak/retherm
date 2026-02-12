@@ -40,10 +40,10 @@ struct SoundThread {
     sender: Sender<()>
 }
 
-impl SoundThread {
-    const CLICK_DURATION: Duration = Duration::from_millis(3);
-    const CLICK_FREQ: i32 = 2000;
+const CLICK_DURATION: Duration = Duration::from_millis(3);
+const CLICK_FREQ: i32 = 2000;
 
+impl SoundThread {
     fn start(dev_path: &str) -> Result<Self> {
         let (sender, receiver) = channel();
 
@@ -57,10 +57,10 @@ impl SoundThread {
         thread::spawn(move || {
             while let Ok(_) = receiver.recv() {
                 // sound on
-                evdev.send_events(&[*SoundEvent::new(SoundCode::SND_TONE, SoundThread::CLICK_FREQ)])
+                evdev.send_events(&[*SoundEvent::new(SoundCode::SND_TONE, CLICK_FREQ)])
                     .expect("Send sound on event");
 
-                thread::sleep(SoundThread::CLICK_DURATION);
+                thread::sleep(CLICK_DURATION);
 
                 // sound off
                 evdev.send_events(&[*SoundEvent::new(SoundCode::SND_TONE, 0)])
