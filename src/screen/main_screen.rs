@@ -30,7 +30,8 @@ pub struct MainScreen<S> {
     gauge: GaugeWidget,
     cmd_sender: TrailingEventSender,
     event_sender: S,
-    theme: MainScreenTheme
+    theme: MainScreenTheme,
+    last_click_temp: f32
 }
 
 impl<S: EventSender> Screen for MainScreen<S> { }
@@ -40,7 +41,7 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
         let cmd_sender = TrailingEventSender::new(event_sender.clone(), 500);
         Self {
             gauge: GaugeWidget::new(theme.gauge.clone()),
-            cmd_sender, event_sender, theme
+            cmd_sender, event_sender, theme, last_click_temp: 0.0
         }
     }
 }
@@ -49,8 +50,13 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Dial(dir) => {
-                let target_temp = self.gauge.hvac_state.target_temp
-                    + (*dir as f32 * 0.01);
+                let temp_inc = *dir as f32 * 0.01;
+                let target_temp = self.gauge.hvac_state.target_temp + temp_inc;
+
+                if (self.last_click_temp - target_temp).abs() >= 0.5 {
+                    self.last_click_temp = target_temp;
+                    self.event_sender.send_event(Event::ClickSound)?;
+                }
 
                 if self.gauge.hvac_state.set_target_temp(target_temp) {
                     self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;

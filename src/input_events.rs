@@ -65,9 +65,7 @@ impl InputDeviceThread {
             }
         });
 
-        Self {
-            thread
-        }
+        Self { thread }
     }
 
     pub fn stop(self) -> Result<()> {
@@ -78,7 +76,7 @@ impl InputDeviceThread {
     }
 }
 
-pub fn start_dial_events<S>(sender: S) -> Result<InputDeviceThread>
+fn start_dial_events<S>(sender: S) -> Result<InputDeviceThread>
     where S: EventSender + Send + 'static
 {
     fn handle_event(e: EventSummary) -> Option<Event> {
@@ -100,7 +98,7 @@ pub fn start_dial_events<S>(sender: S) -> Result<InputDeviceThread>
     Ok(InputDeviceThread::start(input_events, sender))
 }
 
-pub fn start_button_events<S>(sender: S) -> Result<InputDeviceThread>
+fn start_button_events<S>(sender: S) -> Result<InputDeviceThread>
     where S: EventSender + Send + 'static
 {
     fn handle_event(e: EventSummary) -> Option<Event> {

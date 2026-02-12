@@ -54,6 +54,10 @@ impl<T> ListWidget<T> {
         }
     }
 
+    pub fn get_highlight_row(&self) -> usize {
+        self.highlight_row
+    }
+
     pub fn set_highlight_row(&mut self, row: i32) -> bool {
         if row >= 0 && row < self.rows.len() as i32 {
             self.highlight_row = row as usize;

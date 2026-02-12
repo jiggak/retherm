@@ -23,14 +23,13 @@ use linuxfb::Framebuffer;
 
 use crate::{
     backlight::{Backlight, BacklightTimer}, config::BacklightConfig,
-    drawable::AppDrawable, events::{Event, EventHandler}, sound::Sound
+    drawable::AppDrawable, events::{Event, EventHandler}
 };
 
 pub struct FramebufferWindow {
     fb_dev: Framebuffer,
     buffer: FrameBuf<Bgr888, [Bgr888; 320 * 320]>,
-    backlight_timer: BacklightTimer,
-    sounds: Sound
+    backlight_timer: BacklightTimer
 }
 
 impl FramebufferWindow {
@@ -56,9 +55,7 @@ impl FramebufferWindow {
         let backlight = Backlight::new("/sys/class/backlight/3-0036", config.brightness)?;
         let backlight_timer = backlight.start_timeout(config.timeout_sec);
 
-        let sounds = Sound::new()?;
-
-        Ok(Self { fb_dev, buffer, backlight_timer, sounds })
+        Ok(Self { fb_dev, buffer, backlight_timer })
     }
 
     fn flush(&self) -> Result<()> {
@@ -91,10 +88,6 @@ impl EventHandler for FramebufferWindow {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         if event.is_wakeup_event() {
             self.backlight_timer.reset();
-        }
-
-        if matches!(event, Event::Dial(_)) {
-            self.sounds.click()?;
         }
 
         Ok(())
