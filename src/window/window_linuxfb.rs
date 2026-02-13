@@ -22,9 +22,9 @@ use embedded_graphics_framebuf::FrameBuf;
 use linuxfb::Framebuffer;
 
 use crate::{
-    backlight::{Backlight, BacklightTimer}, config::BacklightConfig,
-    drawable::AppDrawable, events::{Event, EventHandler}
+    config::BacklightConfig, drawable::AppDrawable, events::{Event, EventHandler}
 };
+use super::backlight::{Backlight, BacklightTimer};
 
 pub struct FramebufferWindow {
     fb_dev: Framebuffer,

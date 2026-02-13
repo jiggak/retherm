@@ -21,23 +21,26 @@ use anyhow::Result;
 use crate::config::BacklightConfig;
 
 #[cfg(feature = "device")]
+mod backlight;
+#[cfg(feature = "device")]
 mod window_linuxfb;
-#[cfg(feature = "simulate")]
-mod window_sdl;
 
 #[cfg(feature = "device")]
 pub fn new_window(config: &BacklightConfig) -> Result<window_linuxfb::FramebufferWindow> {
     window_linuxfb::FramebufferWindow::new(config)
 }
 
-#[cfg(feature = "simulate")]
-pub fn new_window(_config: &BacklightConfig) -> Result<window_sdl::SdlWindow> {
-    window_sdl::SdlWindow::new()
-}
-
 #[cfg(feature = "device")]
 pub fn new_event_source() -> Result<crate::events::DefaultEventSource> {
     Ok(crate::events::DefaultEventSource::new())
+}
+
+#[cfg(feature = "simulate")]
+mod window_sdl;
+
+#[cfg(feature = "simulate")]
+pub fn new_window(_config: &BacklightConfig) -> Result<window_sdl::SdlWindow> {
+    window_sdl::SdlWindow::new()
 }
 
 #[cfg(feature = "simulate")]
