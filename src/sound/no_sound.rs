@@ -16,12 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use anyhow::Result;
+
 use super::SoundProvider;
 
-pub struct NoSound { }
+pub struct NoSound;
 
 impl SoundProvider for NoSound {
-    fn click(&self) -> anyhow::Result<()> {
+    fn new() -> Result<Self> {
+        Ok(NoSound)
+    }
+
+    fn click(&self) -> Result<()> {
         Ok(())
     }
 }

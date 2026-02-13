@@ -58,7 +58,7 @@ fn main() -> Result<()> {
     let mut event_source = window::new_event_source()?;
 
     let mut window = window::new_window(&config.backlight)?;
-    let mut sound = sound::new_sound()?;
+    let mut sound = sound::Sound::new()?;
 
     let main_screen = MainScreen::new(theme.thermostat.clone(), event_source.event_sender());
     let mut screen_manager = ScreenManager::new(theme, main_screen, event_source.event_sender());

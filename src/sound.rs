@@ -24,26 +24,29 @@ use crate::events::{Event, EventHandler};
 mod sound_evdev;
 
 #[cfg(feature = "device")]
-pub fn new_sound() -> Result<Sound<sound_evdev::SoundThread>> {
-    let provider = sound_evdev::SoundThread::start("/dev/input/event0")?;
-    Ok(Sound { provider })
-}
+use sound_evdev::SoundThread as SoundProviderImpl;
 
 #[cfg(feature = "simulate")]
 mod no_sound;
 
 #[cfg(feature = "simulate")]
-pub fn new_sound() -> Result<Sound<no_sound::NoSound>> {
-    let provider = no_sound::NoSound { };
-    Ok(Sound { provider })
-}
+use no_sound::NoSound as SoundProviderImpl;
 
 trait SoundProvider {
+    fn new() -> Result<Self> where Self: Sized;
     fn click(&self) -> Result<()>;
 }
 
 pub struct Sound<P> {
     provider: P
+}
+
+impl Sound<SoundProviderImpl> {
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            provider: SoundProviderImpl::new()?
+        })
+    }
 }
 
 impl<P: SoundProvider> EventHandler for Sound<P> {

@@ -60,6 +60,10 @@ impl SoundThread {
 }
 
 impl SoundProvider for SoundThread {
+    fn new() -> Result<Self> {
+        SoundThread::start("/dev/input/event0")
+    }
+
     fn click(&self) -> Result<()> {
         Ok(self.sender.send(())?)
     }
