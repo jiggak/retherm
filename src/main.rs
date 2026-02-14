@@ -34,7 +34,6 @@ use anyhow::Result;
 use esphome_api::server::{EncryptedStreamProvider, PlaintextStreamProvider};
 use log::debug;
 
-use crate::backplate::{Backplate, hvac_control};
 use crate::events::{Event, EventHandler, EventSource};
 use crate::home_assistant::HomeAssistant;
 use crate::screen::{MainScreen, ScreenManager};
@@ -56,6 +55,8 @@ fn main() -> Result<()> {
     };
 
     let mut event_source = window::new_event_source()?;
+
+    let mut state_manager = state::StateManager::new(event_source.event_sender());
 
     let mut window = window::new_window(&config.backlight)?;
     let mut sound = sound::Sound::new()?;
@@ -86,8 +87,7 @@ fn main() -> Result<()> {
         );
     }
 
-    let hvac_control = hvac_control(event_source.event_sender())?;
-    let mut backplate = Backplate::new(event_source.event_sender(), hvac_control)?;
+    let mut backplate = backplate::Backplate::new(event_source.event_sender())?;
 
     'running: loop {
         window.draw_screen(screen_manager.active_screen())?;
@@ -100,7 +100,8 @@ fn main() -> Result<()> {
         debug!("{:?}", event);
 
         let handlers: [&mut dyn EventHandler; _] = [
-            &mut window, &mut sound, &mut screen_manager, &mut home_assistant, &mut backplate
+            &mut state_manager, &mut window, &mut sound, &mut screen_manager,
+            &mut home_assistant, &mut backplate
         ];
 
         for handler in handlers {

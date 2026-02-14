@@ -16,9 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use anyhow::Result;
 use esphome_api::proto::{
     ClimateAction, ClimateFanMode, ClimateMode, ClimateStateResponse
 };
+
+use crate::events::{Event, EventHandler, EventSender};
 
 #[derive(Debug, Clone)]
 pub struct ThermostatState {
@@ -133,5 +136,98 @@ impl From<HvacAction> for ClimateAction {
             HvacAction::Heating => Self::Heating,
             HvacAction::Cooling => Self::Cooling
         }
+    }
+}
+
+pub struct StateManager<S: EventSender> {
+    event_sender: S,
+    state: ThermostatState
+}
+
+impl<S: EventSender> StateManager<S> {
+    pub fn new(event_sender: S) -> Self {
+        Self {
+            event_sender,
+            state: ThermostatState::default()
+        }
+    }
+
+    fn set_target_temp(&mut self, temp: f32) -> bool {
+        if temp != self.state.target_temp {
+            self.state.target_temp = temp;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn set_current_temp(&mut self, temp: f32) -> bool {
+        if temp != self.state.current_temp {
+            self.state.current_temp = temp;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn set_mode(&mut self, mode: HvacMode) -> bool {
+        if mode != self.state.mode {
+            self.state.mode = mode;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn apply_hvac_action(&mut self) -> bool {
+        let old_action = self.state.action;
+
+        match self.state.mode {
+            HvacMode::Heat => {
+                if self.state.current_temp < self.state.target_temp {
+                    self.state.action = HvacAction::Heating;
+                } else {
+                    self.state.action = HvacAction::Idle;
+                }
+            }
+            HvacMode::Cool => {
+                if self.state.current_temp > self.state.target_temp {
+                    self.state.action = HvacAction::Cooling;
+                } else {
+                    self.state.action = HvacAction::Idle;
+                }
+            }
+            HvacMode::Off => {
+                self.state.action = HvacAction::Idle;
+            }
+            _ => { }
+        };
+
+        old_action != self.state.action
+    }
+}
+
+impl<S: EventSender> EventHandler for StateManager<S> {
+    fn handle_event(&mut self, event: &Event) -> Result<()> {
+        let did_change = match event {
+            Event::SetMode(mode) => {
+                self.set_mode(*mode)
+            }
+            Event::SetTargetTemp(temp) => {
+                self.set_target_temp(*temp)
+            }
+            Event::SetCurrentTemp(temp) => {
+                self.set_current_temp(*temp)
+            }
+            _ => false
+        };
+
+        if did_change {
+            self.apply_hvac_action();
+
+            self.event_sender.send_event(Event::State(self.state.clone()))?;
+        }
+
+        Ok(())
     }
 }

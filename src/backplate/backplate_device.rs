@@ -22,7 +22,8 @@ use anyhow::Result;
 use log::{debug, error};
 use nest_backplate::{BackplateCmd, BackplateConnection, BackplateError, BackplateResponse, Wire};
 
-use crate::{backplate::{HvacAction, HvacControl}, events::{Event, EventSender}};
+use crate::{events::{Event, EventSender}, state::HvacAction};
+use super::{BackplateDevice};
 
 pub struct DeviceBackplateThread {
     cmd_sender: Sender<BackplateCmd>
@@ -100,7 +101,13 @@ fn backplate_main_loop<S: EventSender>(
     }
 }
 
-impl HvacControl for DeviceBackplateThread {
+impl BackplateDevice for DeviceBackplateThread {
+    fn new<S>(event_sender: S) -> Result<Self>
+        where S: EventSender + Send + 'static, Self: Sized
+    {
+        DeviceBackplateThread::start("/dev/ttyO2", event_sender)
+    }
+
     fn switch_hvac(&self, action: &HvacAction) -> Result<()> {
         let cmds = match action {
             HvacAction::Heating => {

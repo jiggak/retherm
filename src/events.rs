@@ -26,6 +26,7 @@ use crate::{screen::ScreenId, state::{HvacMode, ThermostatState}};
 
 #[derive(Debug)]
 pub enum Event {
+    Quit,
     ButtonDown,
     Dial(i32),
     SetTargetTemp(f32),
@@ -34,8 +35,7 @@ pub enum Event {
     State(ThermostatState),
     NavigateTo(ScreenId),
     NavigateBack,
-    ClickSound,
-    Quit
+    ClickSound
 }
 
 impl Event {
@@ -56,6 +56,7 @@ impl Event {
 impl PartialEq for Event {
     fn eq(&self, other: &Self) -> bool {
         match self {
+            Self::Quit => matches!(other, Self::Quit),
             Self::ButtonDown => matches!(other, Self::ButtonDown),
             Self::Dial(_) => matches!(other, Self::Dial(_)),
             Self::SetTargetTemp(_) => matches!(other, Self::SetTargetTemp(_)),
@@ -65,7 +66,6 @@ impl PartialEq for Event {
             Self::NavigateTo(_) => matches!(other, Self::NavigateTo(_)),
             Self::NavigateBack => matches!(other, Self::NavigateBack),
             Self::ClickSound => matches!(other, Self::ClickSound),
-            Self::Quit => matches!(other, Self::Quit),
         }
     }
 
