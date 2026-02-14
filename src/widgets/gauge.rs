@@ -23,17 +23,17 @@ use embedded_graphics::{
     text::{Alignment, Text, renderer::TextRenderer}
 };
 
-use crate::{backplate::{HvacMode, HvacState}, theme::GaugeStyle};
+use crate::{theme::GaugeStyle, state::{HvacMode, ThermostatState}};
 
 pub struct GaugeWidget {
-    pub hvac_state: HvacState,
+    pub state: ThermostatState,
     style: GaugeStyle
 }
 
 impl GaugeWidget {
     pub fn new(style: GaugeStyle) -> Self {
         Self {
-            hvac_state: HvacState::default(),
+            state: ThermostatState::default(),
             style
         }
     }
@@ -46,8 +46,8 @@ impl GaugeWidget {
         where D: DrawTarget<Color = Bgr888>
     {
         let center = target.bounding_box().center();
-        let target_temp_percent = get_temp_percent(self.hvac_state.target_temp);
-        let current_temp_percent = get_temp_percent(self.hvac_state.current_temp);
+        let target_temp_percent = get_temp_percent(self.state.target_temp);
+        let current_temp_percent = get_temp_percent(self.state.current_temp);
 
         self.draw_temp_text(target, bg_colour, center)?;
 
@@ -55,10 +55,10 @@ impl GaugeWidget {
         self.draw_arc(target, 0.0, 1.0, center, self.style.arc_bg_colour)?;
 
         // gauge foreground
-        let dot_colour = if matches!(self.hvac_state.mode, HvacMode::Heat) {
+        let dot_colour = if matches!(self.state.mode, HvacMode::Heat) {
             self.draw_arc(target, 0.0, target_temp_percent, center, self.style.arc_heat_colour)?;
             self.style.arc_heat_dot_colour
-        } else if matches!(self.hvac_state.mode, HvacMode::Cool) {
+        } else if matches!(self.state.mode, HvacMode::Cool) {
             self.draw_arc(target, target_temp_percent, 1.0, center, self.style.arc_cool_colour)?;
             self.style.arc_cool_dot_colour
         } else {
@@ -73,7 +73,7 @@ impl GaugeWidget {
         self.draw_arc_point(target, current_temp_percent, center, self.style.arc_temp_dot_dia, self.style.arc_temp_dot_colour)?;
 
         // draw current temp label along the current temp angle
-        let current_temp = format!("{:.1}", self.hvac_state.current_temp);
+        let current_temp = format!("{:.1}", self.state.current_temp);
         let current_temp_center = self.get_arc_point(center, current_temp_percent, self.style.arc_temp_text_dia);
         self.draw_sm_text(target, bg_colour, current_temp_center, current_temp)?;
 
@@ -98,7 +98,7 @@ impl GaugeWidget {
     ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let (temp_int, temp_frac) = round_temperature(self.hvac_state.target_temp);
+        let (temp_int, temp_frac) = round_temperature(self.state.target_temp);
         let (temp_int_s, temp_frac_s) = (temp_int.to_string(), temp_frac.to_string());
 
         let font_style = self.style.target_font
@@ -225,5 +225,5 @@ fn round_temperature(value: f32) -> (i32, i32) {
 }
 
 fn get_temp_percent(temp: f32) -> f32 {
-    (temp - HvacState::MIN_TEMP) / (HvacState::MAX_TEMP - HvacState::MIN_TEMP)
+    (temp - ThermostatState::MIN_TEMP) / (ThermostatState::MAX_TEMP - ThermostatState::MIN_TEMP)
 }

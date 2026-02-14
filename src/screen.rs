@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::{backplate::HvacMode, drawable::AppDrawable, events::EventHandler};
+use crate::{drawable::AppDrawable, events::EventHandler, state::HvacMode};
 
 pub use self::{
     main_screen::MainScreen,
