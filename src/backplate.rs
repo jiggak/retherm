@@ -16,10 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use anyhow::{Result, anyhow};
-use esphome_api::proto::{ClimateAction, ClimateFanMode, ClimateMode, ClimateStateResponse};
+use anyhow::Result;
 
-use crate::events::{Event, EventHandler, EventSender};
+use crate::{events::{Event, EventHandler, EventSender}, state::{HvacAction, HvacMode, ThermostatState}};
 
 #[cfg(feature = "device")]
 mod backplate_device;
@@ -51,22 +50,22 @@ pub trait HvacControl {
 
 pub struct Backplate<S, C> {
     event_sender: S,
-    hvac_state: HvacState,
-    hvac_control: C
+    hvac_control: C,
+    state: ThermostatState
 }
 
 impl<S: EventSender, C: HvacControl> Backplate<S, C> {
     pub fn new(event_sender: S, hvac_control: C) -> Result<Self> {
         Ok(Self {
             event_sender,
-            hvac_state: HvacState::default(),
-            hvac_control
+            hvac_control,
+            state: ThermostatState::default()
         })
     }
 
     fn set_target_temp(&mut self, temp: f32) -> Result<bool> {
-        let changed = if temp != self.hvac_state.target_temp {
-            self.hvac_state.target_temp = temp;
+        let changed = if temp != self.state.target_temp {
+            self.state.target_temp = temp;
             self.apply_hvac_action()?;
             true
         } else {
@@ -77,8 +76,8 @@ impl<S: EventSender, C: HvacControl> Backplate<S, C> {
     }
 
     fn set_current_temp(&mut self, temp: f32) -> Result<bool> {
-        let changed = if temp != self.hvac_state.current_temp {
-            self.hvac_state.current_temp = temp;
+        let changed = if temp != self.state.current_temp {
+            self.state.current_temp = temp;
             self.apply_hvac_action()?;
             true
         } else {
@@ -89,8 +88,8 @@ impl<S: EventSender, C: HvacControl> Backplate<S, C> {
     }
 
     fn set_mode(&mut self, mode: HvacMode) -> Result<bool> {
-        let changed = if mode != self.hvac_state.mode {
-            self.hvac_state.mode = mode;
+        let changed = if mode != self.state.mode {
+            self.state.mode = mode;
             self.apply_hvac_action()?;
             true
         } else {
@@ -101,8 +100,8 @@ impl<S: EventSender, C: HvacControl> Backplate<S, C> {
     }
 
     fn set_action(&mut self, action: HvacAction) -> Result<()> {
-        if action != self.hvac_state.action {
-            self.hvac_state.action = action;
+        if action != self.state.action {
+            self.state.action = action;
             self.hvac_control.switch_hvac(&action)?;
         }
 
@@ -110,16 +109,16 @@ impl<S: EventSender, C: HvacControl> Backplate<S, C> {
     }
 
     fn apply_hvac_action(&mut self) -> Result<()> {
-        match self.hvac_state.mode {
+        match self.state.mode {
             HvacMode::Heat => {
-                if self.hvac_state.current_temp < self.hvac_state.target_temp {
+                if self.state.current_temp < self.state.target_temp {
                     self.set_action(HvacAction::Heating)?;
                 } else {
                     self.set_action(HvacAction::Idle)?;
                 }
             }
             HvacMode::Cool => {
-                if self.hvac_state.current_temp > self.hvac_state.target_temp {
+                if self.state.current_temp > self.state.target_temp {
                     self.set_action(HvacAction::Cooling)?;
                 } else {
                     self.set_action(HvacAction::Idle)?;
@@ -151,122 +150,9 @@ impl<S: EventSender, C: HvacControl> EventHandler for Backplate<S, C> {
         };
 
         if send_state_event {
-            self.event_sender.send_event(Event::HvacState(self.hvac_state.clone()))?;
+            self.event_sender.send_event(Event::State(self.state.clone()))?;
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct HvacState {
-    pub target_temp: f32,
-    pub current_temp: f32,
-    pub mode: HvacMode,
-    pub action: HvacAction
-}
-
-impl HvacState {
-    pub const MIN_TEMP: f32 = 9.0;
-    pub const MAX_TEMP: f32 = 32.0;
-
-    /// Attempt to set target temp and return `true` if successful.
-    /// Return `false` if value is outside of min/max range, or if value
-    /// equals current target temp.
-    pub fn set_target_temp(&mut self, val: f32) -> bool {
-        if val > Self::MIN_TEMP && val < Self::MAX_TEMP && val != self.target_temp {
-            self.target_temp = val;
-            true
-        } else {
-            false
-        }
-    }
-}
-
-impl Default for HvacState {
-    fn default() -> Self {
-        Self {
-            target_temp: 19.5,
-            current_temp: 20.0,
-            action: HvacAction::Idle,
-            mode: HvacMode::Heat
-        }
-    }
-}
-
-impl From<HvacState> for ClimateStateResponse {
-    fn from(value: HvacState) -> Self {
-        let mut state = Self::default();
-        state.set_fan_mode(ClimateFanMode::ClimateFanAuto);
-
-        state.set_action(value.action.into());
-        state.set_mode(value.mode.into());
-        state.current_temperature = value.current_temp;
-        state.target_temperature = value.target_temp;
-
-        state
-    }
-}
-
-impl From<&HvacState> for ClimateStateResponse {
-    fn from(value: &HvacState) -> Self {
-        let mut state = Self::default();
-        state.set_fan_mode(ClimateFanMode::ClimateFanAuto);
-
-        state.set_action(value.action.into());
-        state.set_mode(value.mode.into());
-        state.current_temperature = value.current_temp;
-        state.target_temperature = value.target_temp;
-
-        state
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum HvacMode {
-    Off,
-    Auto,
-    Heat,
-    Cool
-}
-
-impl TryFrom<ClimateMode> for HvacMode {
-    type Error = anyhow::Error;
-    fn try_from(value: ClimateMode) -> Result<Self> {
-        Ok(match value {
-            ClimateMode::Off => Self::Off,
-            ClimateMode::Auto => Self::Auto,
-            ClimateMode::Heat => Self::Heat,
-            ClimateMode::Cool => Self::Cool,
-            _ => return Err(anyhow!(""))
-        })
-    }
-}
-
-impl From<HvacMode> for ClimateMode {
-    fn from(value: HvacMode) -> Self {
-        match value {
-            HvacMode::Off => Self::Off,
-            HvacMode::Auto => Self::Auto,
-            HvacMode::Heat => Self::Heat,
-            HvacMode::Cool => Self::Cool,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum HvacAction {
-    Idle,
-    Heating,
-    Cooling
-}
-
-impl From<HvacAction> for ClimateAction {
-    fn from(value: HvacAction) -> Self {
-        match value {
-            HvacAction::Idle => Self::Idle,
-            HvacAction::Heating => Self::Heating,
-            HvacAction::Cooling => Self::Cooling,
-        }
     }
 }

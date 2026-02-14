@@ -25,6 +25,7 @@ mod home_assistant;
 mod input_events;
 mod screen;
 mod sound;
+mod state;
 mod theme;
 mod widgets;
 mod window;
