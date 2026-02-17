@@ -18,7 +18,7 @@
 
 use anyhow::Result;
 use esphome_api::proto::{
-    ClimateAction, ClimateFanMode, ClimateMode, ClimateStateResponse
+    ClimateAction, ClimateFanMode, ClimateMode, ClimatePreset, ClimateStateResponse
 };
 
 use crate::{
@@ -51,6 +51,23 @@ impl ThermostatState {
             false
         }
     }
+
+    fn to_ha_state(&self) -> ClimateStateResponse {
+        let mut state = ClimateStateResponse::default();
+        state.set_fan_mode(ClimateFanMode::ClimateFanAuto);
+
+        state.set_action(self.action.into());
+        state.set_mode(self.mode.into());
+        state.current_temperature = self.current_temp;
+        state.target_temperature = self.target_temp;
+        state.preset = if self.away {
+            ClimatePreset::Eco as i32
+        } else {
+            ClimatePreset::None as i32
+        };
+
+        state
+    }
 }
 
 impl Default for ThermostatState {
@@ -67,29 +84,13 @@ impl Default for ThermostatState {
 
 impl From<ThermostatState> for ClimateStateResponse {
     fn from(value: ThermostatState) -> Self {
-        let mut state = Self::default();
-        state.set_fan_mode(ClimateFanMode::ClimateFanAuto);
-
-        state.set_action(value.action.into());
-        state.set_mode(value.mode.into());
-        state.current_temperature = value.current_temp;
-        state.target_temperature = value.target_temp;
-
-        state
+        value.to_ha_state()
     }
 }
 
 impl From<&ThermostatState> for ClimateStateResponse {
     fn from(value: &ThermostatState) -> Self {
-        let mut state = Self::default();
-        state.set_fan_mode(ClimateFanMode::ClimateFanAuto);
-
-        state.set_action(value.action.into());
-        state.set_mode(value.mode.into());
-        state.current_temperature = value.current_temp;
-        state.target_temperature = value.target_temp;
-
-        state
+        value.to_ha_state()
     }
 }
 
@@ -253,12 +254,12 @@ impl<S: EventSender> EventHandler for StateManager<S> {
             Event::SetCurrentTemp(temp) => {
                 self.set_current_temp(*temp)
             }
-            Event::ProximityNear | Event::ProximityFar => {
+            Event::SetAway(false) | Event::ProximityNear | Event::ProximityFar => {
                 let event = Event::TimeoutReset(TimerId::Away, self.away_config.timeout);
                 self.event_sender.send_event(event)?;
                 self.set_away(false)
             }
-            Event::TimeoutReached(id) if id == &TimerId::Away => {
+            Event::SetAway(true) | Event::TimeoutReached(TimerId::Away) => {
                 self.set_away(true)
             }
             _ => false

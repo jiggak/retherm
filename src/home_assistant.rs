@@ -131,6 +131,10 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                 message.feature_flags =
                     ClimateFeature::SUPPORTS_CURRENT_TEMPERATURE |
                     ClimateFeature::SUPPORTS_ACTION;
+                message.supported_presets = vec![
+                    ClimatePreset::None as i32,
+                    ClimatePreset::Eco as i32
+                ];
 
                 writer.write(&ProtoMessage::ListEntitiesClimateResponse(message))?;
 
@@ -149,6 +153,16 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                 if cmd.has_target_temperature {
                     let temp = cmd.target_temperature;
                     self.event_sender.send_event(Event::SetTargetTemp(temp))?;
+                }
+                if cmd.has_preset {
+                    match cmd.preset() {
+                        ClimatePreset::Eco => {
+                            self.event_sender.send_event(Event::SetAway(true))?;
+                        }
+                        _ => {
+                            self.event_sender.send_event(Event::SetAway(false))?;
+                        }
+                    }
                 }
             }
             _ => { }

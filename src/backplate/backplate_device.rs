@@ -38,10 +38,7 @@ pub struct DeviceBackplateThread {
 impl DeviceBackplateThread {
     const RECONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 
-    pub fn start<S>(
-        config: BackplateConfig,
-        event_sender: S
-    ) -> Result<Self>
+    pub fn start<S>(config: BackplateConfig, event_sender: S) -> Result<Self>
         where S: EventSender + Send + 'static
     {
         let (cmd_sender, cmd_receiver) = channel();

@@ -126,6 +126,7 @@ pub struct BackplateConfig {
     /// Path to backplate serial device file
     pub serial_port: String,
 
+    /// HVAC wiring configuration
     pub wiring: WireConfig
 }
 
