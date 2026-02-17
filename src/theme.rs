@@ -90,6 +90,13 @@ impl Default for Theme {
                     arc_temp_dot_dia: 10,
                     arc_temp_dot_colour: Bgr888::CSS_SILVER,
                     arc_temp_text_dia: 248
+                },
+
+                away_icon_center: Point { x: 160, y: 230 },
+                away_icon: IconStyle {
+                    icon_font: fonts.font_def(FontName::Icon, 42),
+                    icon: "\u{f06c}".to_string(),
+                    colour: Bgr888::CSS_LIGHT_GREEN
                 }
             },
             mode_select: ModeSelectTheme {
@@ -138,7 +145,11 @@ pub struct MainScreenTheme {
     #[serde(deserialize_with = "theme_de::colour")]
     pub bg_cool_colour: Bgr888,
 
-    pub gauge: GaugeStyle
+    pub gauge: GaugeStyle,
+
+    #[serde(deserialize_with = "theme_de::point")]
+    pub away_icon_center: Point,
+    pub away_icon: IconStyle
 }
 
 impl Default for MainScreenTheme {

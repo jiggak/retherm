@@ -22,12 +22,13 @@ use embedded_graphics::{prelude::*};
 use crate::{
     drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender, TrailingEventSender},
-    state::HvacAction, theme::MainScreenTheme, widgets::GaugeWidget
+    state::HvacAction, theme::MainScreenTheme, widgets::{GaugeWidget, IconWidget}
 };
 use super::{Screen, ScreenId};
 
 pub struct MainScreen<S> {
     gauge: GaugeWidget,
+    away_icon: IconWidget,
     cmd_sender: TrailingEventSender,
     event_sender: S,
     theme: MainScreenTheme,
@@ -41,7 +42,11 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
         let cmd_sender = TrailingEventSender::new(event_sender.clone(), 500);
         Self {
             gauge: GaugeWidget::new(theme.gauge.clone()),
-            cmd_sender, event_sender, theme, last_click_temp: 0.0
+            away_icon: IconWidget::new(theme.away_icon.clone()),
+            cmd_sender,
+            event_sender,
+            theme,
+            last_click_temp: 0.0
         }
     }
 }
@@ -88,6 +93,15 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
         target.clear(bg_colour)?;
 
         self.gauge.draw(target, bg_colour)?;
+
+        if self.gauge.state.away {
+            self.away_icon.draw(
+                target,
+                self.theme.away_icon_center,
+                bg_colour,
+                Some(self.theme.away_icon.colour)
+            )?;
+        }
 
         Ok(())
     }
