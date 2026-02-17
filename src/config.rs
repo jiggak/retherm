@@ -21,6 +21,8 @@ use std::{fs, path::Path, time::Duration};
 use anyhow::Result;
 use serde::Deserialize;
 
+mod config_de;
+
 #[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct Config {
@@ -101,6 +103,7 @@ pub struct AwayConfig {
     pub temp_cool: f32,
 
     /// Duration of no proximity movement before going into away mode
+    #[serde(deserialize_with = "config_de::duration")]
     pub timeout: Duration
 }
 
