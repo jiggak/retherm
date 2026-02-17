@@ -81,7 +81,7 @@ impl DeviceBackplateThread {
             }
         });
 
-        let (heat_wire, cool_wire) = match config.wire_config {
+        let (heat_wire, cool_wire) = match config.wiring {
             WireConfig::HeatAndCool { heat_wire, cool_wire } => {
                 (heat_wire.into(), cool_wire.into())
             }

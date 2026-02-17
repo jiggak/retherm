@@ -123,7 +123,7 @@ pub struct BackplateConfig {
     /// Path to backplate serial device file
     pub serial_port: String,
 
-    pub wire_config: WireConfig
+    pub wiring: WireConfig
 }
 
 impl Default for BackplateConfig {
@@ -131,7 +131,7 @@ impl Default for BackplateConfig {
         Self {
             near_pir_threshold: 15,
             serial_port: String::from("/dev/ttyO2"),
-            wire_config: WireConfig::HeatAndCool {
+            wiring: WireConfig::HeatAndCool {
                 heat_wire: WireId::W1,
                 cool_wire: WireId::Y1
             }
@@ -145,6 +145,7 @@ pub enum WireId {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "type")]
 pub enum WireConfig {
     HeatAndCool {
         heat_wire: WireId,
