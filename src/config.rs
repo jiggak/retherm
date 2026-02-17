@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{fs, path::Path};
+use std::{fs, path::Path, time::Duration};
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -24,6 +24,14 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct Config {
+    pub away_config: AwayConfig,
+
+    /// Minimum near proximity value to be consider as movement
+    pub near_pir_threshold: u16,
+
+    /// Path to backplate serial device file
+    pub backplate_serial_port: String,
+
     pub home_assistant: HomeAssistantConfig,
     pub backlight: BacklightConfig
 }
@@ -39,6 +47,9 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            away_config: AwayConfig::default(),
+            near_pir_threshold: 15,
+            backplate_serial_port: String::from("/dev/ttyO2"),
             home_assistant: HomeAssistantConfig::default(),
             backlight: BacklightConfig::default()
         }
@@ -83,6 +94,29 @@ impl Default for BacklightConfig {
         Self {
             brightness: 108,
             timeout_sec: 15
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct AwayConfig {
+    /// Away temp for heating mode
+    pub temp_heat: f32,
+
+    /// Away temp for cooling mode
+    pub temp_cool: f32,
+
+    /// Duration of no proximity movement before going into away mode
+    pub timeout: Duration
+}
+
+impl Default for AwayConfig {
+    fn default() -> Self {
+        Self {
+            temp_heat: 16.0,
+            temp_cool: 22.0,
+            timeout: Duration::from_mins(30)
         }
     }
 }

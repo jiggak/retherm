@@ -16,14 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::time::Duration;
-
 use anyhow::Result;
 use esphome_api::proto::{
     ClimateAction, ClimateFanMode, ClimateMode, ClimateStateResponse
 };
 
-use crate::{events::{Event, EventHandler, EventSender}, timer::TimerId};
+use crate::{
+    config::{AwayConfig, Config},
+    events::{Event, EventHandler, EventSender},
+    timer::TimerId
+};
 
 #[derive(Debug, Clone)]
 pub struct ThermostatState {
@@ -37,8 +39,6 @@ pub struct ThermostatState {
 impl ThermostatState {
     pub const MIN_TEMP: f32 = 9.0;
     pub const MAX_TEMP: f32 = 32.0;
-    pub const AWAY_TEMP_HEAT: f32 = 16.0;
-    pub const AWAY_TEMP_COOL: f32 = 22.0;
 
     /// Attempt to set target temp and return `true` if successful.
     /// Return `false` if value is outside of min/max range, or if value
@@ -146,18 +146,18 @@ impl From<HvacAction> for ClimateAction {
 pub struct StateManager<S: EventSender> {
     event_sender: S,
     state: ThermostatState,
-    saved_target_temp: f32
+    saved_target_temp: f32,
+    away_config: AwayConfig
 }
 
 impl<S: EventSender> StateManager<S> {
-    const AWAY_TIMEOUT: Duration = Duration::from_mins(30);
-
-    pub fn new(event_sender: S) -> Self {
+    pub fn new(config: &Config, event_sender: S) -> Self {
         Self {
             event_sender,
             state: ThermostatState::default(),
             // FIXME should this be persistent?
-            saved_target_temp: 0.0
+            saved_target_temp: 0.0,
+            away_config: config.away_config.clone()
         }
     }
 
@@ -196,10 +196,10 @@ impl<S: EventSender> StateManager<S> {
                 self.saved_target_temp = self.state.target_temp;
                 match self.state.mode {
                     HvacMode::Heat => {
-                        self.state.target_temp = ThermostatState::AWAY_TEMP_HEAT;
+                        self.state.target_temp = self.away_config.temp_heat;
                     }
                     HvacMode::Cool => {
-                        self.state.target_temp = ThermostatState::AWAY_TEMP_COOL;
+                        self.state.target_temp = self.away_config.temp_cool;
                     }
                     _ => { }
                 }
@@ -254,7 +254,8 @@ impl<S: EventSender> EventHandler for StateManager<S> {
                 self.set_current_temp(*temp)
             }
             Event::ProximityNear | Event::ProximityFar => {
-                self.event_sender.send_event(Event::TimeoutReset(TimerId::Away, Self::AWAY_TIMEOUT))?;
+                let event = Event::TimeoutReset(TimerId::Away, self.away_config.timeout);
+                self.event_sender.send_event(event)?;
                 self.set_away(false)
             }
             Event::TimeoutReached(id) if id == &TimerId::Away => {

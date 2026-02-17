@@ -18,7 +18,11 @@
 
 use anyhow::Result;
 
-use crate::{events::{Event, EventHandler, EventSender}, state::HvacAction};
+use crate::{
+    config::Config,
+    events::{Event, EventHandler, EventSender},
+    state::HvacAction
+};
 
 #[cfg(feature = "device")]
 mod backplate_device;
@@ -33,7 +37,7 @@ mod backplate_simulated;
 use backplate_simulated::SimulatedBackplate as BackplateImpl;
 
 trait BackplateDevice {
-    fn new<S>(event_sender: S) -> Result<Self>
+    fn new<S>(config: &Config, event_sender: S) -> Result<Self>
         where S: EventSender + Send + 'static, Self: Sized;
 
     fn switch_hvac(&self, action: &HvacAction) -> Result<()>;
@@ -44,10 +48,10 @@ pub struct Backplate<D> {
 }
 
 impl Backplate<BackplateImpl> {
-    pub fn new<S>(event_sender: S) -> Result<Self>
+    pub fn new<S>(config: &Config, event_sender: S) -> Result<Self>
         where S: EventSender + Send + 'static
     {
-        let device = BackplateImpl::new(event_sender)?;
+        let device = BackplateImpl::new(config, event_sender)?;
         Ok(Self { device })
     }
 }

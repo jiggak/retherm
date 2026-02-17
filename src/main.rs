@@ -57,7 +57,7 @@ fn main() -> Result<()> {
 
     let mut event_source = window::new_event_source()?;
 
-    let mut state_manager = state::StateManager::new(event_source.event_sender());
+    let mut state_manager = state::StateManager::new(&config, event_source.event_sender());
 
     let mut window = window::new_window(&config.backlight)?;
     let mut sound = sound::Sound::new()?;
@@ -89,7 +89,7 @@ fn main() -> Result<()> {
         );
     }
 
-    let mut backplate = backplate::Backplate::new(event_source.event_sender())?;
+    let mut backplate = backplate::Backplate::new(&config, event_source.event_sender())?;
 
     'running: loop {
         window.draw_screen(screen_manager.active_screen())?;

@@ -22,7 +22,7 @@ use anyhow::Result;
 use log::{debug, error};
 use nest_backplate::{BackplateCmd, BackplateConnection, BackplateError, BackplateResponse, Wire};
 
-use crate::{events::{Event, EventSender}, state::HvacAction};
+use crate::{config::Config, events::{Event, EventSender}, state::HvacAction};
 use super::{BackplateDevice};
 
 pub struct DeviceBackplateThread {
@@ -32,7 +32,11 @@ pub struct DeviceBackplateThread {
 impl DeviceBackplateThread {
     const RECONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 
-    pub fn start<S>(dev_path: &'static str, event_sender: S) -> Result<Self>
+    pub fn start<S>(
+        dev_path: String,
+        near_pir_threshold: u16,
+        event_sender: S
+    ) -> Result<Self>
         where S: EventSender + Send + 'static
     {
         let (cmd_sender, cmd_receiver) = channel();
@@ -43,7 +47,14 @@ impl DeviceBackplateThread {
         // seems to constanty send messages.
         thread::spawn(move || {
             loop {
-                match backplate_main_loop(dev_path, &event_sender, &cmd_receiver) {
+                let result = backplate_main_loop(
+                    &dev_path,
+                    near_pir_threshold,
+                    &event_sender,
+                    &cmd_receiver
+                );
+
+                match result {
                     Ok(()) => unreachable!("Backplate message loop should not return Ok"),
                     Err(error) => {
                         if let Some(error) = error.downcast_ref::<BackplateError>() {
@@ -71,6 +82,7 @@ impl DeviceBackplateThread {
 
 fn backplate_main_loop<S: EventSender>(
     dev_path: &str,
+    near_pir_threshold: u16,
     event_sender: &S,
     cmd_receiver: &Receiver<BackplateCmd>
 ) -> Result<()> {
@@ -79,16 +91,13 @@ fn backplate_main_loop<S: EventSender>(
     // This triggers a constant stream of messages
     backplate.send_command(BackplateCmd::StatusRequest)?;
 
-    // TODO Move to config
-    const NEAR_PIR_THRESHOLD: u16 = 15;
-
     loop {
         match backplate.read_message()? {
             BackplateResponse::Climate(c) => {
                 event_sender.send_event(Event::SetCurrentTemp(c.temperature))?;
             }
             BackplateResponse::NearPir(val) => {
-                if val > NEAR_PIR_THRESHOLD {
+                if val > near_pir_threshold {
                     event_sender.send_event(Event::ProximityNear)?;
                 }
             }
@@ -115,10 +124,14 @@ fn backplate_main_loop<S: EventSender>(
 }
 
 impl BackplateDevice for DeviceBackplateThread {
-    fn new<S>(event_sender: S) -> Result<Self>
+    fn new<S>(config: &Config, event_sender: S) -> Result<Self>
         where S: EventSender + Send + 'static, Self: Sized
     {
-        DeviceBackplateThread::start("/dev/ttyO2", event_sender)
+        DeviceBackplateThread::start(
+            config.backplate_serial_port.clone(),
+            config.near_pir_threshold,
+            event_sender
+        )
     }
 
     fn switch_hvac(&self, action: &HvacAction) -> Result<()> {
