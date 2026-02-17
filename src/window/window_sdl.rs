@@ -132,6 +132,8 @@ impl EventSource<SdlEventSenderHandle> for SdlEventSource {
                 Ok(Event::Dial(20)),
             SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Down) =>
                 Ok(Event::Dial(-20)),
+            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::P) =>
+                Ok(Event::ProximityNear),
             sdl_event => {
                 if sdl_event.is_user_event() {
                     let event = sdl_event.as_user_event_type::<Event>().unwrap();

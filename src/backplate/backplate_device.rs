@@ -79,10 +79,23 @@ fn backplate_main_loop<S: EventSender>(
     // This triggers a constant stream of messages
     backplate.send_command(BackplateCmd::StatusRequest)?;
 
+    // TODO Move to config
+    const NEAR_PIR_THRESHOLD: u16 = 15;
+
     loop {
         match backplate.read_message()? {
             BackplateResponse::Climate(c) => {
                 event_sender.send_event(Event::SetCurrentTemp(c.temperature))?;
+            }
+            BackplateResponse::NearPir(val) => {
+                if val > NEAR_PIR_THRESHOLD {
+                    event_sender.send_event(Event::ProximityNear)?;
+                }
+            }
+            BackplateResponse::Pir { val1, val2 } => {
+                if val1 + val2 > 0 {
+                    event_sender.send_event(Event::ProximityFar)?;
+                }
             }
             BackplateResponse::WireSwitched(_wire, _state) => {
                 // FIXME I sort of "set it and forget it" with the hvac

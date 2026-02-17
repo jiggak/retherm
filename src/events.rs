@@ -22,7 +22,7 @@ use anyhow::Result;
 use debounce::EventDebouncer;
 use throttle::Throttle;
 
-use crate::{screen::ScreenId, state::{HvacMode, ThermostatState}};
+use crate::{screen::ScreenId, state::{HvacMode, ThermostatState}, timer::TimerId};
 
 #[derive(Debug)]
 pub enum Event {
@@ -35,7 +35,11 @@ pub enum Event {
     State(ThermostatState),
     NavigateTo(ScreenId),
     NavigateBack,
-    ClickSound
+    ClickSound,
+    ProximityNear,
+    ProximityFar,
+    TimeoutReached(TimerId),
+    TimeoutReset(TimerId, Duration)
 }
 
 impl Event {
@@ -66,6 +70,10 @@ impl PartialEq for Event {
             Self::NavigateTo(_) => matches!(other, Self::NavigateTo(_)),
             Self::NavigateBack => matches!(other, Self::NavigateBack),
             Self::ClickSound => matches!(other, Self::ClickSound),
+            Self::ProximityNear => matches!(other, Self::ProximityNear),
+            Self::ProximityFar => matches!(other, Self::ProximityFar),
+            Self::TimeoutReached(_) => matches!(other, Self::TimeoutReached(_)),
+            Self::TimeoutReset(_, _) => matches!(other, Self::TimeoutReset(_, _)),
         }
     }
 

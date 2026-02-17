@@ -27,6 +27,7 @@ mod screen;
 mod sound;
 mod state;
 mod theme;
+mod timer;
 mod widgets;
 mod window;
 
@@ -60,6 +61,7 @@ fn main() -> Result<()> {
 
     let mut window = window::new_window(&config.backlight)?;
     let mut sound = sound::Sound::new()?;
+    let mut timers = timer::Timers::new(event_source.event_sender());
 
     let main_screen = MainScreen::new(theme.thermostat.clone(), event_source.event_sender());
     let mut screen_manager = ScreenManager::new(theme, main_screen, event_source.event_sender());
@@ -100,8 +102,8 @@ fn main() -> Result<()> {
         debug!("{:?}", event);
 
         let handlers: [&mut dyn EventHandler; _] = [
-            &mut state_manager, &mut window, &mut sound, &mut screen_manager,
-            &mut home_assistant, &mut backplate
+            &mut state_manager, &mut window, &mut sound, &mut timers,
+            &mut screen_manager, &mut home_assistant, &mut backplate
         ];
 
         for handler in handlers {

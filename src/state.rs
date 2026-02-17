@@ -16,12 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::time::Duration;
+
 use anyhow::Result;
 use esphome_api::proto::{
     ClimateAction, ClimateFanMode, ClimateMode, ClimateStateResponse
 };
 
-use crate::events::{Event, EventHandler, EventSender};
+use crate::{events::{Event, EventHandler, EventSender}, timer::TimerId};
 
 #[derive(Debug, Clone)]
 pub struct ThermostatState {
@@ -35,6 +37,8 @@ pub struct ThermostatState {
 impl ThermostatState {
     pub const MIN_TEMP: f32 = 9.0;
     pub const MAX_TEMP: f32 = 32.0;
+    pub const AWAY_TEMP_HEAT: f32 = 16.0;
+    pub const AWAY_TEMP_COOL: f32 = 22.0;
 
     /// Attempt to set target temp and return `true` if successful.
     /// Return `false` if value is outside of min/max range, or if value
@@ -141,14 +145,19 @@ impl From<HvacAction> for ClimateAction {
 
 pub struct StateManager<S: EventSender> {
     event_sender: S,
-    state: ThermostatState
+    state: ThermostatState,
+    saved_target_temp: f32
 }
 
 impl<S: EventSender> StateManager<S> {
+    const AWAY_TIMEOUT: Duration = Duration::from_mins(30);
+
     pub fn new(event_sender: S) -> Self {
         Self {
             event_sender,
-            state: ThermostatState::default()
+            state: ThermostatState::default(),
+            // FIXME should this be persistent?
+            saved_target_temp: 0.0
         }
     }
 
@@ -173,6 +182,31 @@ impl<S: EventSender> StateManager<S> {
     fn set_mode(&mut self, mode: HvacMode) -> bool {
         if mode != self.state.mode {
             self.state.mode = mode;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn set_away(&mut self, is_away: bool) -> bool {
+        if is_away != self.state.away {
+            self.state.away = is_away;
+
+            if self.state.away {
+                self.saved_target_temp = self.state.target_temp;
+                match self.state.mode {
+                    HvacMode::Heat => {
+                        self.state.target_temp = ThermostatState::AWAY_TEMP_HEAT;
+                    }
+                    HvacMode::Cool => {
+                        self.state.target_temp = ThermostatState::AWAY_TEMP_COOL;
+                    }
+                    _ => { }
+                }
+            } else {
+                self.state.target_temp = self.saved_target_temp;
+            }
+
             true
         } else {
             false
@@ -218,6 +252,13 @@ impl<S: EventSender> EventHandler for StateManager<S> {
             }
             Event::SetCurrentTemp(temp) => {
                 self.set_current_temp(*temp)
+            }
+            Event::ProximityNear | Event::ProximityFar => {
+                self.event_sender.send_event(Event::TimeoutReset(TimerId::Away, Self::AWAY_TIMEOUT))?;
+                self.set_away(false)
+            }
+            Event::TimeoutReached(id) if id == &TimerId::Away => {
+                self.set_away(true)
             }
             _ => false
         };
