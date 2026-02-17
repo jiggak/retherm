@@ -22,24 +22,31 @@ use anyhow::Result;
 use log::{debug, error};
 use nest_backplate::{BackplateCmd, BackplateConnection, BackplateError, BackplateResponse, Wire};
 
-use crate::{config::Config, events::{Event, EventSender}, state::HvacAction};
+use crate::{
+    config::{BackplateConfig, Config, WireConfig, WireId},
+    events::{Event, EventSender},
+    state::HvacAction
+};
 use super::{BackplateDevice};
 
 pub struct DeviceBackplateThread {
-    cmd_sender: Sender<BackplateCmd>
+    cmd_sender: Sender<BackplateCmd>,
+    heat_wire: Wire,
+    cool_wire: Wire
 }
 
 impl DeviceBackplateThread {
     const RECONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 
     pub fn start<S>(
-        dev_path: String,
-        near_pir_threshold: u16,
+        config: BackplateConfig,
         event_sender: S
     ) -> Result<Self>
         where S: EventSender + Send + 'static
     {
         let (cmd_sender, cmd_receiver) = channel();
+        let serial_port = config.serial_port.clone();
+        let near_pir_threshold = config.near_pir_threshold;
 
         // Should I have spearate read/write threads?
         // With a single thread, I am relying on the backplate to send a message
@@ -48,7 +55,7 @@ impl DeviceBackplateThread {
         thread::spawn(move || {
             loop {
                 let result = backplate_main_loop(
-                    &dev_path,
+                    &serial_port,
                     near_pir_threshold,
                     &event_sender,
                     &cmd_receiver
@@ -74,8 +81,14 @@ impl DeviceBackplateThread {
             }
         });
 
+        let (heat_wire, cool_wire) = match config.wire_config {
+            WireConfig::HeatAndCool { heat_wire, cool_wire } => {
+                (heat_wire.into(), cool_wire.into())
+            }
+        };
+
         Ok(Self {
-            cmd_sender
+            cmd_sender, heat_wire, cool_wire
         })
     }
 }
@@ -128,8 +141,7 @@ impl BackplateDevice for DeviceBackplateThread {
         where S: EventSender + Send + 'static, Self: Sized
     {
         DeviceBackplateThread::start(
-            config.backplate_serial_port.clone(),
-            config.near_pir_threshold,
+            config.backplate.clone(),
             event_sender
         )
     }
@@ -138,20 +150,20 @@ impl BackplateDevice for DeviceBackplateThread {
         let cmds = match action {
             HvacAction::Heating => {
                 [
-                    BackplateCmd::SwitchWire(Wire::W1, true),
-                    BackplateCmd::SwitchWire(Wire::Y1, false)
+                    BackplateCmd::SwitchWire(self.heat_wire, true),
+                    BackplateCmd::SwitchWire(self.cool_wire, false)
                 ]
             }
             HvacAction::Cooling => {
                 [
-                    BackplateCmd::SwitchWire(Wire::W1, false),
-                    BackplateCmd::SwitchWire(Wire::Y1, true)
+                    BackplateCmd::SwitchWire(self.heat_wire, false),
+                    BackplateCmd::SwitchWire(self.cool_wire, true)
                 ]
             }
             HvacAction::Idle => {
                 [
-                    BackplateCmd::SwitchWire(Wire::W1, false),
-                    BackplateCmd::SwitchWire(Wire::Y1, false)
+                    BackplateCmd::SwitchWire(self.heat_wire, false),
+                    BackplateCmd::SwitchWire(self.cool_wire, false)
                 ]
             }
         };
@@ -161,5 +173,19 @@ impl BackplateDevice for DeviceBackplateThread {
         }
 
         Ok(())
+    }
+}
+
+impl From<WireId> for Wire {
+    fn from(value: WireId) -> Self {
+        match value {
+            WireId::W1 => Self::W1,
+            WireId::Y1 => Self::Y1,
+            WireId::G => Self::G,
+            WireId::OB => Self::OB,
+            WireId::W2 => Self::W2,
+            WireId::Y2 => Self::Y2,
+            WireId::Star => Self::Star
+        }
     }
 }

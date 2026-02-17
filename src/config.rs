@@ -24,14 +24,8 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct Config {
-    pub away_config: AwayConfig,
-
-    /// Minimum near proximity value to be consider as movement
-    pub near_pir_threshold: u16,
-
-    /// Path to backplate serial device file
-    pub backplate_serial_port: String,
-
+    pub away_mode: AwayConfig,
+    pub backplate: BackplateConfig,
     pub home_assistant: HomeAssistantConfig,
     pub backlight: BacklightConfig
 }
@@ -47,9 +41,8 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            away_config: AwayConfig::default(),
-            near_pir_threshold: 15,
-            backplate_serial_port: String::from("/dev/ttyO2"),
+            away_mode: AwayConfig::default(),
+            backplate: BackplateConfig::default(),
             home_assistant: HomeAssistantConfig::default(),
             backlight: BacklightConfig::default()
         }
@@ -118,5 +111,43 @@ impl Default for AwayConfig {
             temp_cool: 22.0,
             timeout: Duration::from_mins(30)
         }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct BackplateConfig {
+    /// Minimum near proximity value to be consider as movement
+    pub near_pir_threshold: u16,
+
+    /// Path to backplate serial device file
+    pub serial_port: String,
+
+    pub wire_config: WireConfig
+}
+
+impl Default for BackplateConfig {
+    fn default() -> Self {
+        Self {
+            near_pir_threshold: 15,
+            serial_port: String::from("/dev/ttyO2"),
+            wire_config: WireConfig::HeatAndCool {
+                heat_wire: WireId::W1,
+                cool_wire: WireId::Y1
+            }
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub enum WireId {
+    W1, Y1, G, OB, W2, Y2, Star
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub enum WireConfig {
+    HeatAndCool {
+        heat_wire: WireId,
+        cool_wire: WireId
     }
 }

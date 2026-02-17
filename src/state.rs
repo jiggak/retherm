@@ -157,7 +157,7 @@ impl<S: EventSender> StateManager<S> {
             state: ThermostatState::default(),
             // FIXME should this be persistent?
             saved_target_temp: 0.0,
-            away_config: config.away_config.clone()
+            away_config: config.away_mode.clone()
         }
     }
 
