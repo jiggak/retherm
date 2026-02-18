@@ -57,11 +57,12 @@ fn main() -> Result<()> {
 
     let mut event_source = window::new_event_source()?;
 
-    let mut state_manager = state::StateManager::new(&config, event_source.event_sender());
+    let mut state_manager = state::StateManager::new(&config, event_source.event_sender())?;
+    let mut backplate = backplate::Backplate::new(&config, event_source.event_sender())?;
+    let mut timers = timer::Timers::new(event_source.event_sender());
+    let mut sound = sound::Sound::new()?;
 
     let mut window = window::new_window(&config.backlight)?;
-    let mut sound = sound::Sound::new()?;
-    let mut timers = timer::Timers::new(event_source.event_sender());
 
     let main_screen = MainScreen::new(theme.thermostat.clone(), event_source.event_sender());
     let mut screen_manager = ScreenManager::new(theme, main_screen, event_source.event_sender());
@@ -89,8 +90,6 @@ fn main() -> Result<()> {
         );
     }
 
-    let mut backplate = backplate::Backplate::new(&config, event_source.event_sender())?;
-
     'running: loop {
         window.draw_screen(screen_manager.active_screen())?;
 
@@ -102,8 +101,13 @@ fn main() -> Result<()> {
         debug!("{:?}", event);
 
         let handlers: [&mut dyn EventHandler; _] = [
-            &mut state_manager, &mut window, &mut sound, &mut timers,
-            &mut screen_manager, &mut home_assistant, &mut backplate
+            &mut state_manager,
+            &mut backplate,
+            &mut timers,
+            &mut sound,
+            &mut window,
+            &mut screen_manager,
+            &mut home_assistant
         ];
 
         for handler in handlers {

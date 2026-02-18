@@ -152,14 +152,18 @@ pub struct StateManager<S: EventSender> {
 }
 
 impl<S: EventSender> StateManager<S> {
-    pub fn new(config: &Config, event_sender: S) -> Self {
-        Self {
+    pub fn new(config: &Config, event_sender: S) -> Result<Self> {
+        event_sender.send_event(
+            Event::TimeoutReset(TimerId::Away, config.away_mode.timeout)
+        )?;
+
+        Ok(Self {
             event_sender,
             state: ThermostatState::default(),
             // FIXME should this be persistent?
             saved_target_temp: 0.0,
             away_config: config.away_mode.clone()
-        }
+        })
     }
 
     fn set_target_temp(&mut self, temp: f32) -> bool {
@@ -255,8 +259,9 @@ impl<S: EventSender> EventHandler for StateManager<S> {
                 self.set_current_temp(*temp)
             }
             Event::SetAway(false) | Event::ProximityNear | Event::ProximityFar => {
-                let event = Event::TimeoutReset(TimerId::Away, self.away_config.timeout);
-                self.event_sender.send_event(event)?;
+                self.event_sender.send_event(
+                    Event::TimeoutReset(TimerId::Away, self.away_config.timeout)
+                )?;
                 self.set_away(false)
             }
             Event::SetAway(true) | Event::TimeoutReached(TimerId::Away) => {
