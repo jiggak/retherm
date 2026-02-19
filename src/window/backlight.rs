@@ -66,11 +66,10 @@ impl Backlight {
         Ok(brightness)
     }
 
-    pub fn start_timeout(&self, timeout_sec: u32) -> BacklightTimer {
-        let timeout = Duration::from_secs(timeout_sec as u64);
+    pub fn start_timeout(&self, timeout: Duration) -> BacklightTimer {
         BacklightTimer {
             backlight: self.clone(),
-            timeout: timeout,
+            timeout,
             timeout_reset: self.start_timeout_thread(timeout)
         }
     }

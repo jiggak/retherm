@@ -81,14 +81,15 @@ impl Default for HomeAssistantConfig {
 #[serde(default)]
 pub struct BacklightConfig {
     pub brightness: u32,
-    pub timeout_sec: u32
+    #[serde(deserialize_with = "config_de::duration")]
+    pub timeout: Duration
 }
 
 impl Default for BacklightConfig {
     fn default() -> Self {
         Self {
             brightness: 108,
-            timeout_sec: 15
+            timeout: Duration::from_secs(15)
         }
     }
 }

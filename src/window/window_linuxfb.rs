@@ -53,7 +53,7 @@ impl FramebufferWindow {
         let buffer = FrameBuf::new(data, width, height);
 
         let backlight = Backlight::new("/sys/class/backlight/3-0036", config.brightness)?;
-        let backlight_timer = backlight.start_timeout(config.timeout_sec);
+        let backlight_timer = backlight.start_timeout(config.timeout);
 
         Ok(Self { fb_dev, buffer, backlight_timer })
     }
