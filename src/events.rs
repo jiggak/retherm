@@ -47,7 +47,7 @@ impl Event {
     /// Returns true if the event is one of the types that should cause device wakeup
     pub fn is_wakeup_event(&self) -> bool {
         match self {
-            Self::ButtonDown | Self::Dial(_) => true,
+            Self::ButtonDown | Self::Dial(_) | Self::ProximityNear => true,
             _ => false
         }
     }
