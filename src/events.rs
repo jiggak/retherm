@@ -16,7 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{cell::RefCell, sync::mpsc::{Receiver, Sender, channel}, time::{Duration, Instant}};
+use std::{
+    cell::RefCell,
+    sync::mpsc::{Receiver, Sender, TryRecvError, channel},
+    time::{Duration, Instant}
+};
 
 use anyhow::Result;
 use debounce::EventDebouncer;
@@ -94,6 +98,7 @@ pub trait EventHandler {
 
 pub trait EventSource<S: EventSender> {
     fn wait_event(&mut self) -> Result<Event>;
+    fn poll_event(&mut self) -> Result<Option<Event>>;
     fn event_sender(&self) -> S;
 }
 
@@ -112,6 +117,14 @@ impl DefaultEventSource {
 impl EventSource<Sender<Event>> for DefaultEventSource {
     fn wait_event(&mut self) -> Result<Event> {
         Ok(self.receiver.recv()?)
+    }
+
+    fn poll_event(&mut self) -> Result<Option<Event>> {
+        match self.receiver.try_recv() {
+            Err(TryRecvError::Empty) => Ok(None),
+            Err(err) => Err(err.into()),
+            Ok(event) => Ok(Some(event))
+        }
     }
 
     fn event_sender(&self) -> Sender<Event> {

@@ -121,33 +121,53 @@ impl SdlEventSource {
 
 impl EventSource<SdlEventSenderHandle> for SdlEventSource {
     fn wait_event(&mut self) -> Result<Event> {
-        match self.event_pump.wait_event() {
-            SdlEvent::Quit { .. } =>
-                Ok(Event::Quit),
-            SdlEvent::MouseButtonDown { .. } =>
-                Ok(Event::ButtonDown),
-            SdlEvent::MouseWheel { y, .. } if y != 0 =>
-                Ok(Event::Dial(y * 10)),
-            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Up) =>
-                Ok(Event::Dial(20)),
-            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Down) =>
-                Ok(Event::Dial(-20)),
-            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::P) =>
-                Ok(Event::ProximityNear),
-            sdl_event => {
-                if sdl_event.is_user_event() {
-                    let event = sdl_event.as_user_event_type::<Event>().unwrap();
-                    Ok(event)
-                } else {
-                    // Unhandled event: wait again until expected event occurs
-                    self.wait_event()
-                }
+        if let Some(event) = map_sdl_event(self.event_pump.wait_event()) {
+            Ok(event)
+        } else {
+            // Unhandled event: wait again
+            self.wait_event()
+        }
+    }
+
+    fn poll_event(&mut self) -> Result<Option<Event>> {
+        if let Some(event) = self.event_pump.poll_event() {
+            if let Some(event) = map_sdl_event(event) {
+                Ok(Some(event))
+            } else {
+                // Unhandled event: poll again
+                self.poll_event()
             }
+        } else {
+            Ok(None)
         }
     }
 
     fn event_sender(&self) -> SdlEventSenderHandle {
         self.event_sender.clone()
+    }
+}
+
+fn map_sdl_event(event: SdlEvent) -> Option<Event> {
+    match event {
+        SdlEvent::Quit { .. } =>
+            Some(Event::Quit),
+        SdlEvent::MouseButtonDown { .. } =>
+            Some(Event::ButtonDown),
+        SdlEvent::MouseWheel { y, .. } if y != 0 =>
+            Some(Event::Dial(y * 10)),
+        SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Up) =>
+            Some(Event::Dial(20)),
+        SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Down) =>
+            Some(Event::Dial(-20)),
+        SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::P) =>
+            Some(Event::ProximityNear),
+        sdl_event => {
+            if sdl_event.is_user_event() {
+                Some(sdl_event.as_user_event_type::<Event>().unwrap())
+            } else {
+                None
+            }
+        }
     }
 }
 

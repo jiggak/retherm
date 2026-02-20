@@ -98,9 +98,7 @@ fn main() -> Result<()> {
             break 'running;
         }
 
-        debug!("{:?}", event);
-
-        let handlers: [&mut dyn EventHandler; _] = [
+        let mut handlers: [&mut dyn EventHandler; _] = [
             &mut state_manager,
             &mut backplate,
             &mut timers,
@@ -110,8 +108,15 @@ fn main() -> Result<()> {
             &mut home_assistant
         ];
 
-        for handler in handlers {
-            handler.handle_event(&event)?;
+        let mut event = Some(event);
+        while let Some(e) = event {
+            debug!("{:?}", e);
+
+            for handler in handlers.iter_mut() {
+                handler.handle_event(&e)?;
+            }
+
+            event = event_source.poll_event()?;
         }
     }
 
