@@ -10,8 +10,10 @@ stop_app() {
    fi
 }
 
+trap stop_app SIGINT
+
 start_app_bg() {
-   ./${APP_NAME} &
+   ./${APP_NAME} "$@" &
    echo "Launched ${APP_NAME} with PID ${!}"
 }
 
