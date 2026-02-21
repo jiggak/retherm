@@ -16,33 +16,42 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{cell::RefCell, sync::mpsc::{Receiver, Sender, channel}, time::{Duration, Instant}};
+use std::{
+    cell::RefCell,
+    sync::mpsc::{Receiver, Sender, TryRecvError, channel},
+    time::{Duration, Instant}
+};
 
 use anyhow::Result;
 use debounce::EventDebouncer;
 use throttle::Throttle;
 
-use crate::{backplate::{HvacMode, HvacState}, screen::ScreenId};
+use crate::{screen::ScreenId, state::{HvacMode, ThermostatState}, timer::TimerId};
 
 #[derive(Debug)]
 pub enum Event {
+    Quit,
     ButtonDown,
     Dial(i32),
     SetTargetTemp(f32),
     SetCurrentTemp(f32),
     SetMode(HvacMode),
-    HvacState(HvacState),
+    SetAway(bool),
+    State(ThermostatState),
     NavigateTo(ScreenId),
     NavigateBack,
     ClickSound,
-    Quit
+    ProximityNear,
+    ProximityFar,
+    TimeoutReached(TimerId),
+    TimeoutReset(TimerId, Duration)
 }
 
 impl Event {
     /// Returns true if the event is one of the types that should cause device wakeup
     pub fn is_wakeup_event(&self) -> bool {
         match self {
-            Self::ButtonDown | Self::Dial(_) => true,
+            Self::ButtonDown | Self::Dial(_) | Self::ProximityNear => true,
             _ => false
         }
     }
@@ -56,16 +65,21 @@ impl Event {
 impl PartialEq for Event {
     fn eq(&self, other: &Self) -> bool {
         match self {
+            Self::Quit => matches!(other, Self::Quit),
             Self::ButtonDown => matches!(other, Self::ButtonDown),
             Self::Dial(_) => matches!(other, Self::Dial(_)),
             Self::SetTargetTemp(_) => matches!(other, Self::SetTargetTemp(_)),
             Self::SetCurrentTemp(_) => matches!(other, Self::SetCurrentTemp(_)),
             Self::SetMode(_) => matches!(other, Self::SetMode(_)),
-            Self::HvacState(_) => matches!(other, Self::HvacState(_)),
+            Self::SetAway(_) => matches!(other, Self::SetAway(_)),
+            Self::State(_) => matches!(other, Self::State(_)),
             Self::NavigateTo(_) => matches!(other, Self::NavigateTo(_)),
             Self::NavigateBack => matches!(other, Self::NavigateBack),
             Self::ClickSound => matches!(other, Self::ClickSound),
-            Self::Quit => matches!(other, Self::Quit),
+            Self::ProximityNear => matches!(other, Self::ProximityNear),
+            Self::ProximityFar => matches!(other, Self::ProximityFar),
+            Self::TimeoutReached(_) => matches!(other, Self::TimeoutReached(_)),
+            Self::TimeoutReset(_, _) => matches!(other, Self::TimeoutReset(_, _)),
         }
     }
 
@@ -84,6 +98,7 @@ pub trait EventHandler {
 
 pub trait EventSource<S: EventSender> {
     fn wait_event(&mut self) -> Result<Event>;
+    fn poll_event(&mut self) -> Result<Option<Event>>;
     fn event_sender(&self) -> S;
 }
 
@@ -102,6 +117,14 @@ impl DefaultEventSource {
 impl EventSource<Sender<Event>> for DefaultEventSource {
     fn wait_event(&mut self) -> Result<Event> {
         Ok(self.receiver.recv()?)
+    }
+
+    fn poll_event(&mut self) -> Result<Option<Event>> {
+        match self.receiver.try_recv() {
+            Err(TryRecvError::Empty) => Ok(None),
+            Err(err) => Err(err.into()),
+            Ok(event) => Ok(Some(event))
+        }
     }
 
     fn event_sender(&self) -> Sender<Event> {

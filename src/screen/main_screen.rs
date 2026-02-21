@@ -20,14 +20,15 @@ use anyhow::Result;
 use embedded_graphics::{prelude::*};
 
 use crate::{
-    backplate::HvacAction, drawable::{AppDrawable, AppFrameBuf},
+    drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender, TrailingEventSender},
-    theme::MainScreenTheme, widgets::GaugeWidget
+    state::HvacAction, theme::MainScreenTheme, widgets::{GaugeWidget, IconWidget}
 };
 use super::{Screen, ScreenId};
 
 pub struct MainScreen<S> {
     gauge: GaugeWidget,
+    away_icon: IconWidget,
     cmd_sender: TrailingEventSender,
     event_sender: S,
     theme: MainScreenTheme,
@@ -41,7 +42,11 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
         let cmd_sender = TrailingEventSender::new(event_sender.clone(), 500);
         Self {
             gauge: GaugeWidget::new(theme.gauge.clone()),
-            cmd_sender, event_sender, theme, last_click_temp: 0.0
+            away_icon: IconWidget::new(theme.away_icon.clone()),
+            cmd_sender,
+            event_sender,
+            theme,
+            last_click_temp: 0.0
         }
     }
 }
@@ -51,24 +56,24 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
         match event {
             Event::Dial(dir) => {
                 let temp_inc = *dir as f32 * 0.01;
-                let target_temp = self.gauge.hvac_state.target_temp + temp_inc;
+                let target_temp = self.gauge.state.target_temp + temp_inc;
 
                 if (self.last_click_temp - target_temp).abs() >= 0.5 {
                     self.last_click_temp = target_temp;
                     self.event_sender.send_event(Event::ClickSound)?;
                 }
 
-                if self.gauge.hvac_state.set_target_temp(target_temp) {
+                if self.gauge.state.set_target_temp(target_temp) {
                     self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;
                 }
             }
             Event::ButtonDown => {
                 self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect {
-                    current_mode: self.gauge.hvac_state.mode
+                    current_mode: self.gauge.state.mode
                 }))?;
             }
-            Event::HvacState(state) => {
-                self.gauge.hvac_state = state.clone();
+            Event::State(state) => {
+                self.gauge.state = state.clone();
             }
             _ => { }
         }
@@ -79,7 +84,7 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
 
 impl<S: EventSender> AppDrawable for MainScreen<S> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        let bg_colour = match self.gauge.hvac_state.action {
+        let bg_colour = match self.gauge.state.action {
             HvacAction::Cooling => self.theme.bg_cool_colour,
             HvacAction::Heating => self.theme.bg_heat_colour,
             HvacAction::Idle => self.theme.bg_colour
@@ -88,6 +93,15 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
         target.clear(bg_colour)?;
 
         self.gauge.draw(target, bg_colour)?;
+
+        if self.gauge.state.away {
+            self.away_icon.draw(
+                target,
+                self.theme.away_icon_center,
+                bg_colour,
+                Some(self.theme.away_icon.colour)
+            )?;
+        }
 
         Ok(())
     }

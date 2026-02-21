@@ -25,7 +25,9 @@ mod home_assistant;
 mod input_events;
 mod screen;
 mod sound;
+mod state;
 mod theme;
+mod timer;
 mod widgets;
 mod window;
 
@@ -33,7 +35,6 @@ use anyhow::Result;
 use esphome_api::server::{EncryptedStreamProvider, PlaintextStreamProvider};
 use log::debug;
 
-use crate::backplate::{Backplate, hvac_control};
 use crate::events::{Event, EventHandler, EventSource};
 use crate::home_assistant::HomeAssistant;
 use crate::screen::{MainScreen, ScreenManager};
@@ -56,8 +57,12 @@ fn main() -> Result<()> {
 
     let mut event_source = window::new_event_source()?;
 
-    let mut window = window::new_window(&config.backlight)?;
+    let mut state_manager = state::StateManager::new(&config, event_source.event_sender())?;
+    let mut backplate = backplate::Backplate::new(&config, event_source.event_sender())?;
+    let mut timers = timer::Timers::new(event_source.event_sender());
     let mut sound = sound::Sound::new()?;
+
+    let mut window = window::new_window(&config.backlight)?;
 
     let main_screen = MainScreen::new(theme.thermostat.clone(), event_source.event_sender());
     let mut screen_manager = ScreenManager::new(theme, main_screen, event_source.event_sender());
@@ -85,9 +90,6 @@ fn main() -> Result<()> {
         );
     }
 
-    let hvac_control = hvac_control(event_source.event_sender())?;
-    let mut backplate = Backplate::new(event_source.event_sender(), hvac_control)?;
-
     'running: loop {
         window.draw_screen(screen_manager.active_screen())?;
 
@@ -96,14 +98,25 @@ fn main() -> Result<()> {
             break 'running;
         }
 
-        debug!("{:?}", event);
-
-        let handlers: [&mut dyn EventHandler; _] = [
-            &mut window, &mut sound, &mut screen_manager, &mut home_assistant, &mut backplate
+        let mut handlers: [&mut dyn EventHandler; _] = [
+            &mut state_manager,
+            &mut backplate,
+            &mut timers,
+            &mut sound,
+            &mut window,
+            &mut screen_manager,
+            &mut home_assistant
         ];
 
-        for handler in handlers {
-            handler.handle_event(&event)?;
+        let mut event = Some(event);
+        while let Some(e) = event {
+            debug!("{:?}", e);
+
+            for handler in handlers.iter_mut() {
+                handler.handle_event(&e)?;
+            }
+
+            event = event_source.poll_event()?;
         }
     }
 

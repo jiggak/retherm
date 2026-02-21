@@ -16,14 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{fs, path::Path};
+use std::{fs, path::Path, time::Duration};
 
 use anyhow::Result;
 use serde::Deserialize;
 
+mod config_de;
+
 #[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct Config {
+    pub away_mode: AwayConfig,
+    pub backplate: BackplateConfig,
     pub home_assistant: HomeAssistantConfig,
     pub backlight: BacklightConfig
 }
@@ -39,6 +43,8 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            away_mode: AwayConfig::default(),
+            backplate: BackplateConfig::default(),
             home_assistant: HomeAssistantConfig::default(),
             backlight: BacklightConfig::default()
         }
@@ -75,14 +81,79 @@ impl Default for HomeAssistantConfig {
 #[serde(default)]
 pub struct BacklightConfig {
     pub brightness: u32,
-    pub timeout_sec: u32
+    #[serde(deserialize_with = "config_de::duration")]
+    pub timeout: Duration
 }
 
 impl Default for BacklightConfig {
     fn default() -> Self {
         Self {
             brightness: 108,
-            timeout_sec: 15
+            timeout: Duration::from_secs(15)
         }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct AwayConfig {
+    /// Away temp for heating mode
+    pub temp_heat: f32,
+
+    /// Away temp for cooling mode
+    pub temp_cool: f32,
+
+    /// Duration of no proximity movement before going into away mode
+    #[serde(deserialize_with = "config_de::duration")]
+    pub timeout: Duration
+}
+
+impl Default for AwayConfig {
+    fn default() -> Self {
+        Self {
+            temp_heat: 16.0,
+            temp_cool: 22.0,
+            timeout: Duration::from_mins(30)
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct BackplateConfig {
+    /// Minimum near proximity value to be consider as movement
+    pub near_pir_threshold: u16,
+
+    /// Path to backplate serial device file
+    pub serial_port: String,
+
+    /// HVAC wiring configuration
+    pub wiring: WireConfig
+}
+
+impl Default for BackplateConfig {
+    fn default() -> Self {
+        Self {
+            near_pir_threshold: 15,
+            serial_port: String::from("/dev/ttyO2"),
+            wiring: WireConfig::HeatAndCool {
+                heat_wire: WireId::W1,
+                cool_wire: WireId::Y1
+            }
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub enum WireId {
+    W1, Y1, G, OB, W2, Y2, Star
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "type")]
+pub enum WireConfig {
+    HeatAndCool {
+        heat_wire: WireId,
+        cool_wire: WireId
     }
 }

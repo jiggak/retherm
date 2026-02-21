@@ -27,18 +27,22 @@ use esphome_api::{
     }
 };
 
-use crate::{backplate::HvacState, config::HomeAssistantConfig, events::{Event, EventHandler, EventSender}};
+use crate::{
+    config::HomeAssistantConfig,
+    events::{Event, EventHandler, EventSender},
+    state::ThermostatState
+};
 
 pub struct HomeAssistant {
     message_sender: MessageSenderThread,
-    hvac_state: Arc<Mutex<HvacState>>
+    state: Arc<Mutex<ThermostatState>>
 }
 
 impl HomeAssistant {
     pub fn new() -> Self {
         Self {
             message_sender: MessageSenderThread::new(),
-            hvac_state: Arc::new(Mutex::new(HvacState::default()))
+            state: Arc::new(Mutex::new(ThermostatState::default()))
         }
     }
 
@@ -55,7 +59,7 @@ impl HomeAssistant {
         let connection_observer = self.message_sender.clone();
 
         let handler = DefaultHandler {
-            delegate: HvacRequestHandler::new(event_sender, self.hvac_state.clone()),
+            delegate: HvacRequestHandler::new(event_sender, self.state.clone()),
             server_info: config.server_info.clone(),
             node_name: config.node_name.clone(),
             friendly_name: config.friendly_name.clone(),
@@ -72,8 +76,8 @@ impl HomeAssistant {
 
 impl EventHandler for HomeAssistant {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
-        if let Event::HvacState(state) = event {
-            *self.hvac_state.lock().unwrap() = state.clone();
+        if let Event::State(state) = event {
+            *self.state.lock().unwrap() = state.clone();
 
             let message = ProtoMessage::ClimateStateResponse(state.into());
 
@@ -91,12 +95,12 @@ impl EventHandler for HomeAssistant {
 
 struct HvacRequestHandler<S> {
     event_sender: S,
-    hvac_state: Arc<Mutex<HvacState>>
+    state: Arc<Mutex<ThermostatState>>
 }
 
 impl<S: EventSender> HvacRequestHandler<S> {
-    fn new(event_sender: S, hvac_state: Arc<Mutex<HvacState>>) -> Self {
-        Self { event_sender, hvac_state }
+    fn new(event_sender: S, state: Arc<Mutex<ThermostatState>>) -> Self {
+        Self { event_sender, state }
     }
 }
 
@@ -115,8 +119,8 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                     ClimateMode::Heat as i32,
                     ClimateMode::Cool as i32
                 ];
-                message.visual_min_temperature = HvacState::MIN_TEMP;
-                message.visual_max_temperature = HvacState::MAX_TEMP;
+                message.visual_min_temperature = ThermostatState::MIN_TEMP;
+                message.visual_max_temperature = ThermostatState::MAX_TEMP;
                 message.visual_target_temperature_step = 0.5;
                 message.visual_current_temperature_step = 0.5;
                 message.supported_fan_modes = vec![
@@ -127,6 +131,10 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                 message.feature_flags =
                     ClimateFeature::SUPPORTS_CURRENT_TEMPERATURE |
                     ClimateFeature::SUPPORTS_ACTION;
+                message.supported_presets = vec![
+                    ClimatePreset::None as i32,
+                    ClimatePreset::Eco as i32
+                ];
 
                 writer.write(&ProtoMessage::ListEntitiesClimateResponse(message))?;
 
@@ -134,7 +142,7 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                 writer.write(&ProtoMessage::ListEntitiesDoneResponse(message))?;
             }
             ProtoMessage::SubscribeStatesRequest(_) => {
-                let state = self.hvac_state.lock().unwrap().clone();
+                let state = self.state.lock().unwrap().clone();
                 writer.write(&ProtoMessage::ClimateStateResponse(state.into()))?;
             }
             ProtoMessage::ClimateCommandRequest(cmd) => {
@@ -145,6 +153,16 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                 if cmd.has_target_temperature {
                     let temp = cmd.target_temperature;
                     self.event_sender.send_event(Event::SetTargetTemp(temp))?;
+                }
+                if cmd.has_preset {
+                    match cmd.preset() {
+                        ClimatePreset::Eco => {
+                            self.event_sender.send_event(Event::SetAway(true))?;
+                        }
+                        _ => {
+                            self.event_sender.send_event(Event::SetAway(false))?;
+                        }
+                    }
                 }
             }
             _ => { }

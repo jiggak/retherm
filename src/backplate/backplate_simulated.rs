@@ -18,18 +18,18 @@
 
 use anyhow::Result;
 
-use crate::backplate::{HvacAction, HvacControl};
+use crate::{config::Config, events::EventSender, state::HvacAction};
+use super::BackplateDevice;
 
-pub struct SimulatedBackplate {
-}
+pub struct SimulatedBackplate;
 
-impl SimulatedBackplate {
-    pub fn new() -> Self {
-        Self { }
+impl BackplateDevice for SimulatedBackplate {
+    fn new<S>(_config: &Config, _event_sender: S) -> Result<Self>
+        where S: EventSender + Send + 'static, Self: Sized
+    {
+        Ok(Self)
     }
-}
 
-impl HvacControl for SimulatedBackplate {
     fn switch_hvac(&self, _action: &HvacAction) -> Result<()> {
         Ok(())
     }

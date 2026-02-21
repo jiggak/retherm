@@ -22,14 +22,17 @@ use embedded_graphics_framebuf::FrameBuf;
 use linuxfb::Framebuffer;
 
 use crate::{
-    config::BacklightConfig, drawable::AppDrawable, events::{Event, EventHandler}
+    config::BacklightConfig,
+    drawable::AppDrawable,
+    events::{Event, EventHandler},
+    timer::TimerId
 };
-use super::backlight::{Backlight, BacklightTimer};
+use super::backlight::Backlight;
 
 pub struct FramebufferWindow {
     fb_dev: Framebuffer,
     buffer: FrameBuf<Bgr888, [Bgr888; 320 * 320]>,
-    backlight_timer: BacklightTimer
+    backlight: Backlight
 }
 
 impl FramebufferWindow {
@@ -52,10 +55,9 @@ impl FramebufferWindow {
         let data = [Bgr888::WHITE; 320 * 320];
         let buffer = FrameBuf::new(data, width, height);
 
-        let backlight = Backlight::new("/sys/class/backlight/3-0036", config.brightness)?;
-        let backlight_timer = backlight.start_timeout(config.timeout_sec);
+        let backlight = Backlight::load("/sys/class/backlight/3-0036", config.brightness)?;
 
-        Ok(Self { fb_dev, buffer, backlight_timer })
+        Ok(Self { fb_dev, buffer, backlight })
     }
 
     fn flush(&self) -> Result<()> {
@@ -86,8 +88,14 @@ impl FramebufferWindow {
 
 impl EventHandler for FramebufferWindow {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
-        if event.is_wakeup_event() {
-            self.backlight_timer.reset();
+        match event {
+            Event::TimeoutReset(TimerId::Backlight, _) => {
+                self.backlight.turn_on()?;
+            }
+            Event::TimeoutReached(TimerId::Backlight) => {
+                self.backlight.turn_off()?;
+            }
+            _ => { }
         }
 
         Ok(())

@@ -22,19 +22,28 @@ use anyhow::Result;
 use log::{debug, error};
 use nest_backplate::{BackplateCmd, BackplateConnection, BackplateError, BackplateResponse, Wire};
 
-use crate::{backplate::{HvacAction, HvacControl}, events::{Event, EventSender}};
+use crate::{
+    config::{BackplateConfig, Config, WireConfig, WireId},
+    events::{Event, EventSender},
+    state::HvacAction
+};
+use super::{BackplateDevice};
 
 pub struct DeviceBackplateThread {
-    cmd_sender: Sender<BackplateCmd>
+    cmd_sender: Sender<BackplateCmd>,
+    heat_wire: Wire,
+    cool_wire: Wire
 }
 
 impl DeviceBackplateThread {
     const RECONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 
-    pub fn start<S>(dev_path: &'static str, event_sender: S) -> Result<Self>
+    pub fn start<S>(config: BackplateConfig, event_sender: S) -> Result<Self>
         where S: EventSender + Send + 'static
     {
         let (cmd_sender, cmd_receiver) = channel();
+        let serial_port = config.serial_port.clone();
+        let near_pir_threshold = config.near_pir_threshold;
 
         // Should I have spearate read/write threads?
         // With a single thread, I am relying on the backplate to send a message
@@ -42,7 +51,14 @@ impl DeviceBackplateThread {
         // seems to constanty send messages.
         thread::spawn(move || {
             loop {
-                match backplate_main_loop(dev_path, &event_sender, &cmd_receiver) {
+                let result = backplate_main_loop(
+                    &serial_port,
+                    near_pir_threshold,
+                    &event_sender,
+                    &cmd_receiver
+                );
+
+                match result {
                     Ok(()) => unreachable!("Backplate message loop should not return Ok"),
                     Err(error) => {
                         if let Some(error) = error.downcast_ref::<BackplateError>() {
@@ -62,14 +78,21 @@ impl DeviceBackplateThread {
             }
         });
 
+        let (heat_wire, cool_wire) = match config.wiring {
+            WireConfig::HeatAndCool { heat_wire, cool_wire } => {
+                (heat_wire.into(), cool_wire.into())
+            }
+        };
+
         Ok(Self {
-            cmd_sender
+            cmd_sender, heat_wire, cool_wire
         })
     }
 }
 
 fn backplate_main_loop<S: EventSender>(
     dev_path: &str,
+    near_pir_threshold: u16,
     event_sender: &S,
     cmd_receiver: &Receiver<BackplateCmd>
 ) -> Result<()> {
@@ -82,6 +105,16 @@ fn backplate_main_loop<S: EventSender>(
         match backplate.read_message()? {
             BackplateResponse::Climate(c) => {
                 event_sender.send_event(Event::SetCurrentTemp(c.temperature))?;
+            }
+            BackplateResponse::NearPir(val) => {
+                if val > near_pir_threshold {
+                    event_sender.send_event(Event::ProximityNear)?;
+                }
+            }
+            BackplateResponse::Pir { val1, val2 } => {
+                if val1 + val2 > 0 {
+                    event_sender.send_event(Event::ProximityFar)?;
+                }
             }
             BackplateResponse::WireSwitched(_wire, _state) => {
                 // FIXME I sort of "set it and forget it" with the hvac
@@ -100,25 +133,34 @@ fn backplate_main_loop<S: EventSender>(
     }
 }
 
-impl HvacControl for DeviceBackplateThread {
+impl BackplateDevice for DeviceBackplateThread {
+    fn new<S>(config: &Config, event_sender: S) -> Result<Self>
+        where S: EventSender + Send + 'static, Self: Sized
+    {
+        DeviceBackplateThread::start(
+            config.backplate.clone(),
+            event_sender
+        )
+    }
+
     fn switch_hvac(&self, action: &HvacAction) -> Result<()> {
         let cmds = match action {
             HvacAction::Heating => {
                 [
-                    BackplateCmd::SwitchWire(Wire::W1, true),
-                    BackplateCmd::SwitchWire(Wire::Y1, false)
+                    BackplateCmd::SwitchWire(self.heat_wire, true),
+                    BackplateCmd::SwitchWire(self.cool_wire, false)
                 ]
             }
             HvacAction::Cooling => {
                 [
-                    BackplateCmd::SwitchWire(Wire::W1, false),
-                    BackplateCmd::SwitchWire(Wire::Y1, true)
+                    BackplateCmd::SwitchWire(self.heat_wire, false),
+                    BackplateCmd::SwitchWire(self.cool_wire, true)
                 ]
             }
             HvacAction::Idle => {
                 [
-                    BackplateCmd::SwitchWire(Wire::W1, false),
-                    BackplateCmd::SwitchWire(Wire::Y1, false)
+                    BackplateCmd::SwitchWire(self.heat_wire, false),
+                    BackplateCmd::SwitchWire(self.cool_wire, false)
                 ]
             }
         };
@@ -128,5 +170,19 @@ impl HvacControl for DeviceBackplateThread {
         }
 
         Ok(())
+    }
+}
+
+impl From<WireId> for Wire {
+    fn from(value: WireId) -> Self {
+        match value {
+            WireId::W1 => Self::W1,
+            WireId::Y1 => Self::Y1,
+            WireId::G => Self::G,
+            WireId::OB => Self::OB,
+            WireId::W2 => Self::W2,
+            WireId::Y2 => Self::Y2,
+            WireId::Star => Self::Star
+        }
     }
 }

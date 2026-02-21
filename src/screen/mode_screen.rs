@@ -20,8 +20,9 @@ use anyhow::Result;
 use embedded_graphics::{prelude::*, primitives::Rectangle};
 
 use crate::{
-    backplate::HvacMode, drawable::{AppDrawable, AppFrameBuf},
+    drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender},
+    state::HvacMode,
     theme::ModeSelectTheme,
     widgets::{IconWidget, ListItem, ListWidget}
 };
