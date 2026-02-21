@@ -16,97 +16,78 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{
-    cmp::min,
-    fs,
-    path::{Path, PathBuf},
-    sync::mpsc::{Sender, channel},
-    thread,
-    time::Duration
-};
+use std::{cmp::min, fs, path::{Path, PathBuf}};
 
 use anyhow::Result;
 
 #[derive(Clone)]
 pub struct Backlight {
-    device_dir: PathBuf,
+    device: BacklightDirectory,
     max_brightness: u32,
-    default_brightness: u32
+    default_brightness: u32,
+    current_brightness: u32
 }
 
 impl Backlight {
-    pub fn new<P>(device_dir: P, default_brightness: u32) -> Result<Self>
+    pub fn load<P>(device_dir: P, default_brightness: u32) -> Result<Self>
         where P: AsRef<Path>
     {
-        let device_dir = device_dir.as_ref();
+        let device = BacklightDirectory::new(device_dir);
 
         // I would expect max brightness to be constant
         // It seems reasonable to read it just once, and hold on to it
-        let file_path = device_dir.join("max_brightness");
-        let max_brightness = fs::read_to_string(file_path)?
-            .trim().parse()?;
+        let max_brightness = device.read_value("max_brightness")?;
+        let current_brightness = device.read_value("brightness")?;
 
         Ok(Self {
-            device_dir: device_dir.to_path_buf(),
+            device,
             max_brightness,
-            default_brightness
+            default_brightness,
+            current_brightness
         })
     }
 
-    pub fn set_brightness(&self, value: u32) -> Result<()> {
+    fn set_brightness(&mut self, value: u32) -> Result<()> {
         let value = min(value, self.max_brightness);
-        let file_path = self.device_dir.join("brightness");
-        Ok(fs::write(file_path, value.to_string())?)
+
+        if value != self.current_brightness {
+            self.device.write_value("brightness", value)?;
+            self.current_brightness = value;
+        }
+
+        Ok(())
     }
 
-    pub fn get_brightness(&self) -> Result<i32> {
-        let file_path = self.device_dir.join("brightness");
-        let brightness = fs::read_to_string(file_path)?
+    pub fn turn_on(&mut self) -> Result<()> {
+        self.set_brightness(self.default_brightness)
+    }
+
+    pub fn turn_off(&mut self) -> Result<()> {
+        self.set_brightness(0)
+    }
+}
+
+#[derive(Clone)]
+struct BacklightDirectory {
+    device_dir: PathBuf
+}
+
+impl BacklightDirectory {
+    fn new<P: AsRef<Path>>(device_dir: P) -> Self {
+        Self {
+            device_dir: device_dir.as_ref().to_path_buf()
+        }
+    }
+
+    fn read_value(&self, file_name: &str) -> Result<u32> {
+        let file_path = self.device_dir.join(file_name);
+        let value = fs::read_to_string(file_path)?
             .trim().parse()?;
-        Ok(brightness)
+        Ok(value)
     }
 
-    pub fn start_timeout(&self, timeout: Duration) -> BacklightTimer {
-        BacklightTimer {
-            backlight: self.clone(),
-            timeout,
-            timeout_reset: self.start_timeout_thread(timeout)
-        }
-    }
-
-    fn start_timeout_thread(&self, timeout: Duration) -> Sender<()> {
-        self.set_brightness(self.default_brightness).unwrap();
-
-        let (sender, receiver) = channel();
-        let backlight = self.clone();
-
-        thread::spawn(move || {
-            loop {
-                // recv_timeout() returns Err when timeout reached
-                // using sender of the channel resets the timeout
-                if receiver.recv_timeout(timeout).is_err() {
-                    break;
-                }
-            }
-
-            backlight.set_brightness(0).unwrap();
-        });
-
-        sender
-    }
-}
-
-pub struct BacklightTimer {
-    backlight: Backlight,
-    timeout: Duration,
-    timeout_reset: Sender<()>
-}
-
-impl BacklightTimer {
-    pub fn reset(&mut self) {
-        // send() returns Err when timeout was previously reached
-        if self.timeout_reset.send(()).is_err() {
-            self.timeout_reset = self.backlight.start_timeout_thread(self.timeout);
-        }
+    fn write_value(&self, file_name: &str, value: u32) -> Result<()> {
+        let file_path = self.device_dir.join(file_name);
+        Ok(fs::write(file_path, value.to_string())?)
     }
 }

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::time::Duration;
+
 use anyhow::Result;
 use esphome_api::proto::{
     ClimateAction, ClimateFanMode, ClimateMode, ClimatePreset, ClimateStateResponse
@@ -148,7 +150,8 @@ pub struct StateManager<S: EventSender> {
     event_sender: S,
     state: ThermostatState,
     saved_target_temp: f32,
-    away_config: AwayConfig
+    away_config: AwayConfig,
+    backlight_timeout: Duration
 }
 
 impl<S: EventSender> StateManager<S> {
@@ -156,13 +159,17 @@ impl<S: EventSender> StateManager<S> {
         event_sender.send_event(
             Event::TimeoutReset(TimerId::Away, config.away_mode.timeout)
         )?;
+        event_sender.send_event(
+            Event::TimeoutReset(TimerId::Backlight, config.backlight.timeout)
+        )?;
 
         Ok(Self {
             event_sender,
             state: ThermostatState::default(),
             // FIXME should this be persistent?
             saved_target_temp: 0.0,
-            away_config: config.away_mode.clone()
+            away_config: config.away_mode.clone(),
+            backlight_timeout: config.backlight.timeout
         })
     }
 
@@ -274,6 +281,12 @@ impl<S: EventSender> EventHandler for StateManager<S> {
             self.apply_hvac_action();
 
             self.event_sender.send_event(Event::State(self.state.clone()))?;
+        }
+
+        if event.is_wakeup_event() {
+            self.event_sender.send_event(
+                Event::TimeoutReset(TimerId::Backlight, self.backlight_timeout)
+            )?;
         }
 
         Ok(())

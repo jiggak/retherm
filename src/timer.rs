@@ -23,7 +23,7 @@ use crate::events::{Event, EventHandler, EventSender};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TimerId {
     Away,
-    // Backlight,
+    Backlight,
     // HvacCooldown
 }
 
