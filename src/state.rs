@@ -163,21 +163,17 @@ impl<S: EventSender + Clone + Send + 'static> StateManager<S> {
             Event::TimeoutReset(TimerId::Backlight, config.backlight.timeout)
         )?;
 
-        let mut state_manager = Self {
+        Ok(Self {
             event_sender,
             state: ThermostatState::default(),
             // FIXME should this be persistent?
             saved_target_temp: 0.0,
             config: config.clone(),
             schedule_thread: None
-        };
-
-        state_manager.start_schedule();
-
-        Ok(state_manager)
+        })
     }
 
-    fn start_schedule(&mut self) {
+    pub fn start_schedule(&mut self) {
         if let Some(thread) = self.schedule_thread.take() {
             info!("Stop schedule clock thread");
             thread.stop()

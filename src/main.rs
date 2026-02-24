@@ -59,6 +59,8 @@ fn main() -> Result<()> {
     let mut event_source = window::new_event_source()?;
 
     let mut state_manager = state::StateManager::new(&config, event_source.event_sender())?;
+    state_manager.start_schedule();
+
     let mut backplate = backplate::Backplate::new(&config, event_source.event_sender())?;
     let mut timers = timer::Timers::new(event_source.event_sender());
     let mut sound = sound::Sound::new()?;
