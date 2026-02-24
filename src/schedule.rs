@@ -35,7 +35,7 @@ pub struct ScheduleThread {
 }
 
 impl ScheduleThread {
-    pub fn start<S>(schedule: Schedule, event_sender: S) -> Self
+    pub fn start<S>(mut schedule: Schedule, event_sender: S) -> Self
         where S: EventSender + Send + 'static
     {
         let tick_delay = Duration::from_secs(1);
@@ -86,34 +86,101 @@ fn week_schedule(schedule: &[ScheduleConfig]) -> ScheduleMap {
 }
 
 pub struct Schedule {
-    schedule: ScheduleMap
+    schedule: ScheduleMap,
+    max_age: Duration,
+    last_set_point: Option<f32>
 }
 
 impl Schedule {
     pub fn new(schedule: &[ScheduleConfig]) -> Self {
         let schedule = week_schedule(schedule);
         Self {
-            schedule
+            schedule,
+            max_age: Duration::from_secs(2),
+            last_set_point: None
         }
     }
 
-    pub fn get_target_temp(&self, now: DateTime<Local>) -> Option<f32> {
-        let now = now.trunc_subsecs(0);
+    pub fn get_target_temp(&mut self, now: DateTime<Local>) -> Option<f32> {
         let weekday = now.weekday();
         let time_of_day = now.time();
 
         if let Some(set_points) = self.schedule.get(&weekday) {
-            for (time, temp) in set_points {
-                // FIXME I need to make this more resilient to account for "tick"
-                // possibly not occuring when expected. There must be cases
-                // where a thread ticking every second could become paused
-                // or delayed in some way.
-                if time_of_day == *time {
-                    return Some(*temp);
+            for (set_point_time, set_point_temp) in set_points {
+                if time_of_day >= *set_point_time
+                    && time_of_day <= *set_point_time + self.max_age
+                    && self.last_set_point.is_none()
+                {
+                    self.last_set_point = Some(*set_point_temp);
+                    return Some(*set_point_temp);
                 }
             }
         }
 
+        self.last_set_point = None;
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{Duration, prelude::*};
+
+    use crate::config::{DaysOfWeek, ScheduleConfig, SetPoint, WeekDayRange};
+    use super::Schedule;
+
+    fn daily_morning_temp_increase() -> Schedule {
+        Schedule::new(&[
+            ScheduleConfig {
+                days_of_week: DaysOfWeek::Range(WeekDayRange::EveryDay),
+                set_points: vec![
+                    SetPoint {
+                        time: NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
+                        temp: 20.0
+                    },
+                    SetPoint {
+                        time: NaiveTime::from_hms_opt(10, 0, 0).unwrap(),
+                        temp: 16.0
+                    }
+                ]
+            }
+        ])
+    }
+
+    fn tick(date: DateTime<Local>) -> DateTime<Local> {
+        date + Duration::seconds(1)
+    }
+
+    #[test]
+    fn basic_schedule() {
+        let mut schedule = daily_morning_temp_increase();
+
+        let mut date = Local.with_ymd_and_hms(2026, 2, 23, 8, 0, 0).unwrap();
+
+        assert_eq!(schedule.get_target_temp(date), Some(20.0));
+
+        date = tick(date);
+
+        assert_eq!(schedule.get_target_temp(date), None);
+
+        let date = Local.with_ymd_and_hms(2026, 2, 23, 10, 0, 0).unwrap();
+        assert_eq!(schedule.get_target_temp(date), Some(16.0));
+    }
+
+    #[test]
+    fn resileant_clock_skip() {
+        let mut schedule = daily_morning_temp_increase();
+
+        let mut date = Local.with_ymd_and_hms(2026, 2, 23, 7, 59, 59).unwrap();
+
+        assert_eq!(schedule.get_target_temp(date), None);
+
+        // clock reaches nesxt set point
+        date = tick(date);
+
+        // next tick advances one sec past set point
+        date = tick(date);
+
+        assert_eq!(schedule.get_target_temp(date), Some(20.0));
     }
 }
