@@ -109,8 +109,12 @@ impl Schedule {
 
         if let Some(set_points) = self.schedule.get(&weekday) {
             for (set_point_time, set_point_temp) in set_points {
+                // test if set point has been reached, or
                 if time_of_day >= *set_point_time
+                    // consider set point reached if time is within small range
+                    // this is to account for (unlikely) unreliable thread delay
                     && time_of_day <= *set_point_time + self.max_age
+                    // don't repreat reporting setpoint more than once
                     && self.last_set_point.is_none()
                 {
                     info!("Set point reached {set_point_time} {set_point_temp}");
