@@ -20,6 +20,7 @@ use anyhow::Result;
 use esphome_api::proto::{
     ClimateAction, ClimateFanMode, ClimateMode, ClimatePreset, ClimateStateResponse
 };
+use log::info;
 
 use crate::{
     config::Config,
@@ -178,17 +179,36 @@ impl<S: EventSender + Clone + Send + 'static> StateManager<S> {
 
     fn start_schedule(&mut self) {
         if let Some(thread) = self.schedule_thread.take() {
-            thread.stop().expect("Schedule thread should stop");
+            info!("Stop schedule clock thread");
+            thread.stop()
+                .expect("Schedule thread should stop");
         }
 
         let schedule = match self.state.mode {
-            HvacMode::Heat => Some(Schedule::new(&self.config.schedule_heat)),
-            HvacMode::Cool => Some(Schedule::new(&self.config.schedule_cool)),
+            HvacMode::Heat => {
+                if self.config.schedule_heat.len() > 0 {
+                    Some(Schedule::new(&self.config.schedule_heat))
+                } else {
+                    info!("Empty heat schedule, skip clock thread");
+                    None
+                }
+            }
+            HvacMode::Cool => {
+                if self.config.schedule_cool.len() > 0 {
+                    Some(Schedule::new(&self.config.schedule_cool))
+                } else {
+                    info!("Empty cool schedule, skip clock thread");
+                    None
+                }
+            }
             _ => None
         };
 
         self.schedule_thread = match schedule {
-            Some(schedule) => Some(ScheduleThread::start(schedule, self.event_sender.clone())),
+            Some(schedule) => {
+                info!("Start schedule clock thread {:?}", schedule);
+                Some(ScheduleThread::start(schedule, self.event_sender.clone()))
+            }
             None => None
         };
     }

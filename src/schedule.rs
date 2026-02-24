@@ -24,7 +24,8 @@ use std::{
 };
 
 use anyhow::Result;
-use chrono::{DateTime, Datelike, Local, NaiveTime, SubsecRound, Weekday};
+use chrono::{DateTime, Datelike, Local, NaiveTime, Weekday};
+use log::info;
 
 use crate::{config::ScheduleConfig, events::{Event, EventSender}};
 
@@ -85,6 +86,7 @@ fn week_schedule(schedule: &[ScheduleConfig]) -> ScheduleMap {
     week_schedule
 }
 
+#[derive(Debug)]
 pub struct Schedule {
     schedule: ScheduleMap,
     max_age: Duration,
@@ -111,6 +113,7 @@ impl Schedule {
                     && time_of_day <= *set_point_time + self.max_age
                     && self.last_set_point.is_none()
                 {
+                    info!("Set point reached {set_point_time} {set_point_temp}");
                     self.last_set_point = Some(*set_point_temp);
                     return Some(*set_point_temp);
                 }
