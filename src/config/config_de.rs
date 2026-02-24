@@ -18,6 +18,7 @@
 
 use std::time::Duration;
 
+use chrono::NaiveTime;
 use serde::{Deserializer, de::{self, Visitor}};
 
 pub fn duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
@@ -62,4 +63,34 @@ pub fn duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
     }
 
     deserializer.deserialize_any(DurationVisitor)
+}
+
+pub fn time_of_day<'de, D>(deserializer: D) -> Result<NaiveTime, D::Error>
+    where D: Deserializer<'de>
+{
+    struct TimeOfDayVisitor;
+
+    impl<'de> Visitor<'de> for TimeOfDayVisitor {
+        type Value = NaiveTime;
+
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("time of day as hh:mm")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where E: de::Error
+        {
+            let (hour, min) = v.split_once(':')
+                .ok_or(E::custom("missing ':' delimeter"))?;
+            let hour:u32 = hour.parse().map_err(E::custom)?;
+            let min:u32 = min.parse().map_err(E::custom)?;
+
+            let val = NaiveTime::from_hms_opt(hour, min, 0)
+                .ok_or(E::custom(""))?;
+
+            Ok(val)
+        }
+    }
+
+    deserializer.deserialize_any(TimeOfDayVisitor)
 }

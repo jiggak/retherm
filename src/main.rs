@@ -23,6 +23,7 @@ mod drawable;
 mod events;
 mod home_assistant;
 mod input_events;
+mod schedule;
 mod screen;
 mod sound;
 mod state;

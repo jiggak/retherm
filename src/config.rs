@@ -22,14 +22,19 @@ use anyhow::Result;
 use serde::Deserialize;
 
 mod config_de;
+mod schedule_config;
 
-#[derive(Deserialize, Debug)]
+pub use schedule_config::*;
+
+#[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
     pub away_mode: AwayConfig,
     pub backplate: BackplateConfig,
     pub home_assistant: HomeAssistantConfig,
-    pub backlight: BacklightConfig
+    pub backlight: BacklightConfig,
+    pub schedule_heat: Vec<ScheduleConfig>,
+    pub schedule_cool: Vec<ScheduleConfig>
 }
 
 impl Config {
@@ -46,12 +51,14 @@ impl Default for Config {
             away_mode: AwayConfig::default(),
             backplate: BackplateConfig::default(),
             home_assistant: HomeAssistantConfig::default(),
-            backlight: BacklightConfig::default()
+            backlight: BacklightConfig::default(),
+            schedule_heat: Vec::new(),
+            schedule_cool: Vec::new()
         }
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct HomeAssistantConfig {
     pub listen_addr: String,
@@ -77,7 +84,7 @@ impl Default for HomeAssistantConfig {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct BacklightConfig {
     pub brightness: u32,
