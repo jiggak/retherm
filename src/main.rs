@@ -33,7 +33,7 @@ mod window;
 
 use anyhow::Result;
 use esphome_api::server::{EncryptedStreamProvider, PlaintextStreamProvider};
-use log::debug;
+use log::info;
 
 use crate::events::{Event, EventHandler, EventSource};
 use crate::home_assistant::HomeAssistant;
@@ -110,7 +110,7 @@ fn main() -> Result<()> {
 
         let mut event = Some(event);
         while let Some(e) = event {
-            debug!("{:?}", e);
+            info!("{:?}", e);
 
             for handler in handlers.iter_mut() {
                 handler.handle_event(&e)?;

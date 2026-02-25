@@ -53,8 +53,11 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
 
 impl<S: EventSender> EventHandler for MainScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
+        // Ignore button and dial events while in away mode
+        // Let state manager exit away mode before
+
         match event {
-            Event::Dial(dir) => {
+            Event::Dial(dir) if !self.gauge.state.away => {
                 let temp_inc = *dir as f32 * 0.01;
                 let target_temp = self.gauge.state.target_temp + temp_inc;
 
@@ -67,7 +70,7 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                     self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;
                 }
             }
-            Event::ButtonDown => {
+            Event::ButtonDown if !self.gauge.state.away => {
                 self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect {
                     current_mode: self.gauge.state.mode
                 }))?;

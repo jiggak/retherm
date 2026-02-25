@@ -265,7 +265,7 @@ impl<S: EventSender> EventHandler for StateManager<S> {
             Event::SetCurrentTemp(temp) => {
                 self.set_current_temp(*temp)
             }
-            Event::SetAway(false) | Event::ProximityNear | Event::ProximityFar => {
+            Event::SetAway(false) | Event::ProximityNear | Event::ProximityFar | Event::Dial(_) => {
                 self.event_sender.send_event(
                     Event::TimeoutReset(TimerId::Away, self.away_config.timeout)
                 )?;
