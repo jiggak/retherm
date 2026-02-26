@@ -95,8 +95,8 @@ impl Default for Theme {
                 away_icon_center: Point { x: 160, y: 230 },
                 away_icon: IconStyle {
                     icon_font: fonts.font_def(FontName::Icon, 42),
-                    icon: "\u{f06c}".to_string(),
-                    colour: Bgr888::CSS_LIGHT_GREEN
+                    icon: "\u{e50b}".to_string(),
+                    colour: Bgr888::CSS_DIM_GRAY
                 }
             },
             mode_select: ModeSelectTheme {

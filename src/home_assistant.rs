@@ -133,7 +133,7 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                     ClimateFeature::SUPPORTS_ACTION;
                 message.supported_presets = vec![
                     ClimatePreset::None as i32,
-                    ClimatePreset::Eco as i32
+                    ClimatePreset::Away as i32
                 ];
 
                 writer.write(&ProtoMessage::ListEntitiesClimateResponse(message))?;
@@ -156,7 +156,7 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                 }
                 if cmd.has_preset {
                     match cmd.preset() {
-                        ClimatePreset::Eco => {
+                        ClimatePreset::Away => {
                             self.event_sender.send_event(Event::SetAway(true))?;
                         }
                         _ => {

@@ -63,7 +63,7 @@ impl ThermostatState {
         state.current_temperature = self.current_temp;
         state.target_temperature = self.target_temp;
         state.preset = if self.away {
-            ClimatePreset::Eco as i32
+            ClimatePreset::Away as i32
         } else {
             ClimatePreset::None as i32
         };
