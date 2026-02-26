@@ -39,7 +39,7 @@ impl<S: EventSender> Screen for MainScreen<S> { }
 
 impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
     pub fn new(theme: MainScreenTheme, event_sender: S) -> Self {
-        let cmd_sender = TrailingEventSender::new(event_sender.clone(), 500);
+        let cmd_sender = TrailingEventSender::new(event_sender.clone(), 250);
         Self {
             gauge: GaugeWidget::new(theme.gauge.clone()),
             away_icon: IconWidget::new(theme.away_icon.clone()),
