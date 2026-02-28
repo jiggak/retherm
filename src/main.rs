@@ -59,7 +59,8 @@ fn main() -> Result<()> {
     let mut event_source = window::new_event_source()?;
 
     let mut state_manager = state::StateManager::new(&config, event_source.event_sender())?;
-    state_manager.start_schedule();
+    let mut schedule = schedule::ScheduleManager::new(&config, event_source.event_sender());
+    schedule.start_schedule(&state::HvacMode::Heat);
 
     let mut backplate = backplate::Backplate::new(&config, event_source.event_sender())?;
     let mut timers = timer::Timers::new(event_source.event_sender());
@@ -103,6 +104,7 @@ fn main() -> Result<()> {
 
         let mut handlers: [&mut dyn EventHandler; _] = [
             &mut state_manager,
+            &mut schedule,
             &mut backplate,
             &mut timers,
             &mut sound,

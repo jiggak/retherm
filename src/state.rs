@@ -16,16 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::time::Duration;
+
 use anyhow::Result;
 use esphome_api::proto::{
     ClimateAction, ClimateFanMode, ClimateMode, ClimatePreset, ClimateStateResponse
 };
-use log::info;
 
 use crate::{
-    config::Config,
+    config::{AwayConfig, Config},
     events::{Event, EventHandler, EventSender},
-    schedule::{Schedule, ScheduleThread},
     timer::TimerId
 };
 
@@ -150,11 +150,11 @@ pub struct StateManager<S: EventSender> {
     event_sender: S,
     state: ThermostatState,
     saved_target_temp: f32,
-    config: Config,
-    schedule_thread: Option<ScheduleThread>
+    away_config: AwayConfig,
+    backlight_timeout: Duration
 }
 
-impl<S: EventSender + Clone + Send + 'static> StateManager<S> {
+impl<S: EventSender> StateManager<S> {
     pub fn new(config: &Config, event_sender: S) -> Result<Self> {
         event_sender.send_event(
             Event::TimeoutReset(TimerId::Away, config.away_mode.timeout)
@@ -168,45 +168,9 @@ impl<S: EventSender + Clone + Send + 'static> StateManager<S> {
             state: ThermostatState::default(),
             // FIXME should this be persistent?
             saved_target_temp: 0.0,
-            config: config.clone(),
-            schedule_thread: None
+            away_config: config.away_mode.clone(),
+            backlight_timeout: config.backlight.timeout
         })
-    }
-
-    pub fn start_schedule(&mut self) {
-        if let Some(thread) = self.schedule_thread.take() {
-            info!("Stop schedule clock thread");
-            thread.stop()
-                .expect("Schedule thread should stop");
-        }
-
-        let schedule = match self.state.mode {
-            HvacMode::Heat => {
-                if self.config.schedule_heat.len() > 0 {
-                    Some(Schedule::new(&self.config.schedule_heat))
-                } else {
-                    info!("Empty heat schedule, skip clock thread");
-                    None
-                }
-            }
-            HvacMode::Cool => {
-                if self.config.schedule_cool.len() > 0 {
-                    Some(Schedule::new(&self.config.schedule_cool))
-                } else {
-                    info!("Empty cool schedule, skip clock thread");
-                    None
-                }
-            }
-            _ => None
-        };
-
-        self.schedule_thread = match schedule {
-            Some(schedule) => {
-                info!("Start schedule clock thread {:?}", schedule);
-                Some(ScheduleThread::start(schedule, self.event_sender.clone()))
-            }
-            None => None
-        };
     }
 
     fn set_target_temp(&mut self, temp: f32) -> bool {
@@ -230,7 +194,6 @@ impl<S: EventSender + Clone + Send + 'static> StateManager<S> {
     fn set_mode(&mut self, mode: HvacMode) -> bool {
         if mode != self.state.mode {
             self.state.mode = mode;
-            self.start_schedule();
             true
         } else {
             false
@@ -245,10 +208,10 @@ impl<S: EventSender + Clone + Send + 'static> StateManager<S> {
                 self.saved_target_temp = self.state.target_temp;
                 match self.state.mode {
                     HvacMode::Heat => {
-                        self.state.target_temp = self.config.away_mode.temp_heat;
+                        self.state.target_temp = self.away_config.temp_heat;
                     }
                     HvacMode::Cool => {
-                        self.state.target_temp = self.config.away_mode.temp_cool;
+                        self.state.target_temp = self.away_config.temp_cool;
                     }
                     _ => { }
                 }
@@ -290,7 +253,7 @@ impl<S: EventSender + Clone + Send + 'static> StateManager<S> {
     }
 }
 
-impl<S: EventSender + Clone + Send + 'static> EventHandler for StateManager<S> {
+impl<S: EventSender> EventHandler for StateManager<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         let did_change = match event {
             Event::SetMode(mode) => {
@@ -304,7 +267,7 @@ impl<S: EventSender + Clone + Send + 'static> EventHandler for StateManager<S> {
             }
             Event::SetAway(false) | Event::ProximityNear | Event::ProximityFar => {
                 self.event_sender.send_event(
-                    Event::TimeoutReset(TimerId::Away, self.config.away_mode.timeout)
+                    Event::TimeoutReset(TimerId::Away, self.away_config.timeout)
                 )?;
                 self.set_away(false)
             }
@@ -322,7 +285,7 @@ impl<S: EventSender + Clone + Send + 'static> EventHandler for StateManager<S> {
 
         if event.is_wakeup_event() {
             self.event_sender.send_event(
-                Event::TimeoutReset(TimerId::Backlight, self.config.backlight.timeout)
+                Event::TimeoutReset(TimerId::Backlight, self.backlight_timeout)
             )?;
         }
 
