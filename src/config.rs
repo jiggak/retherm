@@ -26,6 +26,8 @@ mod schedule_config;
 
 pub use schedule_config::*;
 
+use crate::state::HvacMode;
+
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
@@ -42,6 +44,26 @@ impl Config {
         let toml_src = fs::read_to_string(file_path)?;
         let config = toml::from_str(&toml_src)?;
         Ok(config)
+    }
+
+    pub fn schedule_for_mode(&self, mode: &HvacMode) -> Option<&[ScheduleConfig]> {
+        match mode {
+            HvacMode::Heat => {
+                if self.schedule_heat.len() > 0 {
+                    Some(&self.schedule_heat)
+                } else {
+                    None
+                }
+            }
+            HvacMode::Cool => {
+                if self.schedule_cool.len() > 0 {
+                    Some(&self.schedule_cool)
+                } else {
+                    None
+                }
+            }
+            _ => None
+        }
     }
 }
 

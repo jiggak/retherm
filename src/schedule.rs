@@ -53,33 +53,14 @@ impl<S: EventSender + Clone + Send + 'static> ScheduleManager<S> {
                 .expect("Schedule thread should stop");
         }
 
-        let schedule = match mode {
-            HvacMode::Heat => {
-                if self.config.schedule_heat.len() > 0 {
-                    Some(Schedule::new(&self.config.schedule_heat))
-                } else {
-                    info!("Empty heat schedule, skip clock thread");
-                    None
-                }
-            }
-            HvacMode::Cool => {
-                if self.config.schedule_cool.len() > 0 {
-                    Some(Schedule::new(&self.config.schedule_cool))
-                } else {
-                    info!("Empty cool schedule, skip clock thread");
-                    None
-                }
-            }
-            _ => None
-        };
-
-        self.schedule_thread = match schedule {
-            Some(schedule) => {
-                info!("Start schedule clock thread {:?}", schedule);
-                Some(ScheduleThread::start(schedule, self.event_sender.clone()))
-            }
-            None => None
-        };
+        if let Some(schedule) = self.config.schedule_for_mode(mode) {
+            let schedule = Schedule::new(schedule);
+            info!("Start schedule clock thread {:?}", schedule);
+            let thread = ScheduleThread::start(schedule, self.event_sender.clone());
+            self.schedule_thread = Some(thread);
+        } else {
+            info!("Empty schedule, skip clock thread");
+        }
     }
 }
 
