@@ -151,7 +151,8 @@ pub struct StateManager<S: EventSender> {
     state: ThermostatState,
     saved_target_temp: f32,
     away_config: AwayConfig,
-    backlight_timeout: Duration
+    backlight_timeout: Duration,
+    temp_differential: f32
 }
 
 impl<S: EventSender> StateManager<S> {
@@ -169,7 +170,8 @@ impl<S: EventSender> StateManager<S> {
             // FIXME should this be persistent?
             saved_target_temp: 0.0,
             away_config: config.away_mode.clone(),
-            backlight_timeout: config.backlight.timeout
+            backlight_timeout: config.backlight.timeout,
+            temp_differential: config.temp_differential
         })
     }
 
@@ -228,18 +230,22 @@ impl<S: EventSender> StateManager<S> {
     fn apply_hvac_action(&mut self) -> bool {
         let old_action = self.state.action;
 
+        let current_temp = self.state.current_temp;
+        let target_temp_hi = self.state.target_temp + self.temp_differential;
+        let target_temp_lo = self.state.target_temp - self.temp_differential;
+
         match self.state.mode {
             HvacMode::Heat => {
-                if self.state.current_temp < self.state.target_temp {
+                if current_temp <= target_temp_lo {
                     self.state.action = HvacAction::Heating;
-                } else {
+                } else if current_temp >= target_temp_hi {
                     self.state.action = HvacAction::Idle;
                 }
             }
             HvacMode::Cool => {
-                if self.state.current_temp > self.state.target_temp {
+                if current_temp >= target_temp_hi {
                     self.state.action = HvacAction::Cooling;
-                } else {
+                } else if current_temp <= target_temp_lo {
                     self.state.action = HvacAction::Idle;
                 }
             }

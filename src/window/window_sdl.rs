@@ -94,7 +94,8 @@ impl EventHandler for SdlWindow {
 
 pub struct SdlEventSource {
     event_pump: EventPump,
-    event_sender: SdlEventSenderHandle
+    event_sender: SdlEventSenderHandle,
+    current_temp: f32
 }
 
 impl SdlEventSource {
@@ -113,15 +114,50 @@ impl SdlEventSource {
 
         let event_sender = SdlEventSenderHandle::new(sdl_events.event_sender());
 
-        Ok(
-            Self { event_pump, event_sender }
-        )
+        Ok(Self {
+            event_pump,
+            event_sender,
+            current_temp: 20.0
+        })
+    }
+
+    fn map_sdl_event(&mut self, event: SdlEvent) -> Option<Event> {
+        match event {
+            SdlEvent::Quit { .. } =>
+                Some(Event::Quit),
+            SdlEvent::MouseButtonDown { .. } =>
+                Some(Event::ButtonDown),
+            SdlEvent::MouseWheel { y, .. } if y != 0 =>
+                Some(Event::Dial(y * 10)),
+            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Up) =>
+                Some(Event::Dial(20)),
+            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Down) =>
+                Some(Event::Dial(-20)),
+            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::P) =>
+                Some(Event::ProximityNear),
+            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::LEFTBRACKET) => {
+                self.current_temp = self.current_temp - 0.1;
+                Some(Event::SetCurrentTemp(self.current_temp))
+            }
+            SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::RIGHTBRACKET) => {
+                self.current_temp = self.current_temp + 0.1;
+                Some(Event::SetCurrentTemp(self.current_temp))
+            }
+            sdl_event => {
+                if sdl_event.is_user_event() {
+                    Some(sdl_event.as_user_event_type::<Event>().unwrap())
+                } else {
+                    None
+                }
+            }
+        }
     }
 }
 
 impl EventSource<SdlEventSenderHandle> for SdlEventSource {
     fn wait_event(&mut self) -> Result<Event> {
-        if let Some(event) = map_sdl_event(self.event_pump.wait_event()) {
+        let event = self.event_pump.wait_event();
+        if let Some(event) = self.map_sdl_event(event) {
             Ok(event)
         } else {
             // Unhandled event: wait again
@@ -131,7 +167,7 @@ impl EventSource<SdlEventSenderHandle> for SdlEventSource {
 
     fn poll_event(&mut self) -> Result<Option<Event>> {
         if let Some(event) = self.event_pump.poll_event() {
-            if let Some(event) = map_sdl_event(event) {
+            if let Some(event) = self.map_sdl_event(event) {
                 Ok(Some(event))
             } else {
                 // Unhandled event: poll again
@@ -144,30 +180,6 @@ impl EventSource<SdlEventSenderHandle> for SdlEventSource {
 
     fn event_sender(&self) -> SdlEventSenderHandle {
         self.event_sender.clone()
-    }
-}
-
-fn map_sdl_event(event: SdlEvent) -> Option<Event> {
-    match event {
-        SdlEvent::Quit { .. } =>
-            Some(Event::Quit),
-        SdlEvent::MouseButtonDown { .. } =>
-            Some(Event::ButtonDown),
-        SdlEvent::MouseWheel { y, .. } if y != 0 =>
-            Some(Event::Dial(y * 10)),
-        SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Up) =>
-            Some(Event::Dial(20)),
-        SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::Down) =>
-            Some(Event::Dial(-20)),
-        SdlEvent::KeyDown { keycode, .. } if keycode == Some(Keycode::P) =>
-            Some(Event::ProximityNear),
-        sdl_event => {
-            if sdl_event.is_user_event() {
-                Some(sdl_event.as_user_event_type::<Event>().unwrap())
-            } else {
-                None
-            }
-        }
     }
 }
 
