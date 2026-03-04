@@ -58,7 +58,12 @@ fn main() -> Result<()> {
 
     let mut event_source = window::new_event_source()?;
 
-    let mut state_manager = state::StateManager::new(&config, event_source.event_sender())?;
+    let mut state_manager = state::StateManager::new(
+        &config,
+        state::ThermostatState::default(),
+        event_source.event_sender()
+    )?;
+
     let mut schedule = schedule::ScheduleManager::new(&config, event_source.event_sender());
     schedule.start_schedule(&state::HvacMode::Heat);
 

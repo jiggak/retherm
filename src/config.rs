@@ -36,7 +36,8 @@ pub struct Config {
     pub home_assistant: HomeAssistantConfig,
     pub backlight: BacklightConfig,
     pub schedule_heat: Vec<ScheduleConfig>,
-    pub schedule_cool: Vec<ScheduleConfig>
+    pub schedule_cool: Vec<ScheduleConfig>,
+    pub temp_differential: f32
 }
 
 impl Config {
@@ -75,7 +76,8 @@ impl Default for Config {
             home_assistant: HomeAssistantConfig::default(),
             backlight: BacklightConfig::default(),
             schedule_heat: Vec::new(),
-            schedule_cool: Vec::new()
+            schedule_cool: Vec::new(),
+            temp_differential: 0.2
         }
     }
 }
