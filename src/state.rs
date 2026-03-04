@@ -301,14 +301,29 @@ impl<S: EventSender> EventHandler for StateManager<S> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc::Sender;
+
     use super::*;
     use crate::events::{DefaultEventSource, EventSource};
 
-    #[test]
-    fn temp_differential() -> Result<()> {
+    fn state_manager(
+        state: ThermostatState
+    ) -> (DefaultEventSource, StateManager<Sender<Event>>)
+    {
         let mut config = Config::default();
         config.temp_differential = 0.2;
 
+        let event_source = DefaultEventSource::new();
+        let state_manager = StateManager::new(
+            &config, state,
+            event_source.event_sender()
+        ).unwrap();
+
+        (event_source, state_manager)
+    }
+
+    #[test]
+    fn temp_differential_heat() -> Result<()> {
         let state = ThermostatState {
             mode: HvacMode::Heat,
             target_temp: 20.0,
@@ -317,10 +332,7 @@ mod tests {
             away: false
         };
 
-        let event_source = DefaultEventSource::new();
-        let event_sender = event_source.event_sender();
-
-        let mut state = StateManager::new(&config, state, event_sender)?;
+        let (_x, mut state) = state_manager(state);
 
         state.handle_event(&Event::SetCurrentTemp(20.0))?;
         assert_eq!(state.state.action, HvacAction::Idle);
@@ -331,9 +343,20 @@ mod tests {
         state.handle_event(&Event::SetCurrentTemp(19.8))?;
         assert_eq!(state.state.action, HvacAction::Heating);
 
-        state.handle_event(&Event::SetCurrentTemp(19.0))?;
-        state.handle_event(&Event::SetMode(HvacMode::Cool))?;
-        assert_eq!(state.state.action, HvacAction::Idle);
+        Ok(())
+    }
+
+    #[test]
+    fn temp_differential_cool() -> Result<()> {
+        let state = ThermostatState {
+            mode: HvacMode::Cool,
+            target_temp: 20.0,
+            current_temp: 19.0,
+            action: HvacAction::Idle,
+            away: false
+        };
+
+        let (_x, mut state) = state_manager(state);
 
         state.handle_event(&Event::SetCurrentTemp(20.0))?;
         assert_eq!(state.state.action, HvacAction::Idle);
@@ -346,4 +369,5 @@ mod tests {
 
         Ok(())
     }
+
 }
