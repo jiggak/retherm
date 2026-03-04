@@ -1,7 +1,13 @@
 use std::{io, thread};
 
 use anyhow::Result;
-use esphome_api::{proto::*, server::{DefaultHandler, EncryptedStreamProvider, MessageSenderThread, RequestHandler, ResponseStatus, start_server}};
+use esphome_api::{
+    proto::*,
+    server::{
+        DefaultHandler, EncryptedStreamProvider, MessageSender, RequestHandler,
+        ResponseStatus, start_server
+    }
+};
 
 fn main() -> Result<()> {
     let handler = DefaultHandler {
@@ -20,7 +26,7 @@ fn main() -> Result<()> {
         "01:02:03:04:05:06"
     )?;
 
-    let message_sender = MessageSenderThread::new();
+    let message_sender = MessageSender::new();
     let message_sender_clone = message_sender.clone();
 
     thread::spawn(move || {

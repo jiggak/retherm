@@ -102,17 +102,17 @@ pub enum MessageThreadError {
 }
 
 #[derive(Clone)]
-pub struct MessageSenderThread {
-    message_sender: Arc<Mutex<Option<Sender<ProtoMessage>>>>
+pub struct MessageSender {
+    inner: Arc<Mutex<Option<Sender<ProtoMessage>>>>
 }
 
-impl MessageSenderThread {
+impl MessageSender {
     pub fn new() -> Self {
-        Self { message_sender: Arc::new(Mutex::new(None)) }
+        Self { inner: Arc::new(Mutex::new(None)) }
     }
 
     pub fn send_message(&self, message: ProtoMessage) -> Result<(), MessageThreadError> {
-        let guard = self.message_sender.lock().unwrap();
+        let guard = self.inner.lock().unwrap();
 
         if let Some(sender) = guard.as_ref() {
             sender.send(message)?;
@@ -123,11 +123,11 @@ impl MessageSenderThread {
     }
 }
 
-impl<S: MessageStream + Send + 'static> ConnectionObserver<S> for MessageSenderThread {
+impl<S: MessageStream + Send + 'static> ConnectionObserver<S> for MessageSender {
     fn connected(&self, stream: &S) -> Result<()> {
         let (tx, rx) = channel();
 
-        *self.message_sender.lock().unwrap() = Some(tx);
+        *self.inner.lock().unwrap() = Some(tx);
 
         let mut stream = stream.clone();
         thread::spawn(move || {
@@ -140,7 +140,7 @@ impl<S: MessageStream + Send + 'static> ConnectionObserver<S> for MessageSenderT
     }
 
     fn disconnect(&self) -> Result<()> {
-        *self.message_sender.lock().unwrap() = None;
+        *self.inner.lock().unwrap() = None;
         Ok(())
     }
 }

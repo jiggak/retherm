@@ -16,13 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{sync::{Arc, Mutex}, thread::{self, JoinHandle}};
+use std::thread::{self, JoinHandle};
 
 use anyhow::Result;
 use esphome_api::{
     proto::*,
     server::{
-        DefaultHandler, MessageSenderThread, MessageStreamProvider,
+        DefaultHandler, MessageSender, MessageStreamProvider,
         MessageThreadError, RequestHandler, ResponseStatus, start_server
     }
 };
@@ -34,15 +34,13 @@ use crate::{
 };
 
 pub struct HomeAssistant {
-    message_sender: MessageSenderThread,
-    state: Arc<Mutex<ThermostatState>>
+    message_sender: MessageSender
 }
 
 impl HomeAssistant {
     pub fn new() -> Self {
         Self {
-            message_sender: MessageSenderThread::new(),
-            state: Arc::new(Mutex::new(ThermostatState::default()))
+            message_sender: MessageSender::new()
         }
     }
 
@@ -59,7 +57,7 @@ impl HomeAssistant {
         let connection_observer = self.message_sender.clone();
 
         let handler = DefaultHandler {
-            delegate: HvacRequestHandler::new(event_sender, self.state.clone()),
+            delegate: HvacRequestHandler::new(event_sender),
             server_info: config.server_info.clone(),
             node_name: config.node_name.clone(),
             friendly_name: config.friendly_name.clone(),
@@ -77,8 +75,6 @@ impl HomeAssistant {
 impl EventHandler for HomeAssistant {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         if let Event::State(state) = event {
-            *self.state.lock().unwrap() = state.clone();
-
             let message = ProtoMessage::ClimateStateResponse(state.into());
 
             let result = self.message_sender.send_message(message);
@@ -94,13 +90,12 @@ impl EventHandler for HomeAssistant {
 }
 
 struct HvacRequestHandler<S> {
-    event_sender: S,
-    state: Arc<Mutex<ThermostatState>>
+    event_sender: S
 }
 
 impl<S: EventSender> HvacRequestHandler<S> {
-    fn new(event_sender: S, state: Arc<Mutex<ThermostatState>>) -> Self {
-        Self { event_sender, state }
+    fn new(event_sender: S) -> Self {
+        Self { event_sender }
     }
 }
 
@@ -142,8 +137,7 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
                 writer.write(&ProtoMessage::ListEntitiesDoneResponse(message))?;
             }
             ProtoMessage::SubscribeStatesRequest(_) => {
-                let state = self.state.lock().unwrap().clone();
-                writer.write(&ProtoMessage::ClimateStateResponse(state.into()))?;
+                self.event_sender.send_event(Event::GetState)?;
             }
             ProtoMessage::ClimateCommandRequest(cmd) => {
                 if cmd.has_mode {

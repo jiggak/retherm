@@ -261,7 +261,7 @@ impl<S: EventSender> StateManager<S> {
 
 impl<S: EventSender> EventHandler for StateManager<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
-        let did_change = match event {
+        let should_send_state = match event {
             Event::SetMode(mode) => {
                 self.set_mode(*mode)
             }
@@ -280,10 +280,11 @@ impl<S: EventSender> EventHandler for StateManager<S> {
             Event::SetAway(true) | Event::TimeoutReached(TimerId::Away) => {
                 self.set_away(true)
             }
+            Event::GetState => true,
             _ => false
         };
 
-        if did_change {
+        if should_send_state {
             self.apply_hvac_action();
 
             self.event_sender.send_event(Event::State(self.state.clone()))?;
