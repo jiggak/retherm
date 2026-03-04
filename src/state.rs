@@ -156,7 +156,7 @@ pub struct StateManager<S: EventSender> {
 }
 
 impl<S: EventSender> StateManager<S> {
-    pub fn new(config: &Config, event_sender: S) -> Result<Self> {
+    pub fn new(config: &Config, state: ThermostatState, event_sender: S) -> Result<Self> {
         event_sender.send_event(
             Event::TimeoutReset(TimerId::Away, config.away_mode.timeout)
         )?;
@@ -166,7 +166,7 @@ impl<S: EventSender> StateManager<S> {
 
         Ok(Self {
             event_sender,
-            state: ThermostatState::default(),
+            state,
             // FIXME should this be persistent?
             saved_target_temp: 0.0,
             away_config: config.away_mode.clone(),
@@ -294,6 +294,55 @@ impl<S: EventSender> EventHandler for StateManager<S> {
                 Event::TimeoutReset(TimerId::Backlight, self.backlight_timeout)
             )?;
         }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::{DefaultEventSource, EventSource};
+
+    #[test]
+    fn temp_differential() -> Result<()> {
+        let mut config = Config::default();
+        config.temp_differential = 0.2;
+
+        let state = ThermostatState {
+            mode: HvacMode::Heat,
+            target_temp: 20.0,
+            current_temp: 21.0,
+            action: HvacAction::Idle,
+            away: false
+        };
+
+        let event_source = DefaultEventSource::new();
+        let event_sender = event_source.event_sender();
+
+        let mut state = StateManager::new(&config, state, event_sender)?;
+
+        state.handle_event(&Event::SetCurrentTemp(20.0))?;
+        assert_eq!(state.state.action, HvacAction::Idle);
+
+        state.handle_event(&Event::SetCurrentTemp(19.9))?;
+        assert_eq!(state.state.action, HvacAction::Idle);
+
+        state.handle_event(&Event::SetCurrentTemp(19.8))?;
+        assert_eq!(state.state.action, HvacAction::Heating);
+
+        state.handle_event(&Event::SetCurrentTemp(19.0))?;
+        state.handle_event(&Event::SetMode(HvacMode::Cool))?;
+        assert_eq!(state.state.action, HvacAction::Idle);
+
+        state.handle_event(&Event::SetCurrentTemp(20.0))?;
+        assert_eq!(state.state.action, HvacAction::Idle);
+
+        state.handle_event(&Event::SetCurrentTemp(20.1))?;
+        assert_eq!(state.state.action, HvacAction::Idle);
+
+        state.handle_event(&Event::SetCurrentTemp(20.2))?;
+        assert_eq!(state.state.action, HvacAction::Cooling);
 
         Ok(())
     }
