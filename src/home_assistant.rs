@@ -63,7 +63,7 @@ impl HomeAssistant {
             friendly_name: config.friendly_name.clone(),
             manufacturer: config.manufacturer.clone(),
             model: config.model.clone(),
-            mac_address: "01:02:03:04:05:06".to_string()
+            mac_address: config.get_mac_address()
         };
 
         thread::spawn(move || {

@@ -91,7 +91,31 @@ pub struct HomeAssistantConfig {
     pub node_name: String,
     pub friendly_name: String,
     pub manufacturer: String,
-    pub model: String
+    pub model: String,
+    pub mac_address: Option<String>
+}
+
+impl HomeAssistantConfig {
+    pub fn get_mac_address(&self) -> String {
+        if let Some(mac_addr) = &self.mac_address {
+            mac_addr.clone()
+        } else {
+            match crate::mac_addr::get_mac_addr() {
+                Ok(mac_addr) => {
+                    if let Some(mac_addr) = mac_addr {
+                        mac_addr
+                    } else {
+                        log::warn!("Mac address not found; returning fake addr");
+                        "01:02:03:04:05:06".into()
+                    }
+                }
+                Err(e) => {
+                    log::error!("Get mac address: '{e}'; returning fake addr");
+                    "01:02:03:04:05:06".into()
+                }
+            }
+        }
+    }
 }
 
 impl Default for HomeAssistantConfig {
@@ -103,7 +127,8 @@ impl Default for HomeAssistantConfig {
             node_name: "retherm-thermostat".to_string(),
             friendly_name: "ReTherm Thermostat".to_string(),
             manufacturer: "Nest".to_string(),
-            model: "Gen2 Thermostat".to_string()
+            model: "Gen2 Thermostat".to_string(),
+            mac_address: None
         }
     }
 }

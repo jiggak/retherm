@@ -84,7 +84,7 @@ fn main() -> Result<()> {
         let stream_factory = EncryptedStreamProvider::new(
             key,
             &config.home_assistant.node_name,
-            &mac_addr::get_mac_addr()?
+            &config.home_assistant.get_mac_address()
         )?;
 
         home_assistant.start_listener(

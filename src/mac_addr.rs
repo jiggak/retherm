@@ -18,7 +18,7 @@
 
 use anyhow::Result;
 
-pub fn get_mac_addr() -> Result<String> {
+pub fn get_mac_addr() -> Result<Option<String>> {
     use nix::ifaddrs::*;
 
     for if_addr in getifaddrs()? {
@@ -30,13 +30,12 @@ pub fn get_mac_addr() -> Result<String> {
                             .map(|b| format!("{:02x}", b))
                             .collect::<Vec<_>>()
                             .join(":");
-                        return Ok(mac)
+                        return Ok(Some(mac))
                     }
                 }
             }
         }
     }
 
-    log::warn!("Unable to get mac address, returning fake mac");
-    Ok("01:02:03:04:05:06".into())
+    Ok(None)
 }
