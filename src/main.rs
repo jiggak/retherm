@@ -23,6 +23,7 @@ mod drawable;
 mod events;
 mod home_assistant;
 mod input_events;
+mod mac_addr;
 mod schedule;
 mod screen;
 mod sound;
@@ -83,7 +84,7 @@ fn main() -> Result<()> {
         let stream_factory = EncryptedStreamProvider::new(
             key,
             &config.home_assistant.node_name,
-            "01:02:03:04:05:06"
+            &mac_addr::get_mac_addr()?
         )?;
 
         home_assistant.start_listener(
