@@ -39,3 +39,21 @@ pub fn get_mac_addr() -> Result<Option<String>> {
 
     Ok(None)
 }
+
+pub fn get_hostname() -> Result<String> {
+    use nix::unistd::gethostname;
+
+    let hostname = gethostname()?;
+    let hostname = hostname.into_string()
+        .expect("hostname should be valid utf8");
+
+    Ok(hostname)
+}
+
+pub fn get_pkg_ver() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+pub fn get_pkg_name() -> &'static str {
+    env!("CARGO_PKG_NAME")
+}

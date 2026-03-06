@@ -56,10 +56,15 @@ impl HomeAssistant {
 
         let connection_observer = self.message_sender.clone();
 
+        let delegate = HvacRequestHandler::new(
+            thermostat_entity(config.get_object_id()),
+            event_sender
+        );
+
         let handler = DefaultHandler {
-            delegate: HvacRequestHandler::new(event_sender),
+            delegate: delegate,
             server_info: config.server_info.clone(),
-            node_name: config.node_name.clone(),
+            node_name: config.get_node_name(),
             friendly_name: config.friendly_name.clone(),
             manufacturer: config.manufacturer.clone(),
             model: config.model.clone(),
@@ -90,12 +95,16 @@ impl EventHandler for HomeAssistant {
 }
 
 struct HvacRequestHandler<S> {
+    thermostat_entity: ListEntitiesClimateResponse,
     event_sender: S
 }
 
 impl<S: EventSender> HvacRequestHandler<S> {
-    fn new(event_sender: S) -> Self {
-        Self { event_sender }
+    fn new(thermostat_entity: ListEntitiesClimateResponse, event_sender: S) -> Self {
+        Self {
+            thermostat_entity,
+            event_sender
+        }
     }
 }
 
@@ -107,30 +116,7 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
     ) -> Result<ResponseStatus> {
         match message {
             ProtoMessage::ListEntitiesRequest(_) => {
-                let mut message = ListEntitiesClimateResponse::default();
-                message.object_id = "test_climate_id".to_string();
-                message.supported_modes = vec![
-                    ClimateMode::Off as i32,
-                    ClimateMode::Heat as i32,
-                    ClimateMode::Cool as i32
-                ];
-                message.visual_min_temperature = ThermostatState::MIN_TEMP;
-                message.visual_max_temperature = ThermostatState::MAX_TEMP;
-                message.visual_target_temperature_step = 0.5;
-                message.visual_current_temperature_step = 0.5;
-                message.supported_fan_modes = vec![
-                    ClimateFanMode::ClimateFanOn  as i32,
-                    ClimateFanMode::ClimateFanOff as i32,
-                    ClimateFanMode::ClimateFanAuto as i32
-                ];
-                message.feature_flags =
-                    ClimateFeature::SUPPORTS_CURRENT_TEMPERATURE |
-                    ClimateFeature::SUPPORTS_ACTION;
-                message.supported_presets = vec![
-                    ClimatePreset::None as i32,
-                    ClimatePreset::Away as i32
-                ];
-
+                let message = self.thermostat_entity.clone();
                 writer.write(&ProtoMessage::ListEntitiesClimateResponse(message))?;
 
                 let message = ListEntitiesDoneResponse::default();
@@ -164,4 +150,28 @@ impl<S: EventSender> RequestHandler for HvacRequestHandler<S> {
 
         Ok(ResponseStatus::Continue)
     }
+}
+
+fn thermostat_entity(object_id: String) -> ListEntitiesClimateResponse {
+    let mut entity = ListEntitiesClimateResponse::default();
+
+    entity.object_id = object_id;
+    entity.supported_modes = vec![
+        ClimateMode::Off as i32,
+        ClimateMode::Heat as i32,
+        ClimateMode::Cool as i32
+    ];
+    entity.visual_min_temperature = ThermostatState::MIN_TEMP;
+    entity.visual_max_temperature = ThermostatState::MAX_TEMP;
+    entity.visual_target_temperature_step = 0.5;
+    entity.visual_current_temperature_step = 0.5;
+    entity.feature_flags =
+        ClimateFeature::SUPPORTS_CURRENT_TEMPERATURE |
+        ClimateFeature::SUPPORTS_ACTION;
+    entity.supported_presets = vec![
+        ClimatePreset::None as i32,
+        ClimatePreset::Away as i32
+    ];
+
+    entity
 }

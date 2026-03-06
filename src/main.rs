@@ -20,10 +20,10 @@ mod backplate;
 mod cli;
 mod config;
 mod drawable;
+mod env;
 mod events;
 mod home_assistant;
 mod input_events;
-mod mac_addr;
 mod schedule;
 mod screen;
 mod sound;
@@ -83,7 +83,7 @@ fn main() -> Result<()> {
     if let Some(key) = &config.home_assistant.encryption_key {
         let stream_factory = EncryptedStreamProvider::new(
             key,
-            &config.home_assistant.node_name,
+            &config.home_assistant.get_node_name(),
             &config.home_assistant.get_mac_address()
         )?;
 

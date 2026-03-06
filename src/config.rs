@@ -26,7 +26,7 @@ mod schedule_config;
 
 pub use schedule_config::*;
 
-use crate::state::HvacMode;
+use crate::{env, state::HvacMode};
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -85,10 +85,11 @@ impl Default for Config {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct HomeAssistantConfig {
+    pub object_id: Option<String>,
     pub listen_addr: String,
     pub encryption_key: Option<String>,
     pub server_info: String,
-    pub node_name: String,
+    pub node_name: Option<String>,
     pub friendly_name: String,
     pub manufacturer: String,
     pub model: String,
@@ -96,22 +97,48 @@ pub struct HomeAssistantConfig {
 }
 
 impl HomeAssistantConfig {
+    pub fn get_object_id(&self) -> String {
+        if let Some(object_id) = &self.object_id {
+            object_id.clone()
+        } else {
+            format!("climate.{}", self.get_node_name())
+        }
+    }
+
+    pub fn get_node_name(&self) -> String {
+        let pkg_name = env::get_pkg_name();
+
+        if let Some(node_name) = &self.node_name {
+            node_name.clone()
+        } else {
+            match env::get_hostname() {
+                Ok(hostname) => hostname,
+                Err(e) => {
+                    log::error!("get_hostname: '{e}'; using '{pkg_name}'");
+                    pkg_name.into()
+                }
+            }
+        }
+    }
+
     pub fn get_mac_address(&self) -> String {
+        const FAKE_MAC: &str = "01:02:03:04:05:06";
+
         if let Some(mac_addr) = &self.mac_address {
             mac_addr.clone()
         } else {
-            match crate::mac_addr::get_mac_addr() {
+            match env::get_mac_addr() {
                 Ok(mac_addr) => {
                     if let Some(mac_addr) = mac_addr {
                         mac_addr
                     } else {
-                        log::warn!("Mac address not found; returning fake addr");
-                        "01:02:03:04:05:06".into()
+                        log::warn!("get_mac_addr None; using '{FAKE_MAC}'");
+                        FAKE_MAC.into()
                     }
                 }
                 Err(e) => {
-                    log::error!("Get mac address: '{e}'; returning fake addr");
-                    "01:02:03:04:05:06".into()
+                    log::error!("get_mac_addr: '{e}'; using '{FAKE_MAC}'");
+                    FAKE_MAC.into()
                 }
             }
         }
@@ -121,10 +148,11 @@ impl HomeAssistantConfig {
 impl Default for HomeAssistantConfig {
     fn default() -> Self {
         Self {
+            object_id: None,
             listen_addr: "0.0.0.0:6053".to_string(),
             encryption_key: None,
-            server_info: format!("ReTherm {}", env!("CARGO_PKG_VERSION")),
-            node_name: "retherm-thermostat".to_string(),
+            server_info: format!("ReTherm {}", env::get_pkg_ver()),
+            node_name:None,
             friendly_name: "ReTherm Thermostat".to_string(),
             manufacturer: "Nest".to_string(),
             model: "Gen2 Thermostat".to_string(),
