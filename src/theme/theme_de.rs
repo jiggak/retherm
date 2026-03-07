@@ -19,6 +19,20 @@
 use embedded_graphics::{pixelcolor::Bgr888, prelude::{Point, Size}};
 use serde::{Deserializer, de::{self, SeqAccess, Visitor}};
 
+pub fn colour_from_hex(v: &str) -> Result<Bgr888, String> {
+    let v = v.strip_prefix('#')
+        .ok_or(String::from("Missing '#' prefix"))?;
+
+    let val = u32::from_str_radix(v, 16)
+        .map_err(|e| e.to_string())?;
+
+    Ok(Bgr888::new(
+        ((val >> 16) & 0xff) as u8,
+        ((val >> 8) & 0xff) as u8,
+        (val & 0xff) as u8
+    ))
+}
+
 pub fn colour<'de, D>(deserializer: D) -> Result<Bgr888, D::Error>
     where D: Deserializer<'de>
 {
@@ -34,16 +48,10 @@ pub fn colour<'de, D>(deserializer: D) -> Result<Bgr888, D::Error>
         fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
             where E: de::Error
         {
-            let v = v.strip_prefix('#').unwrap_or(v);
-
-            let val = u32::from_str_radix(v, 16)
-                .map_err(E::custom)?;
-
-            Ok(Bgr888::new(
-                ((val >> 16) & 0xff) as u8,
-                ((val >> 8) & 0xff) as u8,
-                (val & 0xff) as u8
-            ))
+            Ok(
+                colour_from_hex(v)
+                    .map_err(E::custom)?
+            )
         }
 
         fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>

@@ -152,7 +152,7 @@ impl Default for HomeAssistantConfig {
             listen_addr: "0.0.0.0:6053".to_string(),
             encryption_key: None,
             server_info: format!("ReTherm {}", env::get_pkg_ver()),
-            node_name:None,
+            node_name: None,
             friendly_name: "ReTherm Thermostat".to_string(),
             manufacturer: "Nest".to_string(),
             model: "Gen2 Thermostat".to_string(),

@@ -59,17 +59,28 @@ impl Default for Theme {
     fn default() -> Self {
         let fonts = Fonts::new();
 
+        // https://htmlcolorcodes.com/color-picker/
+        // Pick dial colour, then use one level lighter for bg, one level higher for dot
+
+        let heat_bg = theme_de::colour_from_hex("#F17E3B").unwrap();
+        let heat_dial = theme_de::colour_from_hex("#E65D10").unwrap();
+        let heat_dial_dot = theme_de::colour_from_hex("#C4500E").unwrap();
+
+        let cool_bg = theme_de::colour_from_hex("#3B72F1").unwrap();
+        let cool_dial = theme_de::colour_from_hex("#1050E6").unwrap();
+        let cool_dial_dot = theme_de::colour_from_hex("#0E44C4").unwrap();
+
         Theme {
             thermostat: MainScreenTheme {
                 fg_colour: Bgr888::WHITE,
                 bg_colour: Bgr888::BLACK,
-                bg_heat_colour: Bgr888::CSS_ORANGE_RED,
-                bg_cool_colour: Bgr888::CSS_BLUE,
+                bg_heat_colour: heat_bg,
+                bg_cool_colour: cool_bg,
 
                 gauge: GaugeStyle {
                     fg_colour: Bgr888::WHITE,
-                    arc_dia: 280,
-                    arc_width: 12,
+                    arc_dia: 260,
+                    arc_width: 20,
                     arc_start_deg: 120.0,
                     arc_sweed_deg: 300.0,
 
@@ -79,17 +90,17 @@ impl Default for Theme {
 
                     arc_bg_colour: Bgr888::CSS_DIM_GRAY,
 
-                    arc_heat_colour: Bgr888::CSS_PERU,
-                    arc_heat_dot_colour: Bgr888::CSS_DARK_ORANGE,
+                    arc_heat_colour: heat_dial,
+                    arc_heat_dot_colour: heat_dial_dot,
 
-                    arc_cool_colour: Bgr888::CSS_ROYAL_BLUE,
-                    arc_cool_dot_colour: Bgr888::CSS_DODGER_BLUE,
+                    arc_cool_colour: cool_dial,
+                    arc_cool_dot_colour: cool_dial_dot,
 
-                    arc_target_dot_dia: 20,
+                    arc_target_dot_dia: 30,
 
-                    arc_temp_dot_dia: 10,
+                    arc_temp_dot_dia: 12,
                     arc_temp_dot_colour: Bgr888::CSS_SILVER,
-                    arc_temp_text_dia: 248
+                    arc_temp_text_dia: 220
                 },
 
                 away_icon_center: Point { x: 160, y: 230 },
@@ -102,8 +113,8 @@ impl Default for Theme {
             mode_select: ModeSelectTheme {
                 bg_colour: Bgr888::BLACK,
 
-                icon_heat_colour: Bgr888::CSS_PERU,
-                icon_cool_colour: Bgr888::CSS_ROYAL_BLUE,
+                icon_heat_colour: heat_dial,
+                icon_cool_colour: cool_dial,
                 icon_center: Point { x: 160, y: 25 },
 
                 mode_icon: IconStyle {
