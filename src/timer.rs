@@ -18,6 +18,8 @@
 
 use std::{collections::HashMap, sync::mpsc::{Sender, channel}, thread, time::Duration};
 
+use log::warn;
+
 use crate::events::{Event, EventHandler, EventSender};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -84,10 +86,14 @@ impl<S: EventSender + Clone + Send + 'static> EventHandler for Timers<S> {
                 self.timers.remove(&id);
             }
             Event::TimeoutReset(id, timeout) => {
-                if let Some(sender) = self.timers.get(&id) {
-                    sender.send(timeout).unwrap();
+                if timeout > Duration::ZERO {
+                    if let Some(sender) = self.timers.get(&id) {
+                        sender.send(timeout).unwrap();
+                    } else {
+                        self.timers.insert(id, self.start_timer(id, timeout));
+                    }
                 } else {
-                    self.timers.insert(id, self.start_timer(id, timeout));
+                    warn!("Skipping timer {:?} with zero timeout", id);
                 }
             }
             _ => { }
