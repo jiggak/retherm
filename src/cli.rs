@@ -17,10 +17,15 @@
  */
 
 use argh::FromArgs;
+use log::LevelFilter;
 
 #[derive(FromArgs)]
 /// ReTherm
 pub struct Cli {
+    #[argh(option)]
+    /// send log level output to syslog [OFF|ERROR|WARN|INFO|DEBUG|TRACE]
+    pub syslog: Option<LevelFilter>,
+
     #[argh(option)]
     /// path to config file
     pub config: Option<String>,

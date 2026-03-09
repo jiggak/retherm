@@ -42,9 +42,25 @@ use crate::home_assistant::HomeAssistant;
 use crate::screen::{MainScreen, ScreenManager};
 
 fn main() -> Result<()> {
-    env_logger::init();
-
     let cli = cli::Cli::load();
+
+    if let Some(log_level) = cli.syslog {
+        use syslog::{Facility, Formatter3164, BasicLogger};
+
+        let formatter = Formatter3164 {
+            facility: Facility::LOG_USER,
+            hostname: None,
+            process: env::get_pkg_name().into(),
+            pid: 0
+        };
+
+        let logger = syslog::unix(formatter)?;
+        log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
+            .map(|()| log::set_max_level(log_level))?;
+    } else {
+        env_logger::init();
+    }
+
     let config = if let Some(file_path) = cli.config {
         config::Config::load(file_path)?
     } else {
