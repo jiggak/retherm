@@ -20,7 +20,7 @@ use std::{sync::mpsc::{Receiver, Sender, channel}, thread, time::Duration};
 
 use anyhow::Result;
 use log::{debug, error};
-use nest_backplate::{BackplateCmd, BackplateConnection, BackplateError, BackplateResponse, Wire};
+use nest_backplate::{BackplateCmd, BackplateConnection, BackplateResponse, Wire};
 
 use crate::{
     config::{BackplateConfig, Config, WireConfig, WireId},
@@ -59,22 +59,16 @@ impl DeviceBackplateThread {
                 );
 
                 match result {
-                    Ok(()) => unreachable!("Backplate message loop should not return Ok"),
+                    Ok(_) => unreachable!("Backplate message loop should not return Ok"),
                     Err(error) => {
-                        if let Some(error) = error.downcast_ref::<BackplateError>() {
-                            if let BackplateError::IoError(error) = error {
-                                error!(
-                                    "Backplate thread IoError `{}`, reconnect in {:?}",
-                                    error, Self::RECONNECT_TIMEOUT
-                                );
-                                thread::sleep(Self::RECONNECT_TIMEOUT);
-                                continue;
-                            }
-                        }
+                        error!(
+                            "Backplate thread error `{}`, reconnect in {:?}",
+                            error, Self::RECONNECT_TIMEOUT
+                        );
 
-                        Err::<(), anyhow::Error>(error)
+                        thread::sleep(Self::RECONNECT_TIMEOUT);
                     }
-                }.expect("Backplate thread error");
+                }
             }
         });
 
