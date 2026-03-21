@@ -16,10 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{sync::mpsc::{Receiver, Sender, channel}, thread, time::Duration};
+use std::{sync::mpsc::{Receiver, Sender, channel}, thread, time::{Duration, Instant}};
 
 use anyhow::Result;
-use log::{debug, error};
+use log::{debug, info, error};
 use nest_backplate::{BackplateCmd, BackplateConnection, BackplateResponse, Wire};
 
 use crate::{
@@ -37,6 +37,7 @@ pub struct DeviceBackplateThread {
 
 impl DeviceBackplateThread {
     const RECONNECT_TIMEOUT: Duration = Duration::from_secs(1);
+    const KEEPALIVE_PERIOD: Duration = Duration::from_mins(15);
 
     pub fn start<S>(config: BackplateConfig, event_sender: S) -> Result<Self>
         where S: EventSender + Send + 'static
@@ -54,6 +55,7 @@ impl DeviceBackplateThread {
                 let result = backplate_main_loop(
                     &serial_port,
                     near_pir_threshold,
+                    Self::KEEPALIVE_PERIOD,
                     &event_sender,
                     &cmd_receiver
                 );
@@ -87,6 +89,7 @@ impl DeviceBackplateThread {
 fn backplate_main_loop<S: EventSender>(
     dev_path: &str,
     near_pir_threshold: u16,
+    keepalive_period: Duration,
     event_sender: &S,
     cmd_receiver: &Receiver<BackplateCmd>
 ) -> Result<()> {
@@ -94,6 +97,7 @@ fn backplate_main_loop<S: EventSender>(
 
     // This triggers a constant stream of messages
     backplate.send_command(BackplateCmd::StatusRequest)?;
+    let mut last_status_request = Instant::now();
 
     loop {
         match backplate.read_message()? {
@@ -123,6 +127,15 @@ fn backplate_main_loop<S: EventSender>(
 
         if let Ok(cmd) = cmd_receiver.try_recv() {
             backplate.send_command(cmd)?;
+        }
+
+        // Nest will reboot itself 30min after starting backplate comms.
+        // I don't know specifically what mechanism causes this, but
+        // sending periodic StatusRequest message prevents reboot.
+        if Instant::now() - last_status_request > keepalive_period {
+            info!("Sending StatusRequest for keepalive");
+            backplate.send_command(BackplateCmd::StatusRequest)?;
+            last_status_request = Instant::now();
         }
     }
 }
