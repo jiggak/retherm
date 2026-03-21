@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::thread::{self, JoinHandle};
+use std::thread;
 
 use anyhow::Result;
 use esphome_api::{
@@ -49,7 +49,7 @@ impl HomeAssistant {
         config: &HomeAssistantConfig,
         stream_provider: impl MessageStreamProvider<S> + Send + 'static,
         event_sender: impl EventSender + Send + 'static
-    ) -> JoinHandle<Result<()>>
+    )
         where S: MessageStream + Send + 'static
     {
         let addr = config.listen_addr.clone();
@@ -72,8 +72,21 @@ impl HomeAssistant {
         };
 
         thread::spawn(move || {
-            start_server(addr, &stream_provider, &connection_observer, &handler)
-        })
+            loop {
+                let result = start_server(
+                    &addr,
+                    &stream_provider,
+                    &connection_observer,
+                    &handler
+                );
+
+                // Let home assistant server thread try and recover
+                // Instead of panicing and crashing
+                if let Err(e) = result {
+                    log::error!("HomeAssistant error {e}, restarting");
+                }
+            }
+        });
     }
 }
 
