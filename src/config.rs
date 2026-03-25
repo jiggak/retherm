@@ -82,17 +82,46 @@ impl Default for Config {
     }
 }
 
+/// Home Assistant
+///
+/// ```toml
+/// [home_assistant]
+/// friendly_name = "Hallway"
+/// encryption_key = "..."
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct HomeAssistantConfig {
+    /// Object ID used internall by home assistant.
+    /// Defaults to "climage.{node_name}".
     pub object_id: Option<String>,
+
+    /// Listen address for ESP Home API server, default "0.0.0.0:6053"
     pub listen_addr: String,
+
+    /// Encryption key as 32 byte base64 string. When not provided, the
+    /// connection uses plaintext messages.
+    /// See [ESP Home Native API](https://esphome.io/components/api/)
+    /// for a tool that generates a random key.
     pub encryption_key: Option<String>,
+
+    /// Server info (not typically displayed in Home Assistant).
+    /// Defaults to "ReTherm {version}".
     pub server_info: String,
+
+    /// Node name, defaults to the system hostname
     pub node_name: Option<String>,
+
+    /// Friendly name displayed in as label for thermostat control
     pub friendly_name: String,
+
+    /// Manufactuer name, defaults to "Nest"
     pub manufacturer: String,
+
+    /// Model name, defaults to "Gen2 Thermostat"
     pub model: String,
+
+    /// Mac address, defaults to address of system interface address
     pub mac_address: Option<String>
 }
 
@@ -161,10 +190,20 @@ impl Default for HomeAssistantConfig {
     }
 }
 
+/// Backlight
+///
+/// ```toml
+/// [backlight]
+/// brightness = 108
+/// timeout = "15s"
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct BacklightConfig {
+    /// Screen brightness, defaults to 108 (max 120)
     pub brightness: u32,
+
+    /// Timeout before screen turns off, defaults to "15s"
     #[serde(deserialize_with = "config_de::duration")]
     pub timeout: Duration
 }
@@ -178,16 +217,26 @@ impl Default for BacklightConfig {
     }
 }
 
+
+/// Away Mode
+///
+/// ```toml
+/// [away_mode]
+/// temp_heat = 16.0
+/// temp_cool = 20.0
+/// timeout = "0s"
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct AwayConfig {
-    /// Away temp for heating mode
+    /// Away temp for heating mode, default 16.0
     pub temp_heat: f32,
 
-    /// Away temp for cooling mode
+    /// Away temp for cooling mode, default 22.0
     pub temp_cool: f32,
 
-    /// Duration of no proximity movement before going into away mode
+    /// Duration of no proximity movement before going into away mode,
+    /// or set to zero to disable away mode. Default "30m".
     #[serde(deserialize_with = "config_de::duration")]
     pub timeout: Duration
 }
@@ -202,16 +251,25 @@ impl Default for AwayConfig {
     }
 }
 
+/// Backplate
+///
+/// ```toml
+/// [backplate]
+/// near_pir_threshold = 15
+/// serial_port = "/dev/ttyO2"
+/// wiring = { heat_wire: "W1", cool_wire: "Y1" }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct BackplateConfig {
-    /// Minimum near proximity value to be consider as movement
+    /// Minimum near proximity value to be consider as movement, default 15
     pub near_pir_threshold: u16,
 
-    /// Path to backplate serial device file
+    /// Path to backplate serial device file, default "/dev/ttyO2"
     pub serial_port: String,
 
-    /// HVAC wiring configuration
+    /// HVAC wiring configuration, default `{ heat_wire: "W1", cool_wire: "Y1" }`.
+    /// Valid wire names: W1, Y1, G, OB, W2, Y2, Star.
     pub wiring: WireConfig
 }
 

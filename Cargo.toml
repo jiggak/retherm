@@ -1,5 +1,5 @@
 [workspace]
-members = ["esphome-api", "nest-backplate"]
+members = ["docgen", "esphome-api", "nest-backplate"]
 
 [package]
 name = "retherm"
