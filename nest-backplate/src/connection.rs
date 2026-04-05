@@ -155,6 +155,10 @@ impl MessageReader {
             if idx > 0 {
                 trace!("Discarding unexpected data {:x?}", &self.buffer[..idx]);
                 self.buffer.drain(..idx);
+
+                // after discarding data, it's possible buffer is below Message::MIN_RAW_LEN
+                // start again to perform buffer length check
+                return self.read_message();
             }
 
             let message_data = Bytes::from(self.buffer.clone());

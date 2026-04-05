@@ -32,7 +32,9 @@ pub enum BackplateError {
     #[error("Unexpected wire id `{0}` in message payload")]
     InvalidWireId(u8),
     #[error("Message `{id:x}` payload length too short; {found} < {expected}")]
-    PayloadLength { id: u16, expected: usize, found: usize }
+    PayloadLength { id: u16, expected: usize, found: usize },
+    #[error("Message buffer underrun `{0}`")]
+    BufferUnderrun(#[from] bytes::TryGetError)
 }
 
 pub type Result<T> = std::result::Result<T, BackplateError>;
