@@ -61,8 +61,8 @@ impl Message {
         // skip preamble; assume caller validated this
         buffer.advance(4);
 
-        let command_id = buffer.get_u16_le();
-        let data_len = buffer.get_u16_le() as usize;
+        let command_id = buffer.try_get_u16_le()?;
+        let data_len = buffer.try_get_u16_le()? as usize;
 
         // check if buffer len includes payload and crc field
         if buffer.remaining() < data_len + 2 {
