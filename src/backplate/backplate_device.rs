@@ -114,11 +114,8 @@ fn backplate_main_loop<S: EventSender>(
                     event_sender.send_event(Event::ProximityFar)?;
                 }
             }
-            BackplateResponse::WireSwitched(_wire, _state) => {
-                // FIXME I sort of "set it and forget it" with the hvac
-                // action. Seems like a good idea to do something with this
-                // message to confirm the state changed somehow.
-                // println!("Wire:{:?} state:{}", wire, state);
+            BackplateResponse::WireSwitched(wire, state) => {
+                info!("WireSwitched:{:?} state:{}", wire, state);
             }
             msg => {
                 debug!("{:?}", msg);
