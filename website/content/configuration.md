@@ -38,7 +38,7 @@ wiring = { heat_wire: "W1", cool_wire: "Y1" }
 
 ## near_pir_threshold
 
-Minimum near proximity value to be consider as movement, default 15
+Minimum near proximity value to be considered as movement, default 15
 
 ## serial_port
 

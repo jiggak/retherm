@@ -262,7 +262,7 @@ impl Default for AwayConfig {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct BackplateConfig {
-    /// Minimum near proximity value to be consider as movement, default 15
+    /// Minimum near proximity value to be considered as movement, default 15
     pub near_pir_threshold: u16,
 
     /// Path to backplate serial device file, default "/dev/ttyO2"
