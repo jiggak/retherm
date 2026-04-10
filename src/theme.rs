@@ -40,6 +40,27 @@ mod list_style;
 mod primitives;
 mod theme_de;
 
+/// Theme file
+///
+/// Launch retherm with the path to your custom theme.
+///
+/// ```bash
+/// retherm --theme ./your_theme.toml
+/// ```
+///
+/// All theme options have a default; you only need to include options
+/// you would like to override in your theme file.
+///
+/// The screen size is 320x320 pixels, with the origin in the top left.
+///
+/// ## Fonts
+///
+/// Font can be specified in the format `"<name>:<size>"` where name is one
+/// of the following:
+///
+/// * Icon: FontAwesome 7.1.0
+/// * Regular: Roboto Regular
+/// * Bold: Roboto Bold
 #[derive(Deserialize)]
 #[serde(default)]
 pub struct Theme {
@@ -144,22 +165,40 @@ impl Default for Theme {
     }
 }
 
+/// Main screen
+///
+/// Customize the look and feel of the main thermostat screen.
+///
+/// ```toml
+/// [main_screen]
+/// fg_color = "#00ff00"
+/// ```
 #[derive(Deserialize, Clone)]
 #[serde(default)]
 pub struct MainScreenTheme {
+    /// Colour of text on main screen, default "#ffffff"
     #[serde(deserialize_with = "theme_de::colour")]
     pub fg_colour: Bgr888,
+
+    /// Background colour, default "#000000"
     #[serde(deserialize_with = "theme_de::colour")]
     pub bg_colour: Bgr888,
+
+    /// Background colour when heating is turned on, default "#F17E3B"
     #[serde(deserialize_with = "theme_de::colour")]
     pub bg_heat_colour: Bgr888,
+
+    /// Background colour when cooling is turned on, default "#3B72F1"
     #[serde(deserialize_with = "theme_de::colour")]
     pub bg_cool_colour: Bgr888,
 
     pub gauge: GaugeStyle,
 
+    /// Position of away icon, default `[160, 230]`
     #[serde(deserialize_with = "theme_de::point")]
     pub away_icon_center: Point,
+
+    /// Away icon styling, default `{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#696969" }`
     pub away_icon: IconStyle
 }
 
@@ -169,19 +208,34 @@ impl Default for MainScreenTheme {
     }
 }
 
+/// Mode select screen
+///
+/// Customize the look and feel of the mode select screen.
+///
+/// ```toml
+/// [mode_select]
+/// bg_color = "#000000"
+/// ```
 #[derive(Deserialize, Clone)]
 #[serde(default)]
 pub struct ModeSelectTheme {
+    /// Background colour, default "#000000"
     #[serde(deserialize_with = "theme_de::colour")]
     pub bg_colour: Bgr888,
 
+    /// Heat mode icon colour, default "#E65D10"
     #[serde(deserialize_with = "theme_de::colour")]
     pub icon_heat_colour: Bgr888,
+
+    /// Cool mode icon colour, default "#1050E6"
     #[serde(deserialize_with = "theme_de::colour")]
     pub icon_cool_colour: Bgr888,
+
+    /// Position of mode icon, default `[160, 25]`
     #[serde(deserialize_with = "theme_de::point")]
     pub icon_center: Point,
 
+    /// Mode icon styling, default `{ icon_font: "Icon:42", icon: "\u{f72e}", colour: "#696969" }`
     pub mode_icon: IconStyle,
 
     pub mode_list: ListStyle

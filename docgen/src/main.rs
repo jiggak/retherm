@@ -26,13 +26,15 @@ fn main() {
 }
 
 fn find_struct<'a>(json: &'a Value, name: &str) -> Option<&'a Map<String, Value>> {
+    eprintln!("Find struct {name}");
     let index = json["index"].as_object().unwrap();
     let paths = json["paths"].as_object().unwrap();
 
     for (key, item) in paths {
-        if item["kind"] == "struct" {
+        if item["kind"] == "struct" && item["crate_id"] == 0 {
             let path = item["path"].as_array().unwrap();
             if path.last().unwrap() == name {
+                eprintln!("Path match {:?}", path);
                 return index[key].as_object();
             }
         }
@@ -64,9 +66,11 @@ fn struct_markdown<W: Write>(out: &mut W, json: &Value, name: &str) {
         for field_id in fields {
             let field = &index[&field_id.to_string()];
             let field_name = field["name"].as_str().unwrap();
-            let field_docs = field["docs"].as_str().unwrap_or("");
-
-            writeln!(out, "## {}\n\n{}\n", field_name, field_docs).unwrap();
+            if let Some(field_docs) = field["docs"].as_str() {
+                writeln!(out, "## {}\n\n{}\n", field_name, field_docs).unwrap();
+            } else {
+                eprintln!("Skipping empty docs {name}:{field_name}");
+            }
         }
     }
 }

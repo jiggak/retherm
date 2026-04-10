@@ -21,20 +21,30 @@ use serde::Deserialize;
 
 use super::{theme_de, FontDef, RectStyle};
 
+/// Mode select list style
 #[derive(Deserialize, Clone)]
 pub struct ListStyle {
+    /// Colour of list item text, default "#d3d3d3"
     #[serde(deserialize_with = "theme_de::colour")]
     pub colour: Bgr888,
 
+    /// List item font, default "Bold:36"
     pub label_font: FontDef<'static>,
 
+    /// Selected item icon font, default "Icon:20"
     pub icon_font: FontDef<'static>,
+
+    /// Selected item icon, default "\u{f00c}"
     pub selected_icon: String,
 
+    /// Highlighted row text colour, default "#ffffff"
     #[serde(deserialize_with = "theme_de::colour")]
     pub highlight_text_colour: Bgr888,
+
+    /// Style of the highlight row, default `{ fill_colour: "#", corner_radius: 18 }`
     pub highlight_rect: RectStyle,
 
+    /// List item row size, default `[140, 40]`
     #[serde(deserialize_with = "theme_de::size")]
     pub row_size: Size
 }

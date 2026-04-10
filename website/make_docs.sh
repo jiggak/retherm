@@ -13,10 +13,10 @@ cat content/theme.tmpl > content/theme.md
       cargo +nightly doc --no-deps
 
    cargo run -p docgen target/doc/retherm.json \
-      AwayConfig BackplateConfig HomeAssistantConfig BacklightConfig ScheduleConfig \
+      Config AwayConfig BackplateConfig HomeAssistantConfig BacklightConfig ScheduleConfig \
       >>website/content/configuration.md
 
-   # cargo run -p docgen target/doc/retherm.json \
-   #    ThemeConfig \
-   #    >>website/content/theme.md
+   cargo run -p docgen target/doc/retherm.json \
+      Theme MainScreenTheme GaugeStyle ModeSelectTheme ListStyle \
+      >>website/content/theme.md
 )

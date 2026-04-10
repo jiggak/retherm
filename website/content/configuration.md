@@ -5,6 +5,29 @@ template = "docgen.html"
 [extra]
 toc = true
 +++
+# Config file
+
+Launch retherm with the path to your custom configuration.
+
+```bash
+retherm --config ./your_config.toml
+```
+
+All config options have a default; you only need to include options
+you would like to override in your configuration file.
+
+## temp_differential
+
+Set the amount past the target temperature before switching the hvac
+wires. This is intended to reduce the frequency of switching the hvac
+system on and off, to reduce wear and conserve energy.
+
+For example with a target heat temp. of 20, and a temp. diff set to 0.2,
+the hvac system will turn heat off when temp. reaches 20.2, and turns heat
+on when temp. drops to 19.8.
+
+Defaults to 0.2
+
 # Away Mode
 
 ```toml

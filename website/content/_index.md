@@ -37,6 +37,6 @@ content = 'Change <a href="theme">colours, font size, icons, etc.</a>'
 [[extra.list]]
 title = "Fully configurable"
 content = '''
-Use the sensible defaults, or tweak things to match your
+Use the sensible defaults, or customize options to match your
 <a href="configuration">preference</a>'''
 +++
