@@ -45,6 +45,15 @@ next time the device reboots.
 Optionally, ReTherm can output logs to `syslogd`. Log messages will be written
 to `/var/log/messages`.
 
-This opens up the option to forwarding log messages to a log collector by adding
+```console
+# INFO can be one of: TRACE, DEBUG, INFO, ERROR
+retherm --syslog INFO
+```
+
+This opens up the option to forwarding log messages to a log collector by appending
 `-R 192.168.1.42:514 -L` to `/etc/syslogd.options` where "192.168.1.42" is the
 address of your log server.
+
+```
+-O /var/log/messages -s 384 -b 15 -u -R 192.168.1.42:514 -L
+```
