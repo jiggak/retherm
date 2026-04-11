@@ -3,7 +3,7 @@ name: Zola on GitHub Pages
 on:
  push:
   branches:
-   - website
+   - main
 
 jobs:
   build:
