@@ -1,0 +1,21 @@
+name: Zola on GitHub Pages
+
+on:
+ push:
+  branches:
+   - website
+
+jobs:
+  build:
+    name: Publish site
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout main
+      uses: actions/checkout@v6
+      with:
+        submodules: true
+    - name: Build and deploy
+      uses: shalzz/zola-deploy-action@v0.22.1
+      env:
+        BUILD_DIR: website
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
