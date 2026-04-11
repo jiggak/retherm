@@ -21,9 +21,49 @@ use serde::Deserialize;
 
 use super::config_de;
 
+/// Schedule
+///
+/// ```toml
+/// [[schedule_heat]]
+/// days_of_week = "EveryDay"
+/// set_points = [
+///    { time = "08:00", temp = 20.0 },
+///    { time = "22:00", temp = 16.0 },
+/// ]
+/// ```
+///
+/// * Heating schedule `[[schedule_heat]]`
+/// * Cooling schedule `[[schedule_cool]]`
+///
+/// You can define more than one schedule entry, and it will overlap the
+/// previous. In the example below, the temperature will be set to 20.0
+/// at 8am everyday, and set down to 16.0 at 9am Monday and Wednsday.
+///
+/// ```toml
+/// [[schedule_heat]]
+/// days_of_week = "EveryDay"
+/// set_points = [
+///    { time = "08:00", temp = 20.0 }
+/// ]
+///
+/// [[schedule_heat]]
+/// days_of_week = ["Monday", "Wednsday"]
+/// set_points = [
+///    { time = "09:00", temp = 16.0 }
+/// ]
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 pub struct ScheduleConfig {
+    /// Days of the week.
+    ///
+    /// One of "EveryDay", "WeekDays", "WeekEnd"
+    ///
+    /// Or...
+    ///
+    /// List of weekdays ["Monday", "Tuesday", ...]
     pub days_of_week: DaysOfWeek,
+
+    /// List of set points with time of day and temperature
     pub set_points: Vec<SetPoint>
 }
 
