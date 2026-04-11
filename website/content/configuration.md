@@ -4,6 +4,9 @@ template = "docgen.html"
 
 [extra]
 toc = true
+
+# DO NOT EDIT
+# Use `make_docs.sh` to generate content
 +++
 # Config file
 

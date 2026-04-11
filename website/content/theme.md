@@ -4,8 +4,10 @@ template = "docgen.html"
 
 [extra]
 toc = true
-+++
 
+# DO NOT EDIT
+# Use `make_docs.sh` to generate content
++++
 # Theme file
 
 Launch retherm with the path to your custom theme.
