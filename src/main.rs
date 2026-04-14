@@ -35,7 +35,7 @@ mod window;
 
 use anyhow::Result;
 use esphome_api::server::{EncryptedStreamProvider, PlaintextStreamProvider};
-use log::info;
+use log::{error, info};
 
 use crate::events::{Event, EventHandler, EventSource};
 use crate::home_assistant::HomeAssistant;
@@ -60,6 +60,8 @@ fn main() -> Result<()> {
     } else {
         env_logger::init();
     }
+
+    install_panic_logging();
 
     let config = if let Some(file_path) = cli.config {
         config::Config::load(file_path)?
@@ -148,4 +150,38 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn install_panic_logging() {
+    use std::backtrace::{Backtrace, BacktraceStatus};
+    use std::{panic, thread};
+
+    panic::set_hook(Box::new(|info| {
+        let thread = thread::current();
+        let thread = thread.name().unwrap_or("<unnamed>");
+
+        let reason = info.payload_as_str().unwrap_or("unknown");
+        error!("Panic; thread:{thread} reason:{reason}");
+
+        if let Some(loc) = info.location() {
+            // error!("Location; {}:{}", loc.file(), loc.line());
+            error!("Location; {}", loc);
+        }
+
+        let backtrace = Backtrace::force_capture();
+        if let BacktraceStatus::Captured = backtrace.status() {
+            // When logging to syslog, dumping the backtrace into a single
+            // log message results in truncated content.
+            // Workaround is split formatted backtrace into lines and log
+            // each line/stack frame separately.
+
+            let backtrace = backtrace.to_string();
+            let frames = backtrace.lines()
+                .map(|f| f.trim());
+
+            for frame in frames {
+                error!("{}", frame);
+            }
+        }
+    }));
 }

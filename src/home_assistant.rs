@@ -83,7 +83,7 @@ impl HomeAssistant {
                 // Let home assistant server thread try and recover
                 // Instead of panicing and crashing
                 if let Err(e) = result {
-                    log::error!("HomeAssistant error {e}, restarting");
+                    log::error!("Restarting HA thread: {e}");
                 }
             }
         });
