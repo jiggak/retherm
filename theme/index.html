@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="preload" as="font" href="https://retherm.kropf.io/fonts/vendor/jost/jost-v4-latin-regular.woff2" type="font/woff2" crossorigin>
+  <link rel="preload" as="font" href="https://retherm.kropf.io/fonts/vendor/jost/jost-v4-latin-700.woff2"  type="font/woff2" crossorigin>
+
+
+<link rel="stylesheet" href="https://retherm.kropf.io/main.css">
+
+
+
+  
+  
+    
+  
+
+  
+  
+    
+    
+  
+  
+  
+    
+  
+  
+  
+  
+    
+  
+  
+  
+
+
+  <meta name="robots" content="index, follow">
+  <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+  <meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+
+	
+
+
+	
+
+<title>Theme | (Re)Therm</title>
+<meta name="description" content="Home Assistant native interface for Gen2 Nest thermostat">
+<link rel="canonical" href="https://retherm.kropf.io/theme/">
+
+
+
+
+
+
+
+
+
+
+<script type="application/ld+json">
+  {
+    "@context": "http://schema.org",
+    "@type": "BreadcrumbList",
+    
+      
+      
+        
+        
+        
+        
+        
+        
+        
+        
+          {
+            "@type": "ListItem",
+            "position":  1 ,
+            "name": "Home",
+            "item": "https://retherm.kropf.io/"
+          },
+          
+          
+          {
+            "@type": "ListItem",
+            "position":  2 ,
+            "name": "Theme",
+            "item": "https://retherm.kropf.io/theme/"
+          },
+        
+      
+    
+  }
+</script>
+
+
+
+
+
+
+  <meta name="theme-color" content="#fff">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://retherm.kropf.io/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="https://retherm.kropf.io/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://retherm.kropf.io/favicon-16x16.png">
+  
+    <link rel="manifest" href="https://retherm.kropf.io/site.webmanifest" crossorigin>
+  
+
+
+  
+
+</head>
+
+  
+
+<body class="docs single">
+  
+    
+<div class="header-bar fixed-top"></div>
+<header class="navbar fixed-top navbar-expand-md navbar-light">
+	<div class="container">
+		<input class="menu-btn order-0" type="checkbox" id="menu-btn">
+		<label class="menu-icon d-md-none" for="menu-btn"><span class="navicon"></span></label>
+		<a class="navbar-brand order-1 order-md-0 me-auto" href="https://retherm.kropf.io">(Re)Therm</a>
+		<button id="mode" class="btn btn-link order-2 order-md-4" type="button" aria-label="Toggle mode">
+			<span class="toggle-dark"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></span>
+			<span class="toggle-light"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-sun"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></span>
+		</button>
+		<ul class="navbar-nav fork-me order-3 order-md-5">
+			
+				
+					<li class="nav-item">
+						<a class="nav-link" href="https://github.com/jiggak/retherm"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-github"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg><span class="ms-2 visually-hidden">GitHub</span></a>
+					</li>
+				
+			
+		</ul>
+		<div class="collapse navbar-collapse order-4 order-md-1">
+			<ul class="navbar-nav main-nav me-auto order-5 order-md-2">
+				
+					
+				
+				
+				
+					
+						<li class="nav-item">
+							<a class="nav-link" href="https://retherm.kropf.io/configuration/">Configuration</a>
+						</li>
+					
+						<li class="nav-item">
+							<a class="nav-link" href="https://retherm.kropf.io/theme/">Theme</a>
+						</li>
+					
+						<li class="nav-item">
+							<a class="nav-link" href="https://retherm.kropf.io/install/">Install</a>
+						</li>
+					
+				
+			</ul>
+			<div class="break order-6 d-md-none"></div>
+			
+		</div>
+	</div>
+</header>
+
+  
+
+  
+<div class="wrap container" role="document">
+  <div class="content">
+    <div class="row flex-xl-nowrap">
+      <div class="col-lg-5 col-xl-4 docs-sidebar"></div>
+ 	    
+  
+  <nav class="docs-toc d-none d-xl-block col-xl-3" aria-label="Secondary navigation">
+  	<div class="page-links">
+  			<h3>On this page</h3>
+  			<nav id="TableOfContents">
+  					<ul>
+  							
+  							<li><a href="https://retherm.kropf.io/theme/#theme-file">Theme file</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#fonts">Fonts</a></li>
+  											
+  									</ul>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/theme/#main-screen">Main screen</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#fg-colour">fg_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#bg-colour">bg_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#bg-heat-colour">bg_heat_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#bg-cool-colour">bg_cool_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#away-icon-center">away_icon_center</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#away-icon">away_icon</a></li>
+  											
+  									</ul>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/theme/#main-screen-gauge">Main screen gauge</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#fg-colour-1">fg_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-dia">arc_dia</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-width">arc_width</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-start-deg">arc_start_deg</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-sweed-deg">arc_sweed_deg</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#target-font">target_font</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#target-decimal-font">target_decimal_font</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#current-font">current_font</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-bg-colour">arc_bg_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-heat-colour">arc_heat_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-heat-dot-colour">arc_heat_dot_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-cool-colour">arc_cool_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-cool-dot-colour">arc_cool_dot_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-target-dot-dia">arc_target_dot_dia</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-temp-dot-dia">arc_temp_dot_dia</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-temp-dot-colour">arc_temp_dot_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#arc-temp-text-dia">arc_temp_text_dia</a></li>
+  											
+  									</ul>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/theme/#mode-select-screen">Mode select screen</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#bg-colour-1">bg_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#icon-heat-colour">icon_heat_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#icon-cool-colour">icon_cool_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#icon-center">icon_center</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#mode-icon">mode_icon</a></li>
+  											
+  									</ul>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/theme/#mode-select-list-style">Mode select list style</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#colour">colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#label-font">label_font</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#icon-font">icon_font</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#selected-icon">selected_icon</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#highlight-text-colour">highlight_text_colour</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#highlight-rect">highlight_rect</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/theme/#row-size">row_size</a></li>
+  											
+  									</ul>
+  							
+  							
+  					</ul>
+  			</nav>
+  	</div>
+  </nav>
+  
+
+      <main class="docs-content col-lg-11 col-xl-9">
+        <h1>Theme</h1>
+        <h1 id="theme-file">Theme file</h1>
+<p>Launch retherm with the path to your custom theme.</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">retherm</span><span style="color: #A6E3A1;"> --theme ./your_theme.toml</span></span></code></pre>
+<p>All theme options have a default; you only need to include options
+you would like to override in your theme file.</p>
+<p>The screen size is 320x320 pixels, with the origin in the top left.</p>
+<h2 id="fonts">Fonts</h2>
+<p>Font can be specified in the format <code>"&lt;name&gt;:&lt;size&gt;"</code> where name is one
+of the following:</p>
+<ul>
+<li>Icon: FontAwesome 7.1.0</li>
+<li>Regular: Roboto Regular</li>
+<li>Bold: Roboto Bold</li>
+</ul>
+<h1 id="main-screen">Main screen</h1>
+<p>Customize the look and feel of the main thermostat screen.</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="toml"><span class="giallo-l"><span style="color: #9399B2;">[</span><span>main_screen</span><span style="color: #9399B2;">]</span></span>
+<span class="giallo-l"><span>fg_color</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;#00ff00&quot;</span></span></code></pre><h2 id="fg-colour">fg_colour</h2>
+<p>Colour of text on main screen, default "#ffffff"</p>
+<h2 id="bg-colour">bg_colour</h2>
+<p>Background colour, default "#000000"</p>
+<h2 id="bg-heat-colour">bg_heat_colour</h2>
+<p>Background colour when heating is turned on, default "#F17E3B"</p>
+<h2 id="bg-cool-colour">bg_cool_colour</h2>
+<p>Background colour when cooling is turned on, default "#3B72F1"</p>
+<h2 id="away-icon-center">away_icon_center</h2>
+<p>Position of away icon, default <code>[160, 230]</code></p>
+<h2 id="away-icon">away_icon</h2>
+<p>Away icon styling, default <code>{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#696969" }</code></p>
+<h1 id="main-screen-gauge">Main screen gauge</h1>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="toml"><span class="giallo-l"><span style="color: #9399B2;">[</span><span>main_screen.gauge</span><span style="color: #9399B2;">]</span></span>
+<span class="giallo-l"><span>fg_colour</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;#00ff00&quot;</span></span></code></pre><h2 id="fg-colour-1">fg_colour</h2>
+<p>Colour of text, default "#ffffff"</p>
+<h2 id="arc-dia">arc_dia</h2>
+<p>Diameter of guage arch, default 260</p>
+<h2 id="arc-width">arc_width</h2>
+<p>Width of arc, default 20</p>
+<h2 id="arc-start-deg">arc_start_deg</h2>
+<p>Arc start angle; 0 degrees at 3'oclock, default 120</p>
+<h2 id="arc-sweed-deg">arc_sweed_deg</h2>
+<p>Sweep angle of arc, default 300</p>
+<h2 id="target-font">target_font</h2>
+<p>Target temp decimal digit font, default "Bold:100"</p>
+<h2 id="target-decimal-font">target_decimal_font</h2>
+<p>Target temp fraction digit font, default "Bold:40"</p>
+<h2 id="current-font">current_font</h2>
+<p>Current temp font, default "Regular:20"</p>
+<h2 id="arc-bg-colour">arc_bg_colour</h2>
+<p>Background fill colour of arc, default "#696969"</p>
+<h2 id="arc-heat-colour">arc_heat_colour</h2>
+<p>Arc background for heating, default "#E65D10"</p>
+<h2 id="arc-heat-dot-colour">arc_heat_dot_colour</h2>
+<p>Target heat temp dot colour, default "#C4500E"</p>
+<h2 id="arc-cool-colour">arc_cool_colour</h2>
+<p>Arc background for cooling, default "#1050E6"</p>
+<h2 id="arc-cool-dot-colour">arc_cool_dot_colour</h2>
+<p>Target cool temp dot colour, default "#0E44C4""</p>
+<h2 id="arc-target-dot-dia">arc_target_dot_dia</h2>
+<p>Diameter of target temp dot, default 30</p>
+<h2 id="arc-temp-dot-dia">arc_temp_dot_dia</h2>
+<p>Current temp dot diameter, default 12</p>
+<h2 id="arc-temp-dot-colour">arc_temp_dot_colour</h2>
+<p>Current temp dot colour, default "#C0C0C0"</p>
+<h2 id="arc-temp-text-dia">arc_temp_text_dia</h2>
+<p>Diameter of arc current temp label position, default 220</p>
+<h1 id="mode-select-screen">Mode select screen</h1>
+<p>Customize the look and feel of the mode select screen.</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="toml"><span class="giallo-l"><span style="color: #9399B2;">[</span><span>mode_select</span><span style="color: #9399B2;">]</span></span>
+<span class="giallo-l"><span>bg_color</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;#000000&quot;</span></span></code></pre><h2 id="bg-colour-1">bg_colour</h2>
+<p>Background colour, default "#000000"</p>
+<h2 id="icon-heat-colour">icon_heat_colour</h2>
+<p>Heat mode icon colour, default "#E65D10"</p>
+<h2 id="icon-cool-colour">icon_cool_colour</h2>
+<p>Cool mode icon colour, default "#1050E6"</p>
+<h2 id="icon-center">icon_center</h2>
+<p>Position of mode icon, default <code>[160, 25]</code></p>
+<h2 id="mode-icon">mode_icon</h2>
+<p>Mode icon styling, default <code>{ icon_font: "Icon:42", icon: "\u{f72e}", colour: "#696969" }</code></p>
+<h1 id="mode-select-list-style">Mode select list style</h1>
+<h2 id="colour">colour</h2>
+<p>Colour of list item text, default "#d3d3d3"</p>
+<h2 id="label-font">label_font</h2>
+<p>List item font, default "Bold:36"</p>
+<h2 id="icon-font">icon_font</h2>
+<p>Selected item icon font, default "Icon:20"</p>
+<h2 id="selected-icon">selected_icon</h2>
+<p>Selected item icon, default "\u{f00c}"</p>
+<h2 id="highlight-text-colour">highlight_text_colour</h2>
+<p>Highlighted row text colour, default "#ffffff"</p>
+<h2 id="highlight-rect">highlight_rect</h2>
+<p>Style of the highlight row, default <code>{ fill_colour: "#", corner_radius: 18 }</code></p>
+<h2 id="row-size">row_size</h2>
+<p>List item row size, default <code>[140, 40]</code></p>
+
+      </main>
+    </div>
+  </div>
+</div>
+
+
+  
+    
+<footer class="footer text-muted">
+	<div class="container">
+		<div class="row">
+			<div class="col-lg-8 order-last order-lg-first">
+				<ul class="list-inline">
+					
+						<li class="list-inline-item">Powered by <a href="https://www.getzola.org/">Zola</a>, and <a href="https://github.com/aaranxu/adidoks">AdiDoks</a></li>
+					
+				</ul>
+			</div>
+			<div class="col-lg-8 order-first order-lg-last text-lg-end">
+				<ul class="list-inline">
+					
+				</ul>
+			</div>
+		</div>
+	</div>
+</footer>
+
+  
+
+  
+<script type="text/javascript" src="https://retherm.kropf.io/js/main.js" defer></script>
+
+  
+</body>
+</html>

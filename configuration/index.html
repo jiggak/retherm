@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="preload" as="font" href="https://retherm.kropf.io/fonts/vendor/jost/jost-v4-latin-regular.woff2" type="font/woff2" crossorigin>
+  <link rel="preload" as="font" href="https://retherm.kropf.io/fonts/vendor/jost/jost-v4-latin-700.woff2"  type="font/woff2" crossorigin>
+
+
+<link rel="stylesheet" href="https://retherm.kropf.io/main.css">
+
+
+
+  
+  
+    
+  
+
+  
+  
+    
+    
+  
+  
+  
+    
+  
+  
+  
+  
+    
+  
+  
+  
+
+
+  <meta name="robots" content="index, follow">
+  <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+  <meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+
+	
+
+
+	
+
+<title>Configuration | (Re)Therm</title>
+<meta name="description" content="Home Assistant native interface for Gen2 Nest thermostat">
+<link rel="canonical" href="https://retherm.kropf.io/configuration/">
+
+
+
+
+
+
+
+
+
+
+<script type="application/ld+json">
+  {
+    "@context": "http://schema.org",
+    "@type": "BreadcrumbList",
+    
+      
+      
+        
+        
+        
+        
+        
+        
+        
+        
+          {
+            "@type": "ListItem",
+            "position":  1 ,
+            "name": "Home",
+            "item": "https://retherm.kropf.io/"
+          },
+          
+          
+          {
+            "@type": "ListItem",
+            "position":  2 ,
+            "name": "Configuration",
+            "item": "https://retherm.kropf.io/configuration/"
+          },
+        
+      
+    
+  }
+</script>
+
+
+
+
+
+
+  <meta name="theme-color" content="#fff">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://retherm.kropf.io/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="https://retherm.kropf.io/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://retherm.kropf.io/favicon-16x16.png">
+  
+    <link rel="manifest" href="https://retherm.kropf.io/site.webmanifest" crossorigin>
+  
+
+
+  
+
+</head>
+
+  
+
+<body class="docs single">
+  
+    
+<div class="header-bar fixed-top"></div>
+<header class="navbar fixed-top navbar-expand-md navbar-light">
+	<div class="container">
+		<input class="menu-btn order-0" type="checkbox" id="menu-btn">
+		<label class="menu-icon d-md-none" for="menu-btn"><span class="navicon"></span></label>
+		<a class="navbar-brand order-1 order-md-0 me-auto" href="https://retherm.kropf.io">(Re)Therm</a>
+		<button id="mode" class="btn btn-link order-2 order-md-4" type="button" aria-label="Toggle mode">
+			<span class="toggle-dark"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></span>
+			<span class="toggle-light"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-sun"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></span>
+		</button>
+		<ul class="navbar-nav fork-me order-3 order-md-5">
+			
+				
+					<li class="nav-item">
+						<a class="nav-link" href="https://github.com/jiggak/retherm"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-github"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg><span class="ms-2 visually-hidden">GitHub</span></a>
+					</li>
+				
+			
+		</ul>
+		<div class="collapse navbar-collapse order-4 order-md-1">
+			<ul class="navbar-nav main-nav me-auto order-5 order-md-2">
+				
+					
+				
+				
+				
+					
+						<li class="nav-item">
+							<a class="nav-link" href="https://retherm.kropf.io/configuration/">Configuration</a>
+						</li>
+					
+						<li class="nav-item">
+							<a class="nav-link" href="https://retherm.kropf.io/theme/">Theme</a>
+						</li>
+					
+						<li class="nav-item">
+							<a class="nav-link" href="https://retherm.kropf.io/install/">Install</a>
+						</li>
+					
+				
+			</ul>
+			<div class="break order-6 d-md-none"></div>
+			
+		</div>
+	</div>
+</header>
+
+  
+
+  
+<div class="wrap container" role="document">
+  <div class="content">
+    <div class="row flex-xl-nowrap">
+      <div class="col-lg-5 col-xl-4 docs-sidebar"></div>
+ 	    
+  
+  <nav class="docs-toc d-none d-xl-block col-xl-3" aria-label="Secondary navigation">
+  	<div class="page-links">
+  			<h3>On this page</h3>
+  			<nav id="TableOfContents">
+  					<ul>
+  							
+  							<li><a href="https://retherm.kropf.io/configuration/#config-file">Config file</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#temp-differential">temp_differential</a></li>
+  											
+  									</ul>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/configuration/#away-mode">Away Mode</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#temp-heat">temp_heat</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#temp-cool">temp_cool</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#timeout">timeout</a></li>
+  											
+  									</ul>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/configuration/#backplate">Backplate</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#near-pir-threshold">near_pir_threshold</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#serial-port">serial_port</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#wiring">wiring</a></li>
+  											
+  									</ul>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/configuration/#home-assistant">Home Assistant</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#object-id">object_id</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#listen-addr">listen_addr</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#encryption-key">encryption_key</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#server-info">server_info</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#node-name">node_name</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#friendly-name">friendly_name</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#manufacturer">manufacturer</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#model">model</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#mac-address">mac_address</a></li>
+  											
+  									</ul>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/configuration/#backlight">Backlight</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#brightness">brightness</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#timeout-1">timeout</a></li>
+  											
+  									</ul>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/configuration/#schedule">Schedule</a></li>
+  							
+  									<ul>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#days-of-week">days_of_week</a></li>
+  											
+  											<li><a href="https://retherm.kropf.io/configuration/#set-points">set_points</a></li>
+  											
+  									</ul>
+  							
+  							
+  					</ul>
+  			</nav>
+  	</div>
+  </nav>
+  
+
+      <main class="docs-content col-lg-11 col-xl-9">
+        <h1>Configuration</h1>
+        <h1 id="config-file">Config file</h1>
+<p>Launch retherm with the path to your custom configuration.</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">retherm</span><span style="color: #A6E3A1;"> --config ./your_config.toml</span></span></code></pre>
+<p>All config options have a default; you only need to include options
+you would like to override in your configuration file.</p>
+<h2 id="temp-differential">temp_differential</h2>
+<p>Set the amount past the target temperature before switching the hvac
+wires. This is intended to reduce the frequency of switching the hvac
+system on and off, to reduce wear and conserve energy.</p>
+<p>For example with a target heat temp. of 20, and a temp. diff set to 0.2,
+the hvac system will turn heat off when temp. reaches 20.2, and turns heat
+on when temp. drops to 19.8.</p>
+<p>Defaults to 0.2</p>
+<h1 id="away-mode">Away Mode</h1>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="toml"><span class="giallo-l"><span style="color: #9399B2;">[</span><span>away_mode</span><span style="color: #9399B2;">]</span></span>
+<span class="giallo-l"><span>temp_heat</span><span style="color: #94E2D5;"> =</span><span style="color: #FAB387;"> 16.0</span></span>
+<span class="giallo-l"><span>temp_cool</span><span style="color: #94E2D5;"> =</span><span style="color: #FAB387;"> 20.0</span></span>
+<span class="giallo-l"><span>timeout</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;0s&quot;</span></span></code></pre><h2 id="temp-heat">temp_heat</h2>
+<p>Away temp for heating mode, default 16.0</p>
+<h2 id="temp-cool">temp_cool</h2>
+<p>Away temp for cooling mode, default 22.0</p>
+<h2 id="timeout">timeout</h2>
+<p>Duration of no proximity movement before going into away mode,
+or set to zero to disable away mode. Default "30m".</p>
+<h1 id="backplate">Backplate</h1>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="toml"><span class="giallo-l"><span style="color: #9399B2;">[</span><span>backplate</span><span style="color: #9399B2;">]</span></span>
+<span class="giallo-l"><span>near_pir_threshold</span><span style="color: #94E2D5;"> =</span><span style="color: #FAB387;"> 15</span></span>
+<span class="giallo-l"><span>serial_port</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;/dev/ttyO2&quot;</span></span>
+<span class="giallo-l"><span>wiring</span><span style="color: #94E2D5;"> =</span><span style="color: #9399B2;"> {</span><span> heat_wire: &quot;W1&quot;</span><span style="color: #9399B2;">,</span><span> cool_wire: &quot;Y1&quot; </span><span style="color: #9399B2;">}</span></span></code></pre><h2 id="near-pir-threshold">near_pir_threshold</h2>
+<p>Minimum near proximity value to be considered as movement, default 15</p>
+<h2 id="serial-port">serial_port</h2>
+<p>Path to backplate serial device file, default "/dev/ttyO2"</p>
+<h2 id="wiring">wiring</h2>
+<p>HVAC wiring configuration, default <code>{ heat_wire: "W1", cool_wire: "Y1" }</code>.
+Valid wire names: W1, Y1, G, OB, W2, Y2, Star.</p>
+<h1 id="home-assistant">Home Assistant</h1>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="toml"><span class="giallo-l"><span style="color: #9399B2;">[</span><span>home_assistant</span><span style="color: #9399B2;">]</span></span>
+<span class="giallo-l"><span>friendly_name</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;Hallway&quot;</span></span>
+<span class="giallo-l"><span>encryption_key</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;...&quot;</span></span></code></pre><h2 id="object-id">object_id</h2>
+<p>Object ID used internall by home assistant.
+Defaults to "climage.{node_name}".</p>
+<h2 id="listen-addr">listen_addr</h2>
+<p>Listen address for ESP Home API server, default "0.0.0.0:6053"</p>
+<h2 id="encryption-key">encryption_key</h2>
+<p>Encryption key as 32 byte base64 string. When not provided, the
+connection uses plaintext messages.
+See <a rel="external" href="https://esphome.io/components/api/">ESP Home Native API</a>
+for a tool that generates a random key.</p>
+<h2 id="server-info">server_info</h2>
+<p>Server info (not typically displayed in Home Assistant).
+Defaults to "ReTherm {version}".</p>
+<h2 id="node-name">node_name</h2>
+<p>Node name, defaults to the system hostname</p>
+<h2 id="friendly-name">friendly_name</h2>
+<p>Friendly name displayed in as label for thermostat control</p>
+<h2 id="manufacturer">manufacturer</h2>
+<p>Manufactuer name, defaults to "Nest"</p>
+<h2 id="model">model</h2>
+<p>Model name, defaults to "Gen2 Thermostat"</p>
+<h2 id="mac-address">mac_address</h2>
+<p>Mac address, defaults to address of system interface address</p>
+<h1 id="backlight">Backlight</h1>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="toml"><span class="giallo-l"><span style="color: #9399B2;">[</span><span>backlight</span><span style="color: #9399B2;">]</span></span>
+<span class="giallo-l"><span>brightness</span><span style="color: #94E2D5;"> =</span><span style="color: #FAB387;"> 108</span></span>
+<span class="giallo-l"><span>timeout</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;15s&quot;</span></span></code></pre><h2 id="brightness">brightness</h2>
+<p>Screen brightness, defaults to 108 (max 120)</p>
+<h2 id="timeout-1">timeout</h2>
+<p>Timeout before screen turns off, defaults to "15s"</p>
+<h1 id="schedule">Schedule</h1>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="toml"><span class="giallo-l"><span style="color: #9399B2;">[[</span><span>schedule_heat</span><span style="color: #9399B2;">]]</span></span>
+<span class="giallo-l"><span>days_of_week</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;EveryDay&quot;</span></span>
+<span class="giallo-l"><span>set_points</span><span style="color: #94E2D5;"> =</span><span style="color: #9399B2;"> [</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">   {</span><span> time</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;08:00&quot;</span><span style="color: #9399B2;">,</span><span> temp</span><span style="color: #94E2D5;"> =</span><span style="color: #FAB387;"> 20.0</span><span style="color: #9399B2;"> },</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">   {</span><span> time</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;22:00&quot;</span><span style="color: #9399B2;">,</span><span> temp</span><span style="color: #94E2D5;"> =</span><span style="color: #FAB387;"> 16.0</span><span style="color: #9399B2;"> },</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">]</span></span></code></pre>
+<ul>
+<li>Heating schedule <code>[[schedule_heat]]</code></li>
+<li>Cooling schedule <code>[[schedule_cool]]</code></li>
+</ul>
+<p>You can define more than one schedule entry, and it will overlap the
+previous. In the example below, the temperature will be set to 20.0
+at 8am everyday, and set down to 16.0 at 9am Monday and Wednsday.</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="toml"><span class="giallo-l"><span style="color: #9399B2;">[[</span><span>schedule_heat</span><span style="color: #9399B2;">]]</span></span>
+<span class="giallo-l"><span>days_of_week</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;EveryDay&quot;</span></span>
+<span class="giallo-l"><span>set_points</span><span style="color: #94E2D5;"> =</span><span style="color: #9399B2;"> [</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">   {</span><span> time</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;08:00&quot;</span><span style="color: #9399B2;">,</span><span> temp</span><span style="color: #94E2D5;"> =</span><span style="color: #FAB387;"> 20.0</span><span style="color: #9399B2;"> }</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">]</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #9399B2;">[[</span><span>schedule_heat</span><span style="color: #9399B2;">]]</span></span>
+<span class="giallo-l"><span>days_of_week</span><span style="color: #94E2D5;"> =</span><span style="color: #9399B2;"> [</span><span style="color: #A6E3A1;">&quot;Monday&quot;</span><span style="color: #9399B2;">,</span><span style="color: #A6E3A1;"> &quot;Wednsday&quot;</span><span style="color: #9399B2;">]</span></span>
+<span class="giallo-l"><span>set_points</span><span style="color: #94E2D5;"> =</span><span style="color: #9399B2;"> [</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">   {</span><span> time</span><span style="color: #94E2D5;"> =</span><span style="color: #A6E3A1;"> &quot;09:00&quot;</span><span style="color: #9399B2;">,</span><span> temp</span><span style="color: #94E2D5;"> =</span><span style="color: #FAB387;"> 16.0</span><span style="color: #9399B2;"> }</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">]</span></span></code></pre><h2 id="days-of-week">days_of_week</h2>
+<p>Days of the week.</p>
+<p>One of "EveryDay", "WeekDays", "WeekEnd"</p>
+<p>Or...</p>
+<p>List of weekdays ["Monday", "Tuesday", ...]</p>
+<h2 id="set-points">set_points</h2>
+<p>List of set points with time of day and temperature</p>
+
+      </main>
+    </div>
+  </div>
+</div>
+
+
+  
+    
+<footer class="footer text-muted">
+	<div class="container">
+		<div class="row">
+			<div class="col-lg-8 order-last order-lg-first">
+				<ul class="list-inline">
+					
+						<li class="list-inline-item">Powered by <a href="https://www.getzola.org/">Zola</a>, and <a href="https://github.com/aaranxu/adidoks">AdiDoks</a></li>
+					
+				</ul>
+			</div>
+			<div class="col-lg-8 order-first order-lg-last text-lg-end">
+				<ul class="list-inline">
+					
+				</ul>
+			</div>
+		</div>
+	</div>
+</footer>
+
+  
+
+  
+<script type="text/javascript" src="https://retherm.kropf.io/js/main.js" defer></script>
+
+  
+</body>
+</html>

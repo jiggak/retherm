@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="preload" as="font" href="https://retherm.kropf.io/fonts/vendor/jost/jost-v4-latin-regular.woff2" type="font/woff2" crossorigin>
+  <link rel="preload" as="font" href="https://retherm.kropf.io/fonts/vendor/jost/jost-v4-latin-700.woff2"  type="font/woff2" crossorigin>
+
+
+<link rel="stylesheet" href="https://retherm.kropf.io/main.css">
+
+
+
+  
+  
+    
+  
+
+  
+  
+    
+    
+  
+  
+  
+    
+  
+  
+  
+  
+    
+  
+  
+  
+
+
+  <meta name="robots" content="index, follow">
+  <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+  <meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+
+	
+
+
+	
+
+<title>Install | (Re)Therm</title>
+<meta name="description" content="Home Assistant native interface for Gen2 Nest thermostat">
+<link rel="canonical" href="https://retherm.kropf.io/install/">
+
+
+
+
+
+
+
+
+
+
+<script type="application/ld+json">
+  {
+    "@context": "http://schema.org",
+    "@type": "BreadcrumbList",
+    
+      
+      
+        
+        
+        
+        
+        
+        
+        
+        
+          {
+            "@type": "ListItem",
+            "position":  1 ,
+            "name": "Home",
+            "item": "https://retherm.kropf.io/"
+          },
+          
+          
+          {
+            "@type": "ListItem",
+            "position":  2 ,
+            "name": "Install",
+            "item": "https://retherm.kropf.io/install/"
+          },
+        
+      
+    
+  }
+</script>
+
+
+
+
+
+
+  <meta name="theme-color" content="#fff">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://retherm.kropf.io/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="https://retherm.kropf.io/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://retherm.kropf.io/favicon-16x16.png">
+  
+    <link rel="manifest" href="https://retherm.kropf.io/site.webmanifest" crossorigin>
+  
+
+
+  
+
+</head>
+
+  
+
+<body class="docs single">
+  
+    
+<div class="header-bar fixed-top"></div>
+<header class="navbar fixed-top navbar-expand-md navbar-light">
+	<div class="container">
+		<input class="menu-btn order-0" type="checkbox" id="menu-btn">
+		<label class="menu-icon d-md-none" for="menu-btn"><span class="navicon"></span></label>
+		<a class="navbar-brand order-1 order-md-0 me-auto" href="https://retherm.kropf.io">(Re)Therm</a>
+		<button id="mode" class="btn btn-link order-2 order-md-4" type="button" aria-label="Toggle mode">
+			<span class="toggle-dark"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></span>
+			<span class="toggle-light"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-sun"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></span>
+		</button>
+		<ul class="navbar-nav fork-me order-3 order-md-5">
+			
+				
+					<li class="nav-item">
+						<a class="nav-link" href="https://github.com/jiggak/retherm"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-github"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg><span class="ms-2 visually-hidden">GitHub</span></a>
+					</li>
+				
+			
+		</ul>
+		<div class="collapse navbar-collapse order-4 order-md-1">
+			<ul class="navbar-nav main-nav me-auto order-5 order-md-2">
+				
+					
+				
+				
+				
+					
+						<li class="nav-item">
+							<a class="nav-link" href="https://retherm.kropf.io/configuration/">Configuration</a>
+						</li>
+					
+						<li class="nav-item">
+							<a class="nav-link" href="https://retherm.kropf.io/theme/">Theme</a>
+						</li>
+					
+						<li class="nav-item">
+							<a class="nav-link" href="https://retherm.kropf.io/install/">Install</a>
+						</li>
+					
+				
+			</ul>
+			<div class="break order-6 d-md-none"></div>
+			
+		</div>
+	</div>
+</header>
+
+  
+
+  
+<div class="wrap container" role="document">
+  <div class="content">
+    <div class="row flex-xl-nowrap">
+      <div class="col-lg-5 col-xl-4 docs-sidebar"></div>
+ 	    
+  
+  <nav class="docs-toc d-none d-xl-block col-xl-3" aria-label="Secondary navigation">
+  	<div class="page-links">
+  			<h3>On this page</h3>
+  			<nav id="TableOfContents">
+  					<ul>
+  							
+  							<li><a href="https://retherm.kropf.io/install/#get-root">Get root</a></li>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/install/#build-install">Build &amp; Install</a></li>
+  							
+  							
+  							<li><a href="https://retherm.kropf.io/install/#logging-to-syslogd">Logging to syslogd</a></li>
+  							
+  							
+  					</ul>
+  			</nav>
+  	</div>
+  </nav>
+  
+
+      <main class="docs-content col-lg-11 col-xl-9">
+        <h1>Install</h1>
+        <blockquote>
+<p>At this time, the installation process is not exactly user friendly.
+You will need a rooted Nest, Rust toolchain, Arm toolchain, and some comfort
+with the Linux command line.
+I have plans to at least provide builds for download from
+<a rel="external" href="https://github.com/jiggak/retherm/releases">Releases</a> on Github.</p>
+</blockquote>
+<h2 id="get-root">Get root</h2>
+<p>You'll need a rooted Nest with SSH access. Any of the following methods should work.</p>
+<ul>
+<li><a rel="external" href="https://github.com/exploiteers/NestDFUAttack">NestDFUAttack</a></li>
+<li><a rel="external" href="https://github.com/cuckoo-nest/cuckoo_loader">Cuckoo Loader</a></li>
+<li><a rel="external" href="https://nolongerevil.com/">NoLongerEvil</a></li>
+</ul>
+<h2 id="build-install">Build &amp; Install</h2>
+<p>See the project <a rel="external" href="https://github.com/jiggak/retherm">README</a> for details about
+building for the Nest.</p>
+<p>I'll assume retherm will be placed under <code>/retherm/</code>, but choose whatever
+directory you like.</p>
+<ol>
+<li>Copy retherm to <code>/retherm/retherm</code></li>
+<li>Create <code>/etc/init.d/retherm</code> with contents of <a rel="external" href="https://github.com/jiggak/retherm/blob/main/init.sh">init.sh</a></li>
+<li>Stop Nest app <code>/etc/init.d/nestlabs stop</code></li>
+<li>Start ReTherm <code>/etc/init.d/retherm start</code></li>
+</ol>
+<p>ReTherm will run until the device reboots; the default Nest app will start the
+next time the device reboots.</p>
+<blockquote>
+<p>Currently ReTherm doesn't have an interface for configuring Wifi.
+It's crutial the Nest app starts at boot so that you maintain some means
+to set network settings (i.e. SSH access).</p>
+</blockquote>
+<h2 id="logging-to-syslogd">Logging to syslogd</h2>
+<p>Optionally, ReTherm can output logs to <code>syslogd</code>. Log messages will be written
+to <code>/var/log/messages</code>.</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellsession"><span class="giallo-l"><span style="color: #9399B2;">#</span><span> INFO can be one of: TRACE, DEBUG, INFO, ERROR</span></span>
+<span class="giallo-l"><span>retherm --syslog INFO</span></span></code></pre>
+<p>This opens up the option to forwarding log messages to a log collector by appending
+<code>-R 192.168.1.42:514 -L</code> to <code>/etc/syslogd.options</code> where "192.168.1.42" is the
+address of your log server.</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="plain"><span class="giallo-l"><span>-O /var/log/messages -s 384 -b 15 -u -R 192.168.1.42:514 -L</span></span></code></pre>
+      </main>
+    </div>
+  </div>
+</div>
+
+
+  
+    
+<footer class="footer text-muted">
+	<div class="container">
+		<div class="row">
+			<div class="col-lg-8 order-last order-lg-first">
+				<ul class="list-inline">
+					
+						<li class="list-inline-item">Powered by <a href="https://www.getzola.org/">Zola</a>, and <a href="https://github.com/aaranxu/adidoks">AdiDoks</a></li>
+					
+				</ul>
+			</div>
+			<div class="col-lg-8 order-first order-lg-last text-lg-end">
+				<ul class="list-inline">
+					
+				</ul>
+			</div>
+		</div>
+	</div>
+</footer>
+
+  
+
+  
+<script type="text/javascript" src="https://retherm.kropf.io/js/main.js" defer></script>
+
+  
+</body>
+</html>
