@@ -1,6 +1,7 @@
 #!/bin/sh
 
-APP_NAME=retherm
+APP_NAME=${APP_NAME:=retherm}
+APP_ARGS="$@"
 
 stop_app() {
    APP_PID=$(pidof ${APP_NAME})
@@ -13,8 +14,8 @@ stop_app() {
 trap stop_app SIGINT
 
 start_app_bg() {
-   ./${APP_NAME} "$@" &
-   echo "Launched ${APP_NAME} with PID ${!}"
+   ./${APP_NAME} ${APP_ARGS} &
+   echo "Launched ${APP_NAME} ${APP_ARGS} with PID ${!}"
 }
 
 echo "Waiting for ${APP_NAME} data"
@@ -27,5 +28,5 @@ if nc -l -p 51234 > /tmp/${APP_NAME}; then
 
    start_app_bg
 
-   ./$0
+   APP_NAME=${APP_NAME} ./$0 ${APP_ARGS}
 fi
