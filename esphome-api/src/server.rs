@@ -23,7 +23,7 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use base64::prelude::*;
-use log::{debug, info};
+use log::{debug, error, info};
 
 use crate::{
     proto::*,
@@ -90,7 +90,7 @@ impl MessageStreamProvider<EncryptedMessageStream> for EncryptedStreamProvider {
 
 pub trait ConnectionObserver<S> {
     fn connected(&self, stream: &S) -> Result<()>;
-    fn disconnect(&self) -> Result<()>;
+    fn disconnect(&self);
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -132,16 +132,17 @@ impl<S: MessageStream + Send + 'static> ConnectionObserver<S> for MessageSender 
         let mut stream = stream.clone();
         thread::spawn(move || {
             while let Ok(message) = rx.recv() {
-                stream.write(&message).unwrap();
+                if let Err(e) = stream.write(&message) {
+                    error!("HA message send failed: {e}");
+                }
             }
         });
 
         Ok(())
     }
 
-    fn disconnect(&self) -> Result<()> {
+    fn disconnect(&self) {
         *self.inner.lock().unwrap() = None;
-        Ok(())
     }
 }
 
@@ -246,9 +247,13 @@ pub fn start_server<S>(
 
         connection_observer.connected(&message_stream)?;
 
-        message_loop(message_stream, handler)?;
+        let result = message_loop(message_stream, handler);
 
-        connection_observer.disconnect()?;
+        connection_observer.disconnect();
+
+        // Observer disconnect needs to perform cleanup, resolve message loop
+        // result after in case of error.
+        result?;
     }
 
     Ok(())
