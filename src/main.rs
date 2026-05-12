@@ -153,7 +153,6 @@ fn main() -> Result<()> {
 }
 
 fn install_panic_logging() {
-    use std::backtrace::{Backtrace, BacktraceStatus};
     use std::{panic, thread};
 
     panic::set_hook(Box::new(|info| {
@@ -166,22 +165,6 @@ fn install_panic_logging() {
         if let Some(loc) = info.location() {
             // error!("Location; {}:{}", loc.file(), loc.line());
             error!("Location; {}", loc);
-        }
-
-        let backtrace = Backtrace::force_capture();
-        if let BacktraceStatus::Captured = backtrace.status() {
-            // When logging to syslog, dumping the backtrace into a single
-            // log message results in truncated content.
-            // Workaround is split formatted backtrace into lines and log
-            // each line/stack frame separately.
-
-            let backtrace = backtrace.to_string();
-            let frames = backtrace.lines()
-                .map(|f| f.trim());
-
-            for frame in frames {
-                error!("{}", frame);
-            }
         }
     }));
 }
