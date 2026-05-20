@@ -152,7 +152,8 @@ pub struct StateManager<S: EventSender> {
     saved_target_temp: f32,
     away_config: AwayConfig,
     backlight_timeout: Duration,
-    temp_differential: f32
+    temp_deadband: f32,
+    temp_overrun: f32
 }
 
 impl<S: EventSender> StateManager<S> {
@@ -171,7 +172,8 @@ impl<S: EventSender> StateManager<S> {
             saved_target_temp: 0.0,
             away_config: config.away_mode.clone(),
             backlight_timeout: config.backlight.timeout,
-            temp_differential: config.temp_differential
+            temp_deadband: config.temp_deadband,
+            temp_overrun: config.temp_overrun
         })
     }
 
@@ -231,11 +233,12 @@ impl<S: EventSender> StateManager<S> {
         let old_action = self.state.action;
 
         let current_temp = self.state.current_temp;
-        let target_temp_hi = self.state.target_temp + self.temp_differential;
-        let target_temp_lo = self.state.target_temp - self.temp_differential;
 
         match self.state.mode {
             HvacMode::Heat => {
+                let target_temp_hi = self.state.target_temp + self.temp_overrun;
+                let target_temp_lo = self.state.target_temp - self.temp_deadband;
+
                 if current_temp <= target_temp_lo {
                     self.state.action = HvacAction::Heating;
                 } else if current_temp >= target_temp_hi {
@@ -243,6 +246,9 @@ impl<S: EventSender> StateManager<S> {
                 }
             }
             HvacMode::Cool => {
+                let target_temp_hi = self.state.target_temp + self.temp_deadband;
+                let target_temp_lo = self.state.target_temp - self.temp_overrun;
+
                 if current_temp >= target_temp_hi {
                     self.state.action = HvacAction::Cooling;
                 } else if current_temp <= target_temp_lo {
@@ -315,7 +321,8 @@ mod tests {
     ) -> (DefaultEventSource, StateManager<Sender<Event>>)
     {
         let mut config = Config::default();
-        config.temp_differential = 0.2;
+        config.temp_deadband = 0.4;
+        config.temp_overrun = 0.2;
 
         let event_source = DefaultEventSource::new();
         let state_manager = StateManager::new(
@@ -326,52 +333,102 @@ mod tests {
         (event_source, state_manager)
     }
 
+    fn simulate<S>(
+        mut state: StateManager<S>,
+        steps: &[(f32, HvacAction)]
+    ) -> Result<()>
+        where S: EventSender
+    {
+        for (temp, action) in steps {
+            state.handle_event(&Event::SetCurrentTemp(*temp))?;
+            assert_eq!(
+                state.state.action,
+                *action,
+                "temp {} expected {:?}, found {:?}",
+                temp, *action, state.state.action
+            );
+        }
+
+        Ok(())
+    }
+
     #[test]
-    fn temp_differential_heat() -> Result<()> {
+    fn temp_hysteresis_heat_on() -> Result<()> {
         let state = ThermostatState {
             mode: HvacMode::Heat,
             target_temp: 20.0,
-            current_temp: 21.0,
+            current_temp: 20.0,
             action: HvacAction::Idle,
             away: false
         };
 
-        let (_x, mut state) = state_manager(state);
+        let (_x, state) = state_manager(state);
 
-        state.handle_event(&Event::SetCurrentTemp(20.0))?;
-        assert_eq!(state.state.action, HvacAction::Idle);
-
-        state.handle_event(&Event::SetCurrentTemp(19.9))?;
-        assert_eq!(state.state.action, HvacAction::Idle);
-
-        state.handle_event(&Event::SetCurrentTemp(19.8))?;
-        assert_eq!(state.state.action, HvacAction::Heating);
-
-        Ok(())
+        simulate(state, &[
+            (20.0, HvacAction::Idle),
+            (19.9, HvacAction::Idle),
+            (19.8, HvacAction::Idle),
+            (19.7, HvacAction::Idle),
+            (19.6, HvacAction::Heating)
+        ])
     }
 
     #[test]
-    fn temp_differential_cool() -> Result<()> {
+    fn temp_hysteresis_heat_off() -> Result<()> {
+        let state = ThermostatState {
+            mode: HvacMode::Heat,
+            target_temp: 20.0,
+            current_temp: 20.0,
+            action: HvacAction::Heating,
+            away: false
+        };
+
+        let (_x, state) = state_manager(state);
+
+        simulate(state, &[
+            (20.0, HvacAction::Heating),
+            (20.1, HvacAction::Heating),
+            (20.2, HvacAction::Idle)
+        ])
+    }
+
+    #[test]
+    fn temp_hysteresis_cool_on() -> Result<()> {
         let state = ThermostatState {
             mode: HvacMode::Cool,
             target_temp: 20.0,
-            current_temp: 19.0,
+            current_temp: 20.0,
             action: HvacAction::Idle,
             away: false
         };
 
-        let (_x, mut state) = state_manager(state);
+        let (_x, state) = state_manager(state);
 
-        state.handle_event(&Event::SetCurrentTemp(20.0))?;
-        assert_eq!(state.state.action, HvacAction::Idle);
-
-        state.handle_event(&Event::SetCurrentTemp(20.1))?;
-        assert_eq!(state.state.action, HvacAction::Idle);
-
-        state.handle_event(&Event::SetCurrentTemp(20.2))?;
-        assert_eq!(state.state.action, HvacAction::Cooling);
-
-        Ok(())
+        simulate(state, &[
+            (20.0, HvacAction::Idle),
+            (20.1, HvacAction::Idle),
+            (20.2, HvacAction::Idle),
+            (20.3, HvacAction::Idle),
+            (20.4, HvacAction::Cooling)
+        ])
     }
 
+    #[test]
+    fn temp_hysteresis_cool_off() -> Result<()> {
+        let state = ThermostatState {
+            mode: HvacMode::Cool,
+            target_temp: 20.0,
+            current_temp: 20.0,
+            action: HvacAction::Cooling,
+            away: false
+        };
+
+        let (_x, state) = state_manager(state);
+
+        simulate(state, &[
+            (20.0, HvacAction::Cooling),
+            (19.9, HvacAction::Cooling),
+            (19.8, HvacAction::Idle)
+        ])
+    }
 }

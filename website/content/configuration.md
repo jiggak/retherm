@@ -19,15 +19,21 @@ retherm --config ./your_config.toml
 All config options have a default; you only need to include options
 you would like to override in your configuration file.
 
-## temp_differential
+## temp_deadband
 
-Set the amount past the target temperature before switching the hvac
-wires. This is intended to reduce the frequency of switching the hvac
-system on and off, to reduce wear and conserve energy.
+The temperature difference from the setpoint required to trigger an action.
 
-For example with a target heat temp. of 20, and a temp. diff set to 0.2,
-the hvac system will turn heat off when temp. reaches 20.2, and turns heat
-on when temp. drops to 19.8.
+For example, with a target heat temp of 20, and deadband set to 0.4,
+the hvac system will turn heat on when temp drops to 19.6.
+
+Defaults to 0.4
+
+## temp_overrun
+
+The temperature difference past the setpoint required to stop an action.
+
+For example, with a target heat temp of 20, and overrun set to 0.2,
+the hvac system will turn heat off when temp reaches 20.2.
 
 Defaults to 0.2
 
