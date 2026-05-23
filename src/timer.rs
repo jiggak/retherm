@@ -16,9 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{collections::HashMap, sync::mpsc::{Sender, channel}, thread, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex, mpsc::{RecvTimeoutError, Sender, channel}},
+    thread,
+    time::Duration
+};
 
-use log::warn;
+use log::{debug, warn};
 
 use crate::events::{Event, EventHandler, EventSender};
 
@@ -39,41 +44,42 @@ fn start_timeout_thread<F>(mut timeout: Duration, timeout_reached: F) -> Sender<
             // recv_timeout() returns Err when timeout reached
             // using sender of the channel resets the timeout
             match receiver.recv_timeout(timeout) {
-                Ok(new_timeout) => {
-                    timeout = new_timeout;
+                Ok(new_timeout) => timeout = new_timeout,
+                Err(RecvTimeoutError::Timeout) => {
+                    timeout_reached();
+                    break;
                 }
-                Err(_) => {
+                Err(RecvTimeoutError::Disconnected) => {
+                    warn!("Timeout thread sender disconnected");
                     break;
                 }
             }
-            if receiver.recv_timeout(timeout).is_err() {
-                break;
-            }
         }
-
-        timeout_reached();
     });
 
     sender
 }
 
 pub struct Timers<S> {
-    timers: HashMap<TimerId, Sender<Duration>>,
+    timers: Arc<Mutex<HashMap<TimerId, Sender<Duration>>>>,
     event_sender: S
 }
 
 impl<S: EventSender + Clone + Send + 'static> Timers<S> {
     pub fn new(event_sender: S) -> Self {
         Self {
-            timers: HashMap::new(),
+            timers: Arc::new(Mutex::new(HashMap::new())),
             event_sender
         }
     }
 
     fn start_timer(&self, id: TimerId, timeout: Duration) -> Sender<Duration> {
         let timeout_sender = self.event_sender.clone();
+        let timers = self.timers.clone();
 
         start_timeout_thread(timeout, move || {
+            debug!("{:?} timeout reached", id);
+            timers.lock().unwrap().remove(&id);
             timeout_sender.send_event(Event::TimeoutReached(id)).unwrap();
         })
     }
@@ -82,15 +88,13 @@ impl<S: EventSender + Clone + Send + 'static> Timers<S> {
 impl<S: EventSender + Clone + Send + 'static> EventHandler for Timers<S> {
     fn handle_event(&mut self, event: &Event) -> anyhow::Result<()> {
         match *event {
-            Event::TimeoutReached(id) => {
-                self.timers.remove(&id);
-            }
             Event::TimeoutReset(id, timeout) => {
                 if timeout > Duration::ZERO {
-                    if let Some(sender) = self.timers.get(&id) {
+                    let mut timers = self.timers.lock().unwrap();
+                    if let Some(sender) = timers.get(&id) {
                         sender.send(timeout).unwrap();
                     } else {
-                        self.timers.insert(id, self.start_timer(id, timeout));
+                        timers.insert(id, self.start_timer(id, timeout));
                     }
                 } else {
                     warn!("Skipping timer {:?} with zero timeout", id);
@@ -98,6 +102,63 @@ impl<S: EventSender + Clone + Send + 'static> EventHandler for Timers<S> {
             }
             _ => { }
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::{DefaultEventSource, EventSource};
+
+    fn setup_logging() {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .try_init();
+    }
+
+    fn start_event_loop<S, H>(
+        mut event_source: S,
+        mut handler: H
+    ) -> std::thread::JoinHandle<()>
+        where S: EventSource<Sender<Event>> + Send + 'static,
+            H: EventHandler + Send + 'static
+    {
+        thread::spawn(move || {
+            while let Ok(event) = event_source.wait_event() {
+                debug!("{:?}", event);
+
+                if event == Event::Quit {
+                    break;
+                }
+
+                handler.handle_event(&event).unwrap();
+            }
+        })
+    }
+
+    #[test]
+    #[ignore]
+    /// This test was helpful in fixing a crash when timeout reset event is fired
+    /// at the same time as the timeout reached event.
+    /// The bug was very sensitive to timing, and the test would reproduce the
+    /// crash very inconsistently.
+    fn timer_reset_contention() -> anyhow::Result<()> {
+        setup_logging();
+
+        let event_source = DefaultEventSource::new();
+        let timers = Timers::new(event_source.event_sender());
+        let event_sender = event_source.event_sender();
+
+        let handle = start_event_loop(event_source, timers);
+
+        event_sender.send_event(Event::TimeoutReset(TimerId::Backlight, Duration::from_secs(1)))?;
+        thread::sleep(Duration::from_millis(1000));
+        event_sender.send_event(Event::TimeoutReset(TimerId::Backlight, Duration::from_secs(1)))?;
+
+        event_sender.send_event(Event::Quit)?;
+        handle.join().unwrap();
+
         Ok(())
     }
 }
