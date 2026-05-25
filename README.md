@@ -16,7 +16,6 @@ Thermostat.
 - [x] Configurable interface look/feel (separate from app config)
 - [x] Configuration file for settings such as:
   - [x] HA related parameters (api key, device name, etc)
-  - [ ] Wifi network settings
   - [x] Screen brightness, auto-off timeout
   - [x] HVAC wiring settings
 - [ ] Integrate with system wifi manager (Connman 1.29)
@@ -49,6 +48,12 @@ Create `~/.cargo/config.toml` with linker command from toolchain.
 linker = "arm-linux-gnueabihf-gcc"
 ```
 
+Or use environment variable.
+
+```bash
+export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-nest-linux-gnueabihf-gcc
+```
+
 ## Building & Running
 
 First; the stock app needs to be stopped.
@@ -68,6 +73,7 @@ Or build and send manually.
 
 ```bash
 # Build output at `target/armv7-unknown-linux-gnueabihf/release/retherm`
+CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-nest-linux-gnueabihf-gcc \
 cargo build --no-default-features --features device --target=armv7-unknown-linux-gnueabihf
 ```
 

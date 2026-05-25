@@ -6,11 +6,8 @@ template = "docgen.html"
 toc = true
 +++
 
-> At this time, the installation process is not exactly user friendly.
-> You will need a rooted Nest, Rust toolchain, Arm toolchain, and some comfort
-> with the Linux command line.
-> I have plans to at least provide builds for download from
-> [Releases](https://github.com/jiggak/retherm/releases) on Github.
+> At this time, the installation process expects you to have a rooted thermostat
+> and familiarity with the Linux command line.
 
 ## Get root
 
@@ -20,18 +17,35 @@ You'll need a rooted Nest with SSH access. Any of the following methods should w
 * [Cuckoo Loader](https://github.com/cuckoo-nest/cuckoo_loader)
 * [NoLongerEvil](https://nolongerevil.com/)
 
-## Build & Install
-
-See the project [README](https://github.com/jiggak/retherm) for details about
-building for the Nest.
+## Download & Install
 
 I'll assume retherm will be placed under `/retherm/`, but choose whatever
 directory you like.
 
-1. Copy retherm to `/retherm/retherm`
-2. Create `/etc/init.d/retherm` with contents of [init.sh](https://github.com/jiggak/retherm/blob/main/init.sh)
-3. Stop Nest app `/etc/init.d/nestlabs stop`
-4. Start ReTherm `/etc/init.d/retherm start`
+Go to the [Releases](https://github.com/jiggak/retherm/releases) page on Github
+and copy the latest download link.
+
+If you prefer to build ReTherm yourself, details are in the project
+[README](https://github.com/jiggak/retherm).
+
+1. Make directory for ReTherm if it doesn't already exist
+   ```bash
+   mkdir /retherm
+   ```
+2. Download latest build
+   ```bash
+   # Replace download link with one copied from releases page.
+   # Make sure retherm is stopped before replacing (when updating, not installing first time).
+   curl -o /retherm/retherm https://github.com/jiggak/retherm/releases/download/v1.0.0/retherm
+   chmod +x /retherm/retherm
+   ```
+3. Create `/etc/init.d/retherm` with contents of [init.sh](https://github.com/jiggak/retherm/blob/main/init.sh)
+   ```bash
+   curl -o /etc/init.d/retherm https://raw.githubusercontent.com/jiggak/retherm/refs/heads/main/init.sh
+   chmod +x /etc/init.d/retherm
+   ```
+4. Stop Nest app `/etc/init.d/nestlabs stop`
+5. Start ReTherm `/etc/init.d/retherm start`
 
 ReTherm will run until the device reboots; the default Nest app will start the
 next time the device reboots.

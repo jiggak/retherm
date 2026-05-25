@@ -2,10 +2,8 @@ name: Release Build
 
 on:
   push:
-    branches:
-      - build-automation
-    # tags:
-    #   - 'v*'
+    tags:
+      - 'v*'
 
   workflow_dispatch:
 

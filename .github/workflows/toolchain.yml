@@ -3,7 +3,7 @@ name: Publish Toolchain Container
 on:
   push:
     branches:
-      - build-automation
+      - main
     paths:
       - 'toolchain/**'
       - '.github/workflows/toolchain.yml'
