@@ -577,13 +577,12 @@ dependencies = [
 [[package]]
 name = "evdev"
 version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25b686663ba7f08d92880ff6ba22170f1df4e83629341cba34cf82cd65ebea99"
+source = "git+https://github.com/jiggak/evdev?branch=fix-crash-kernel-2.6#3fe2059aff3a8d401f6d0d10998062a93627c124"
 dependencies = [
  "bitvec",
  "cfg-if",
  "libc",
- "nix 0.29.0",
+ "nix",
 ]
 
 [[package]]
@@ -924,18 +923,6 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
-dependencies = [
- "bitflags 2.10.0",
- "cfg-if",
- "cfg_aliases",
- "libc",
-]
-
-[[package]]
-name = "nix"
 version = "0.31.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d6d0705320c1e6ba1d912b5e37cf18071b6c2e9b7fa8215a1e8a7651966f5d3"
@@ -1207,7 +1194,7 @@ dependencies = [
  "linuxfb",
  "log",
  "nest-backplate",
- "nix 0.31.2",
+ "nix",
  "rusttype",
  "sdl2",
  "serde",
@@ -1446,8 +1433,7 @@ dependencies = [
 [[package]]
 name = "syslog"
 version = "7.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "019f1500a13379b7d051455df397c75770de6311a7a188a699499502704d9f10"
+source = "git+https://github.com/jiggak/rust-syslog?branch=unix-local-time#81820638c8b89241f2f9efddf7854ca26192a620"
 dependencies = [
  "hostname",
  "libc",

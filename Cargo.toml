@@ -30,7 +30,10 @@ embedded-graphics-framebuf = "0.5.0"
 embedded-ttf = "0.2.2"
 env_logger = "0.11.8"
 esphome-api = { path = "./esphome-api" }
-evdev = "0.13.2"
+# evdev = "0.13.2"
+# Switch back to upstream evdev when new release is published
+# https://github.com/emberian/evdev/pull/177
+evdev = { git = "https://github.com/jiggak/evdev", branch = "fix-crash-kernel-2.6" }
 linuxfb = { version = "0.3.1", optional = true }
 log = "0.4.29"
 nest-backplate = { path = "./nest-backplate", optional = true }
@@ -38,6 +41,9 @@ nix = { version = "0.31.2", features = ["net", "hostname"]}
 rusttype = { version = "0.9.3", default-features = false }
 sdl2 = { version = "0.38.0", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
-syslog = "7.0.0"
+# syslog = "7.0.0"
+# Switch back to upstream syslog if/when this PR is merged and published
+# https://github.com/Geal/rust-syslog/pull/104
+syslog = { git = "https://github.com/jiggak/rust-syslog", branch = "unix-local-time" }
 throttle = "0.1.0"
 toml = "0.9.11"
