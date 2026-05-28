@@ -41,16 +41,21 @@ use crate::{env, state::HvacMode};
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
-    /// Set the amount past the target temperature before switching the hvac
-    /// wires. This is intended to reduce the frequency of switching the hvac
-    /// system on and off, to reduce wear and conserve energy.
+    /// The temperature difference from the setpoint required to trigger an action.
     ///
-    /// For example with a target heat temp. of 20, and a temp. diff set to 0.2,
-    /// the hvac system will turn heat off when temp. reaches 20.2, and turns heat
-    /// on when temp. drops to 19.8.
+    /// For example, with a target heat temp of 20, and deadband set to 0.4,
+    /// the hvac system will turn heat on when temp drops to 19.6.
+    ///
+    /// Defaults to 0.4
+    pub temp_deadband: f32,
+
+    /// The temperature difference past the setpoint required to stop an action.
+    ///
+    /// For example, with a target heat temp of 20, and overrun set to 0.2,
+    /// the hvac system will turn heat off when temp reaches 20.2.
     ///
     /// Defaults to 0.2
-    pub temp_differential: f32,
+    pub temp_overrun: f32,
 
     pub away_mode: AwayConfig,
     pub backplate: BackplateConfig,
@@ -97,7 +102,8 @@ impl Default for Config {
             backlight: BacklightConfig::default(),
             schedule_heat: Vec::new(),
             schedule_cool: Vec::new(),
-            temp_differential: 0.2
+            temp_deadband: 0.4,
+            temp_overrun: 0.2
         }
     }
 }
