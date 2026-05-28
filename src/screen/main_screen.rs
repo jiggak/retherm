@@ -22,7 +22,9 @@ use embedded_graphics::{prelude::*};
 use crate::{
     drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender, TrailingEventSender},
-    state::HvacAction, theme::MainScreenTheme, widgets::{GaugeWidget, IconWidget}
+    state::{HvacAction, ThermostatState},
+    theme::MainScreenTheme,
+    widgets::{GaugeWidget, IconWidget}
 };
 use super::{Screen, ScreenId};
 
@@ -32,7 +34,8 @@ pub struct MainScreen<S> {
     cmd_sender: TrailingEventSender,
     event_sender: S,
     theme: MainScreenTheme,
-    last_click_temp: f32
+    last_click_temp: f32,
+    state: ThermostatState
 }
 
 impl<S: EventSender> Screen for MainScreen<S> { }
@@ -46,7 +49,8 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             cmd_sender,
             event_sender,
             theme,
-            last_click_temp: 0.0
+            last_click_temp: 0.0,
+            state: ThermostatState::default()
         }
     }
 }
@@ -57,26 +61,26 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
         // Let state manager exit away mode before
 
         match event {
-            Event::Dial(dir) if !self.gauge.state.away => {
+            Event::Dial(dir) if !self.state.away => {
                 let temp_inc = *dir as f32 * 0.01;
-                let target_temp = self.gauge.state.target_temp + temp_inc;
+                let target_temp = self.state.target_temp + temp_inc;
 
                 if (self.last_click_temp - target_temp).abs() >= 0.5 {
                     self.last_click_temp = target_temp;
                     self.event_sender.send_event(Event::ClickSound)?;
                 }
 
-                if self.gauge.state.set_target_temp(target_temp) {
+                if self.state.set_target_temp(target_temp) {
                     self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;
                 }
             }
-            Event::ButtonDown if !self.gauge.state.away => {
+            Event::ButtonDown if !self.state.away => {
                 self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect {
-                    current_mode: self.gauge.state.mode
+                    current_mode: self.state.mode
                 }))?;
             }
             Event::State(state) => {
-                self.gauge.state = state.clone();
+                self.state = state.clone();
             }
             _ => { }
         }
@@ -87,7 +91,7 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
 
 impl<S: EventSender> AppDrawable for MainScreen<S> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        let bg_colour = match self.gauge.state.action {
+        let bg_colour = match self.state.action {
             HvacAction::Cooling => self.theme.bg_cool_colour,
             HvacAction::Heating => self.theme.bg_heat_colour,
             HvacAction::Idle => self.theme.bg_colour
@@ -95,9 +99,9 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
 
         target.clear(bg_colour)?;
 
-        self.gauge.draw(target, bg_colour)?;
+        self.gauge.draw(target, bg_colour, &self.state)?;
 
-        if self.gauge.state.away {
+        if self.state.away {
             self.away_icon.draw(
                 target,
                 self.theme.away_icon_center,
