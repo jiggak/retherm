@@ -31,7 +31,7 @@ use crate::events::{Event, EventHandler, EventSender};
 pub enum TimerId {
     Away,
     Backlight,
-    // HvacCooldown
+    HvacLockout
 }
 
 fn start_timeout_thread<F>(mut timeout: Duration, timeout_reached: F) -> Sender<Duration>
