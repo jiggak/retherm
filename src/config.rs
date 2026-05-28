@@ -57,6 +57,11 @@ pub struct Config {
     /// Defaults to 0.2
     pub temp_overrun: f32,
 
+    /// Minimum off time for cooling to allow AC refrigerant pressures to equalize.
+    ///
+    /// Defaults to "5m"
+    pub min_off_time: Duration,
+
     pub away_mode: AwayConfig,
     pub backplate: BackplateConfig,
     pub home_assistant: HomeAssistantConfig,
@@ -103,7 +108,8 @@ impl Default for Config {
             schedule_heat: Vec::new(),
             schedule_cool: Vec::new(),
             temp_deadband: 0.4,
-            temp_overrun: 0.2
+            temp_overrun: 0.2,
+            min_off_time: Duration::from_mins(5),
         }
     }
 }
