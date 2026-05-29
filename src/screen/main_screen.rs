@@ -31,11 +31,12 @@ use super::{Screen, ScreenId};
 pub struct MainScreen<S> {
     gauge: GaugeWidget,
     away_icon: IconWidget,
+    lockout_icon: IconWidget,
     cmd_sender: TrailingEventSender,
     event_sender: S,
     theme: MainScreenTheme,
     last_click_temp: f32,
-    state: ThermostatState
+    state: ThermostatState,
 }
 
 impl<S: EventSender> Screen for MainScreen<S> { }
@@ -46,11 +47,12 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
         Self {
             gauge: GaugeWidget::new(theme.gauge.clone()),
             away_icon: IconWidget::new(theme.away_icon.clone()),
+            lockout_icon: IconWidget::new(theme.lockout_icon.clone()),
             cmd_sender,
             event_sender,
             theme,
             last_click_temp: 0.0,
-            state: ThermostatState::default()
+            state: ThermostatState::default(),
         }
     }
 }
@@ -104,7 +106,14 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
         if self.state.away {
             self.away_icon.draw(
                 target,
-                self.theme.away_icon_center,
+                self.theme.status_icon_center,
+                bg_colour,
+                Some(self.theme.away_icon.colour)
+            )?;
+        } else if self.state.lockout {
+            self.lockout_icon.draw(
+                target,
+                self.theme.status_icon_center,
                 bg_colour,
                 Some(self.theme.away_icon.colour)
             )?;
