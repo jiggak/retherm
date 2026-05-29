@@ -60,6 +60,7 @@ pub struct Config {
     /// Minimum off time for cooling to allow AC refrigerant pressures to equalize.
     ///
     /// Defaults to "5m"
+    #[serde(deserialize_with = "config_de::duration")]
     pub min_off_time: Duration,
 
     pub away_mode: AwayConfig,
