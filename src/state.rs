@@ -302,17 +302,23 @@ impl<S: EventSender> EventHandler for StateManager<S> {
         if did_change {
             if self.apply_hvac_action() {
                 if self.state.action == HvacAction::Idle {
-                    self.last_idle_time = Instant::now();
+                    // don't reset last idle time until min idle time elapsed
+                    // i.e. don't re-trigger lockout when it's already active
+                    if self.last_idle_time.elapsed() > self.min_idle_time {
+                        self.last_idle_time = Instant::now();
+                    }
+
                     self.state.lockout = false;
                 } else {
-                    self.state.lockout =
-                        self.last_idle_time.elapsed() < self.min_idle_time;
+                    if self.last_idle_time.elapsed() < self.min_idle_time {
+                        self.state.lockout = true;
 
-                    if self.state.lockout {
                         let lockout_time = self.min_idle_time - self.last_idle_time.elapsed();
                         self.event_sender.send_event(
                             Event::TimeoutReset(TimerId::HvacLockout, lockout_time)
                         )?;
+                    } else {
+                        self.state.lockout = false;
                     }
                 }
             }
