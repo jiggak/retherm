@@ -66,7 +66,7 @@ default `{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#ffffff" }`
 
 ## lockout_icon
 
-Lockout icon styling,
+Lockout status icon styling,
 default `{ icon_font: "Icon:42", icon: "\u{f1da}", colour: "#ffffff" }`
 
 # Main screen gauge

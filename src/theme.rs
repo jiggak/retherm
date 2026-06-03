@@ -207,7 +207,7 @@ pub struct MainScreenTheme {
     /// default `{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#ffffff" }`
     pub away_icon: IconStyle,
 
-    /// Lockout icon styling,
+    /// Lockout status icon styling,
     /// default `{ icon_font: "Icon:42", icon: "\u{f1da}", colour: "#ffffff" }`
     pub lockout_icon: IconStyle,
 }
