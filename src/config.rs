@@ -46,7 +46,7 @@ pub struct Config {
     /// For example, with a target heat temp of 20, and deadband set to 0.4,
     /// the hvac system will turn heat on when temp drops to 19.6.
     ///
-    /// Defaults to 0.4
+    /// Defaults to 0.6
     pub temp_deadband: f32,
 
     /// The temperature difference past the setpoint required to stop an action.
@@ -54,7 +54,7 @@ pub struct Config {
     /// For example, with a target heat temp of 20, and overrun set to 0.2,
     /// the hvac system will turn heat off when temp reaches 20.2.
     ///
-    /// Defaults to 0.2
+    /// Defaults to 0.4
     pub temp_overrun: f32,
 
     pub away_mode: AwayConfig,
@@ -102,8 +102,8 @@ impl Default for Config {
             backlight: BacklightConfig::default(),
             schedule_heat: Vec::new(),
             schedule_cool: Vec::new(),
-            temp_deadband: 0.4,
-            temp_overrun: 0.2
+            temp_deadband: 0.6,
+            temp_overrun: 0.4
         }
     }
 }
