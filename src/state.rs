@@ -315,7 +315,7 @@ impl<S: EventSender> EventHandler for StateManager<S> {
 
                         let lockout_time = self.min_idle_time - self.last_idle_time.elapsed();
                         self.event_sender.send_event(
-                            Event::TimeoutReset(TimerId::HvacLockout, lockout_time)
+                            Event::StartTickTimer(TimerId::HvacLockout, lockout_time)
                         )?;
                     } else {
                         self.state.lockout = false;
