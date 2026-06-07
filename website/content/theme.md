@@ -67,7 +67,15 @@ default `{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#ffffff" }`
 ## lockout_icon
 
 Lockout status icon styling,
-default `{ icon_font: "Icon:42", icon: "\u{f1da}", colour: "#ffffff" }`
+default `{ icon_font: "Icon:42", icon: "\u{f252}", colour: "#ffffff" }`
+
+## status_msg_center
+
+Position of status message, default `[160, 280]`
+
+## status_msg_font
+
+Status message font, default "Regular:20"
 
 # Main screen gauge
 
