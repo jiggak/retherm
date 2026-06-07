@@ -28,6 +28,7 @@ mod schedule;
 mod screen;
 mod sound;
 mod state;
+mod storage;
 mod theme;
 mod timer;
 mod widgets;
@@ -77,7 +78,9 @@ fn main() -> Result<()> {
 
     let mut event_source = window::new_event_source()?;
 
-    let state = state::ThermostatState::default();
+    let mut storage = storage::Storage::new(&config);
+    let state = storage.read_state()?;
+
     let mut state_manager = state::StateManager::new(
         &config,
         state.clone(),
@@ -128,6 +131,7 @@ fn main() -> Result<()> {
         }
 
         let mut handlers: [&mut dyn EventHandler; _] = [
+            &mut storage,
             &mut state_manager,
             &mut schedule,
             &mut backplate,

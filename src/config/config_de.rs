@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use chrono::NaiveTime;
 use serde::{Deserializer, de::{self, Visitor}};
@@ -93,4 +93,31 @@ pub fn time_of_day<'de, D>(deserializer: D) -> Result<NaiveTime, D::Error>
     }
 
     deserializer.deserialize_any(TimeOfDayVisitor)
+}
+
+pub fn dir_path<'de, D>(deserializer: D) -> Result<PathBuf, D::Error>
+    where D: Deserializer<'de>
+{
+    struct PathBufVisitor;
+
+    impl<'de> Visitor<'de> for PathBufVisitor {
+        type Value = PathBuf;
+
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("path to existing directory")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where E: de::Error
+        {
+            let val = PathBuf::from(v);
+            if !val.is_dir() {
+                return Err(E::custom(format!("{:?} is not an existing directory", val)));
+            }
+
+            Ok(val)
+        }
+    }
+
+    deserializer.deserialize_any(PathBufVisitor)
 }

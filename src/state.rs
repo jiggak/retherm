@@ -22,6 +22,7 @@ use anyhow::Result;
 use esphome_api::proto::{
     ClimateAction, ClimateFanMode, ClimateMode, ClimatePreset, ClimateStateResponse
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     config::{AwayConfig, Config},
@@ -98,7 +99,7 @@ impl From<&ThermostatState> for ClimateStateResponse {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq)]
 pub enum HvacMode {
     Off,
     Auto,
@@ -131,7 +132,7 @@ impl From<HvacMode> for ClimateMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq)]
 pub enum HvacAction {
     Idle,
     Heating,
