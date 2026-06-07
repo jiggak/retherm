@@ -134,6 +134,8 @@ impl<S: EventSender + Clone + Send + 'static> EventHandler for Timers<S> {
             Event::StartTickTimer(id, timeout) => {
                 if !self.timers.lock().unwrap().contains_key(&id) {
                     let tick_duration = Duration::from_secs(1);
+                    // drop fraction of second so timer ticks predictably on first iter
+                    let timeout = Duration::from_secs(timeout.as_secs());
                     self.start_tick_thread(id, timeout, tick_duration);
                 }
             }

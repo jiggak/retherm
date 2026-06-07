@@ -16,8 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::time::Duration;
+
 use anyhow::Result;
-use embedded_graphics::{prelude::*};
+use embedded_graphics::{pixelcolor::Bgr888, prelude::*, text::{Alignment, Text}};
 
 use crate::{
     drawable::{AppDrawable, AppFrameBuf},
@@ -54,6 +56,26 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             last_click_temp: 0.0,
             state: ThermostatState::default(),
         }
+    }
+}
+
+impl<S> MainScreen<S> {
+    fn draw_status_text<D>(&self, target: &mut D, bg_colour: Bgr888, s: String) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let font_style = self.theme.status_msg_font
+            .font_style(self.theme.fg_colour, bg_colour);
+
+        let text = Text::with_alignment(
+            &s,
+            self.theme.status_msg_center,
+            font_style,
+            Alignment::Center
+        );
+
+        text.draw(target)?;
+
+        Ok(())
     }
 }
 
@@ -110,15 +132,26 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
                 bg_colour,
                 Some(self.theme.away_icon.colour)
             )?;
-        } else if self.state.lockout {
+        } else if let Some(lockout_duration) = self.state.lockout {
             self.lockout_icon.draw(
                 target,
                 self.theme.status_icon_center,
                 bg_colour,
                 Some(self.theme.away_icon.colour)
             )?;
+
+            let dur_text = format_duration(lockout_duration);
+            self.draw_status_text(target, bg_colour, dur_text)?;
         }
 
         Ok(())
     }
+}
+
+fn format_duration(duration: Duration) -> String {
+    let total_secs = duration.as_secs();
+    let minutes = total_secs / 60;
+    let seconds = total_secs % 60;
+
+    format!("{:02}:{:02}", minutes, seconds)
 }
