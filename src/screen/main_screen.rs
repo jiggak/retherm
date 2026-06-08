@@ -45,7 +45,7 @@ pub struct MainScreen<S> {
 impl<S: EventSender> Screen for MainScreen<S> { }
 
 impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
-    pub fn new(theme: MainScreenTheme, event_sender: S) -> Self {
+    pub fn new(theme: MainScreenTheme, state: ThermostatState, event_sender: S) -> Self {
         let cmd_sender = TrailingEventSender::new(event_sender.clone(), 250);
         Self {
             gauge: GaugeWidget::new(theme.gauge.clone()),
@@ -55,7 +55,7 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             event_sender,
             theme,
             last_click_temp: 0.0,
-            state: ThermostatState::default(),
+            state,
         }
     }
 }
