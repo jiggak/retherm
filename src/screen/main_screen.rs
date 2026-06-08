@@ -26,6 +26,7 @@ use crate::{
     events::{Event, EventHandler, EventSender, TrailingEventSender},
     state::{HvacAction, ThermostatState},
     theme::MainScreenTheme,
+    timer::TimerId,
     widgets::{GaugeWidget, IconWidget}
 };
 use super::{Screen, ScreenId};
@@ -102,6 +103,14 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                 self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect {
                     current_mode: self.state.mode
                 }))?;
+            }
+            // By handling lockout timer ticks here, instead of state manager
+            // handling and sending `State` events, we avoid the `State` events
+            // interfering with dial events.
+            Event::TimerTick(TimerId::HvacLockout, remaining) => {
+                if self.state.lockout.is_some() {
+                    self.state.lockout = Some(*remaining);
+                }
             }
             Event::State(state) => {
                 self.state = state.clone();

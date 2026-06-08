@@ -292,10 +292,6 @@ impl<S: EventSender> EventHandler for StateManager<S> {
             Event::SetAway(true) | Event::TimeoutReached(TimerId::Away) => {
                 self.set_away(true)
             }
-            Event::TimerTick(TimerId::HvacLockout, remaining) => {
-                self.state.lockout = Some(*remaining);
-                true
-            }
             Event::TimeoutReached(TimerId::HvacLockout) => {
                 self.state.lockout = None;
                 true
