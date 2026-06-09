@@ -1,0 +1,47 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+  workflow_dispatch:
+
+env:
+  TOOLCHAIN_IMAGE: ghcr.io/${{ github.repository_owner }}/retherm-toolchain
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build release binary
+        run: |
+          docker run --rm \
+            --user $(id -u):$(id -g) \
+            -e CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-nest-linux-gnueabihf-gcc \
+            -v "${{ github.workspace }}:/work" \
+            ${{ env.TOOLCHAIN_IMAGE }} \
+            cargo build \
+              --no-default-features \
+              --features device \
+              --target=armv7-unknown-linux-gnueabihf \
+              --release
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: retherm
+          path: target/armv7-unknown-linux-gnueabihf/release/retherm
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/armv7-unknown-linux-gnueabihf/release/retherm

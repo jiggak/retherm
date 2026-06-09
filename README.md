@@ -16,7 +16,6 @@ Thermostat.
 - [x] Configurable interface look/feel (separate from app config)
 - [x] Configuration file for settings such as:
   - [x] HA related parameters (api key, device name, etc)
-  - [ ] Wifi network settings
   - [x] Screen brightness, auto-off timeout
   - [x] HVAC wiring settings
 - [ ] Integrate with system wifi manager (Connman 1.29)
@@ -35,18 +34,10 @@ Add target with `rustup`
 rustup target add armv7-unknown-linux-gnueabihf
 ```
 
-Get toolchain from https://github.com/eckucukoglu/arm-linux-gnueabihf
-and add to `PATH`.
+Get Arm toolchain (copied from docker image; requires docker)
 
 ```bash
-export PATH=~/Toolchains/arm-linux-gnueabihf/bin:$PATH
-```
-
-Create `~/.cargo/config.toml` with linker command from toolchain.
-
-```toml
-[target.armv7-unknown-linux-gnueabihf]
-linker = "arm-linux-gnueabihf-gcc"
+just get-toolchain
 ```
 
 ## Building & Running
@@ -57,18 +48,23 @@ First; the stock app needs to be stopped.
 /etc/init.d/nestlabs stop
 ```
 
-Optional: start `build_recv.sh` on device and use `build_push.sh` to build,
+Optional: start `build_recv.sh` on device and use `just push` to build,
 push to device, and restart app (uses netcat on port 51234).
-
-```bash
-./build_push.sh
-```
 
 Or build and send manually.
 
 ```bash
 # Build output at `target/armv7-unknown-linux-gnueabihf/release/retherm`
-cargo build --no-default-features --features device --target=armv7-unknown-linux-gnueabihf
+just build
+```
+
+## Build with Docker
+
+If you do not want to install the build tools, you can use docker to build.
+
+```bash
+# Build output at `target/armv7-unknown-linux-gnueabihf/release/retherm`
+just build-with-docker
 ```
 
 ## Stretch goals
@@ -105,4 +101,3 @@ This is the behaviour I've observed with the stock Nest app.
   (presummably until battery dies)
 * Need to look into what Nest app does; could it be as simple setting kernel
   power state?
-
