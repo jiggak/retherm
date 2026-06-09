@@ -3,7 +3,7 @@ TOOLCHAIN_IMAGE_NAME := "retherm-toolchain"
 
 export PATH := ".toolchain/arm-nest-linux-gnueabihf/bin:" + env("PATH")
 
-# Build on host toolchain
+# Build with host toolchain
 @build:
     cargo build --no-default-features --features device --target=armv7-unknown-linux-gnueabihf --release
 
@@ -19,7 +19,7 @@ push nest_host=env("NEST_HOST", "nest-dev"): build
     echo "Sending to {{nest_host}} with netcat"
     @cat target/armv7-unknown-linux-gnueabihf/release/retherm | nc -q0 {{nest_host}} 51234
 
-# Build docker toolchain image
+# Build toolchain docker image
 [working-directory: "toolchain"]
 @build-toolchain-image:
     docker build . -t {{TOOLCHAIN_IMAGE_NAME}}
@@ -33,13 +33,14 @@ get-toolchain:
        bash -c "cp -r /arm-nest-linux-gnueabihf /output/"
     echo "Toolchain copied to .toolchain/arm-nest-linux-gnueabihf"
 
-# (Re)Generate website docs from code comments
+# (Re)Generate website docs from struct comments
 [env("RUSTDOCFLAGS", "-Z unstable-options --output-format json")]
 [working-directory: "website"]
-@code-doc-markdown:
+@struct-markdown:
     cat content/configuration.tmpl > content/configuration.md
     cat content/theme.tmpl > content/theme.md
 
+     # At this time, json output is an unstable feature; requires nightly tools
     cargo +nightly doc --no-deps
 
     cargo run -p docgen ../target/doc/retherm.json \

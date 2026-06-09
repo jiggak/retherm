@@ -1,8 +1,6 @@
-use serde_json::{Map, Value};
 use std::{fs, io::Write};
 
-// https://crates.io/crates/rustdoc-types
-// TODO Use this^ crate for parsing json into safe types
+use rustdoc_types::{Crate, Item, ItemEnum, ItemKind, StructKind};
 
 fn main() {
     let mut args = std::env::args();
@@ -20,25 +18,23 @@ fn main() {
     let struct_names: Vec<_> = args.collect();
 
     let data = fs::read_to_string(file_path).unwrap();
-    let json: Value = serde_json::from_str(&data).unwrap();
+    let krate: Crate = serde_json::from_str(&data).unwrap();
     let mut writer = std::io::stdout();
 
     for name in struct_names {
-        struct_markdown(&mut writer, &json, &name);
+        struct_markdown(&mut writer, &krate, &name);
     }
 }
 
-fn find_struct<'a>(json: &'a Value, name: &str) -> Option<&'a Map<String, Value>> {
+fn find_struct<'a>(krate: &'a Crate, name: &str) -> Option<&'a Item> {
     eprintln!("Find struct {name}");
-    let index = json["index"].as_object().unwrap();
-    let paths = json["paths"].as_object().unwrap();
 
-    for (key, item) in paths {
-        if item["kind"] == "struct" && item["crate_id"] == 0 {
-            let path = item["path"].as_array().unwrap();
-            if path.last().unwrap() == name {
-                eprintln!("Path match {:?}", path);
-                return index[key].as_object();
+    for (key, item) in krate.paths.iter() {
+        if item.kind == ItemKind::Struct && item.crate_id == 0 {
+            if item.path.last().unwrap() == name {
+                eprintln!("Path match {:?}", item.path);
+
+                return krate.index.get(&key);
             }
         }
     }
@@ -46,33 +42,38 @@ fn find_struct<'a>(json: &'a Value, name: &str) -> Option<&'a Map<String, Value>
     None
 }
 
-fn struct_markdown<W: Write>(out: &mut W, json: &Value, name: &str) {
-    let index = json["index"].as_object().unwrap();
-    let struct_obj = find_struct(json, name)
+fn struct_markdown<W: Write>(out: &mut W, krate: &Crate, name: &str) {
+    let struct_item = find_struct(krate, name)
         .expect(&format!("Struct {name} not found"));
 
-    let name = struct_obj["name"].as_str().unwrap();
-    let docs = struct_obj["docs"].as_str().unwrap_or("");
+    let struct_name = struct_item.name.as_ref().unwrap();
+    let struct_docs = if let Some(docs) = &struct_item.docs {
+        docs.lines().collect()
+    } else {
+        vec![]
+    };
 
-    let mut lines = docs.lines();
-    let title = lines.next().unwrap_or(name);
+    let mut struct_docs = struct_docs.into_iter();
+    let title = struct_docs.next().unwrap_or(struct_name.as_str());
 
     writeln!(out, "# {title}").unwrap();
 
-    for line in lines {
+    for line in struct_docs {
         writeln!(out, "{line}").unwrap();
     }
 
     writeln!(out, "").unwrap();
 
-    if let Some(fields) = struct_obj["inner"]["struct"]["kind"]["plain"]["fields"].as_array() {
-        for field_id in fields {
-            let field = &index[&field_id.to_string()];
-            let field_name = field["name"].as_str().unwrap();
-            if let Some(field_docs) = field["docs"].as_str() {
-                writeln!(out, "## {}\n\n{}\n", field_name, field_docs).unwrap();
-            } else {
-                eprintln!("Skipping empty docs {name}:{field_name}");
+    if let ItemEnum::Struct(s) = &struct_item.inner {
+        if let StructKind::Plain { fields, .. } = &s.kind {
+            for field_id in fields {
+                let field = &krate.index[&field_id];
+                let field_name = field.name.as_ref().unwrap();
+                if let Some(field_docs) = &field.docs {
+                    writeln!(out, "## {}\n\n{}\n", field_name, field_docs).unwrap();
+                } else {
+                    eprintln!("Skipping empty docs {name}:{field_name}");
+                }
             }
         }
     }
