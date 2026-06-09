@@ -1,6 +1,9 @@
 use serde_json::{Map, Value};
 use std::{fs, io::Write};
 
+// https://crates.io/crates/rustdoc-types
+// TODO Use this^ crate for parsing json into safe types
+
 fn main() {
     let mut args = std::env::args();
 
