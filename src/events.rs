@@ -44,8 +44,14 @@ pub enum Event {
     ClickSound,
     ProximityNear,
     ProximityFar,
+    /// Start or reset a timeout timer
+    TimeoutReset(TimerId, Duration),
+    /// Timer reached timeout
     TimeoutReached(TimerId),
-    TimeoutReset(TimerId, Duration)
+    /// Start ticking timer
+    StartTickTimer(TimerId, Duration),
+    /// Dispatched for every "tick" of ticking timer
+    TimerTick(TimerId, Duration),
 }
 
 impl Event {
@@ -80,8 +86,10 @@ impl PartialEq for Event {
             Self::ClickSound => matches!(other, Self::ClickSound),
             Self::ProximityNear => matches!(other, Self::ProximityNear),
             Self::ProximityFar => matches!(other, Self::ProximityFar),
-            Self::TimeoutReached(_) => matches!(other, Self::TimeoutReached(_)),
             Self::TimeoutReset(_, _) => matches!(other, Self::TimeoutReset(_, _)),
+            Self::TimeoutReached(_) => matches!(other, Self::TimeoutReached(_)),
+            Self::StartTickTimer(_, _) => matches!(other, Self::StartTickTimer(_, _)),
+            Self::TimerTick(_, _) => matches!(other, Self::TimerTick(_, _)),
         }
     }
 
@@ -256,4 +264,3 @@ impl Smoothing {
         None
     }
 }
-

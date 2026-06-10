@@ -37,6 +37,12 @@ the hvac system will turn heat off when temp reaches 20.2.
 
 Defaults to 0.4
 
+## min_off_time
+
+Minimum off time for cooling to allow AC refrigerant pressures to equalize.
+
+Defaults to "5m"
+
 # Away Mode
 
 ```toml

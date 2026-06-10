@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use esphome_api::proto::{
@@ -35,7 +35,8 @@ pub struct ThermostatState {
     pub current_temp: f32,
     pub mode: HvacMode,
     pub action: HvacAction,
-    pub away: bool
+    pub away: bool,
+    pub lockout: Option<Duration>
 }
 
 impl ThermostatState {
@@ -79,7 +80,8 @@ impl Default for ThermostatState {
             current_temp: 20.0,
             action: HvacAction::Idle,
             mode: HvacMode::Heat,
-            away: false
+            away: false,
+            lockout: None
         }
     }
 }
@@ -153,7 +155,9 @@ pub struct StateManager<S: EventSender> {
     away_config: AwayConfig,
     backlight_timeout: Duration,
     temp_deadband: f32,
-    temp_overrun: f32
+    temp_overrun: f32,
+    last_idle_time: Instant,
+    min_idle_time: Duration,
 }
 
 impl<S: EventSender> StateManager<S> {
@@ -173,7 +177,9 @@ impl<S: EventSender> StateManager<S> {
             away_config: config.away_mode.clone(),
             backlight_timeout: config.backlight.timeout,
             temp_deadband: config.temp_deadband,
-            temp_overrun: config.temp_overrun
+            temp_overrun: config.temp_overrun,
+            last_idle_time: Instant::now(),
+            min_idle_time: config.min_off_time,
         })
     }
 
@@ -286,11 +292,35 @@ impl<S: EventSender> EventHandler for StateManager<S> {
             Event::SetAway(true) | Event::TimeoutReached(TimerId::Away) => {
                 self.set_away(true)
             }
+            Event::TimeoutReached(TimerId::HvacLockout) => {
+                self.state.lockout = None;
+                true
+            }
             _ => false
         };
 
         if did_change {
-            self.apply_hvac_action();
+            if self.apply_hvac_action() {
+                if self.state.action == HvacAction::Idle {
+                    // don't reset last idle time until min idle time elapsed
+                    // i.e. don't re-trigger lockout when it's already active
+                    if self.last_idle_time.elapsed() > self.min_idle_time {
+                        self.last_idle_time = Instant::now();
+                    }
+
+                    self.state.lockout = None;
+                } else {
+                    if self.last_idle_time.elapsed() < self.min_idle_time {
+                        let lockout_time = self.min_idle_time - self.last_idle_time.elapsed();
+                        self.state.lockout = Some(lockout_time);
+                        self.event_sender.send_event(
+                            Event::StartTickTimer(TimerId::HvacLockout, lockout_time)
+                        )?;
+                    } else {
+                        self.state.lockout = None;
+                    }
+                }
+            }
 
             self.event_sender.send_event(Event::State(self.state.clone()))?;
         }
@@ -359,12 +389,13 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Idle,
-            away: false
+            away: false,
+            lockout: None
         };
 
-        let (_x, state) = state_manager(state);
+        let (_x, mgr) = state_manager(state);
 
-        simulate(state, &[
+        simulate(mgr, &[
             (20.0, HvacAction::Idle),
             (19.9, HvacAction::Idle),
             (19.8, HvacAction::Idle),
@@ -380,12 +411,13 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Heating,
-            away: false
+            away: false,
+            lockout: None
         };
 
-        let (_x, state) = state_manager(state);
+        let (_x, mgr) = state_manager(state);
 
-        simulate(state, &[
+        simulate(mgr, &[
             (20.0, HvacAction::Heating),
             (20.1, HvacAction::Heating),
             (20.2, HvacAction::Idle)
@@ -399,12 +431,13 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Idle,
-            away: false
+            away: false,
+            lockout: None
         };
 
-        let (_x, state) = state_manager(state);
+        let (_x, mgr) = state_manager(state);
 
-        simulate(state, &[
+        simulate(mgr, &[
             (20.0, HvacAction::Idle),
             (20.1, HvacAction::Idle),
             (20.2, HvacAction::Idle),
@@ -420,15 +453,63 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Cooling,
-            away: false
+            away: false,
+            lockout: None
         };
 
-        let (_x, state) = state_manager(state);
+        let (_x, mgr) = state_manager(state);
 
-        simulate(state, &[
+        simulate(mgr, &[
             (20.0, HvacAction::Cooling),
             (19.9, HvacAction::Cooling),
             (19.8, HvacAction::Idle)
         ])
+    }
+
+    #[test]
+    fn min_off_time() -> Result<()> {
+        let state = ThermostatState {
+            mode: HvacMode::Cool,
+            target_temp: 20.0,
+            current_temp: 20.0,
+            action: HvacAction::Idle,
+            away: false,
+            lockout: None
+        };
+
+        let (_x, mut mgr) = state_manager(state);
+
+        // idle -> cooling = lockout
+        mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
+        assert!(mgr.state.action == HvacAction::Cooling);
+        assert!(mgr.state.lockout.is_some());
+
+        // lockout timer elapsed = no lockout
+        mgr.handle_event(&Event::TimeoutReached(TimerId::HvacLockout))?;
+        assert!(mgr.state.action == HvacAction::Cooling);
+        assert!(mgr.state.lockout.is_none());
+
+        // cooling -> idle = no lockout
+        mgr.handle_event(&Event::SetCurrentTemp(19.0))?;
+        assert!(mgr.state.action == HvacAction::Idle);
+        assert!(mgr.state.lockout.is_none());
+
+        // idle -> cooling = lockout
+        mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
+        assert!(mgr.state.action == HvacAction::Cooling);
+        assert!(mgr.state.lockout.is_some());
+
+        // cooling -> idle = no lockout
+        mgr.handle_event(&Event::SetCurrentTemp(19.0))?;
+        assert!(mgr.state.action == HvacAction::Idle);
+        assert!(mgr.state.lockout.is_none());
+
+        // idle -> long delay -> cooling = no lockout
+        mgr.last_idle_time = Instant::now() - Duration::from_mins(10);
+        mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
+        assert!(mgr.state.action == HvacAction::Cooling);
+        assert!(mgr.state.lockout.is_none());
+
+        Ok(())
     }
 }

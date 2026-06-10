@@ -124,12 +124,19 @@ impl Default for Theme {
                     arc_temp_text_dia: 220
                 },
 
-                away_icon_center: Point { x: 160, y: 230 },
+                status_icon_center: Point { x: 160, y: 230 },
                 away_icon: IconStyle {
                     icon_font: fonts.font_def(FontName::Icon, 42),
                     icon: "\u{e50b}".to_string(),
-                    colour: Bgr888::CSS_DIM_GRAY
-                }
+                    colour: Bgr888::CSS_WHITE
+                },
+                lockout_icon: IconStyle {
+                    icon_font: fonts.font_def(FontName::Icon, 42),
+                    icon: "\u{f252}".to_string(),
+                    colour: Bgr888::CSS_WHITE
+                },
+                status_msg_center: Point { x: 160, y: 280 },
+                status_msg_font: fonts.font_def(FontName::Regular, 20),
             },
             mode_select: ModeSelectTheme {
                 bg_colour: Bgr888::BLACK,
@@ -194,12 +201,24 @@ pub struct MainScreenTheme {
 
     pub gauge: GaugeStyle,
 
-    /// Position of away icon, default `[160, 230]`
+    /// Position of status icon, default `[160, 230]`
     #[serde(deserialize_with = "theme_de::point")]
-    pub away_icon_center: Point,
+    pub status_icon_center: Point,
 
-    /// Away icon styling, default `{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#696969" }`
-    pub away_icon: IconStyle
+    /// Away status icon styling,
+    /// default `{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#ffffff" }`
+    pub away_icon: IconStyle,
+
+    /// Lockout status icon styling,
+    /// default `{ icon_font: "Icon:42", icon: "\u{f252}", colour: "#ffffff" }`
+    pub lockout_icon: IconStyle,
+
+    /// Position of status message, default `[160, 280]`
+    #[serde(deserialize_with = "theme_de::point")]
+    pub status_msg_center: Point,
+
+    /// Status message font, default "Regular:20"
+    pub status_msg_font: FontDef<'static>,
 }
 
 impl Default for MainScreenTheme {

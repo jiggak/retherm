@@ -59,9 +59,9 @@ impl Backplate<BackplateImpl> {
 impl<D: BackplateDevice> EventHandler for Backplate<D> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         if let Event::State(state) = event {
-            // TODO do I need some sort of "cooldown" phase if circuit was
-            // goes from on to off then on again too quickly?
-            self.device.switch_hvac(&state.action)?;
+            if state.lockout.is_none() {
+                self.device.switch_hvac(&state.action)?;
+            }
         }
 
         Ok(())

@@ -16,38 +16,67 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::time::Duration;
+
 use anyhow::Result;
-use embedded_graphics::{prelude::*};
+use embedded_graphics::{pixelcolor::Bgr888, prelude::*, text::{Alignment, Text}};
 
 use crate::{
     drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender, TrailingEventSender},
-    state::HvacAction, theme::MainScreenTheme, widgets::{GaugeWidget, IconWidget}
+    state::{HvacAction, ThermostatState},
+    theme::MainScreenTheme,
+    timer::TimerId,
+    widgets::{GaugeWidget, IconWidget}
 };
 use super::{Screen, ScreenId};
 
 pub struct MainScreen<S> {
     gauge: GaugeWidget,
     away_icon: IconWidget,
+    lockout_icon: IconWidget,
     cmd_sender: TrailingEventSender,
     event_sender: S,
     theme: MainScreenTheme,
-    last_click_temp: f32
+    last_click_temp: f32,
+    state: ThermostatState,
 }
 
 impl<S: EventSender> Screen for MainScreen<S> { }
 
 impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
-    pub fn new(theme: MainScreenTheme, event_sender: S) -> Self {
+    pub fn new(theme: MainScreenTheme, state: ThermostatState, event_sender: S) -> Self {
         let cmd_sender = TrailingEventSender::new(event_sender.clone(), 250);
         Self {
             gauge: GaugeWidget::new(theme.gauge.clone()),
             away_icon: IconWidget::new(theme.away_icon.clone()),
+            lockout_icon: IconWidget::new(theme.lockout_icon.clone()),
             cmd_sender,
             event_sender,
             theme,
-            last_click_temp: 0.0
+            last_click_temp: 0.0,
+            state,
         }
+    }
+}
+
+impl<S> MainScreen<S> {
+    fn draw_status_text<D>(&self, target: &mut D, bg_colour: Bgr888, s: String) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let font_style = self.theme.status_msg_font
+            .font_style(self.theme.fg_colour, bg_colour);
+
+        let text = Text::with_alignment(
+            &s,
+            self.theme.status_msg_center,
+            font_style,
+            Alignment::Center
+        );
+
+        text.draw(target)?;
+
+        Ok(())
     }
 }
 
@@ -57,26 +86,34 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
         // Let state manager exit away mode before
 
         match event {
-            Event::Dial(dir) if !self.gauge.state.away => {
+            Event::Dial(dir) if !self.state.away => {
                 let temp_inc = *dir as f32 * 0.01;
-                let target_temp = self.gauge.state.target_temp + temp_inc;
+                let target_temp = self.state.target_temp + temp_inc;
 
                 if (self.last_click_temp - target_temp).abs() >= 0.5 {
                     self.last_click_temp = target_temp;
                     self.event_sender.send_event(Event::ClickSound)?;
                 }
 
-                if self.gauge.state.set_target_temp(target_temp) {
+                if self.state.set_target_temp(target_temp) {
                     self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;
                 }
             }
-            Event::ButtonDown if !self.gauge.state.away => {
+            Event::ButtonDown if !self.state.away => {
                 self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect {
-                    current_mode: self.gauge.state.mode
+                    current_mode: self.state.mode
                 }))?;
             }
+            // By handling lockout timer ticks here, instead of state manager
+            // handling and sending `State` events, we avoid the `State` events
+            // interfering with dial events.
+            Event::TimerTick(TimerId::HvacLockout, remaining) => {
+                if self.state.lockout.is_some() {
+                    self.state.lockout = Some(*remaining);
+                }
+            }
             Event::State(state) => {
-                self.gauge.state = state.clone();
+                self.state = state.clone();
             }
             _ => { }
         }
@@ -87,7 +124,7 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
 
 impl<S: EventSender> AppDrawable for MainScreen<S> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
-        let bg_colour = match self.gauge.state.action {
+        let bg_colour = match self.state.action {
             HvacAction::Cooling => self.theme.bg_cool_colour,
             HvacAction::Heating => self.theme.bg_heat_colour,
             HvacAction::Idle => self.theme.bg_colour
@@ -95,17 +132,35 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
 
         target.clear(bg_colour)?;
 
-        self.gauge.draw(target, bg_colour)?;
+        self.gauge.draw(target, bg_colour, &self.state)?;
 
-        if self.gauge.state.away {
+        if self.state.away {
             self.away_icon.draw(
                 target,
-                self.theme.away_icon_center,
+                self.theme.status_icon_center,
                 bg_colour,
                 Some(self.theme.away_icon.colour)
             )?;
+        } else if let Some(lockout_duration) = self.state.lockout {
+            self.lockout_icon.draw(
+                target,
+                self.theme.status_icon_center,
+                bg_colour,
+                Some(self.theme.away_icon.colour)
+            )?;
+
+            let dur_text = format_duration(lockout_duration);
+            self.draw_status_text(target, bg_colour, dur_text)?;
         }
 
         Ok(())
     }
+}
+
+fn format_duration(duration: Duration) -> String {
+    let total_secs = duration.as_secs();
+    let minutes = total_secs / 60;
+    let seconds = total_secs % 60;
+
+    format!("{:02}:{:02}", minutes, seconds)
 }

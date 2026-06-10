@@ -55,13 +55,27 @@ Background colour when heating is turned on, default "#F17E3B"
 
 Background colour when cooling is turned on, default "#3B72F1"
 
-## away_icon_center
+## status_icon_center
 
-Position of away icon, default `[160, 230]`
+Position of status icon, default `[160, 230]`
 
 ## away_icon
 
-Away icon styling, default `{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#696969" }`
+Away status icon styling,
+default `{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#ffffff" }`
+
+## lockout_icon
+
+Lockout status icon styling,
+default `{ icon_font: "Icon:42", icon: "\u{f252}", colour: "#ffffff" }`
+
+## status_msg_center
+
+Position of status message, default `[160, 280]`
+
+## status_msg_font
+
+Status message font, default "Regular:20"
 
 # Main screen gauge
 

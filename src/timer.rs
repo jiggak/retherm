@@ -18,12 +18,12 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, mpsc::{RecvTimeoutError, Sender, channel}},
+    sync::{Arc, Mutex, mpsc::{RecvTimeoutError, Sender, TryRecvError, channel}},
     thread,
     time::Duration
 };
 
-use log::{debug, warn};
+use log::warn;
 
 use crate::events::{Event, EventHandler, EventSender};
 
@@ -31,33 +31,7 @@ use crate::events::{Event, EventHandler, EventSender};
 pub enum TimerId {
     Away,
     Backlight,
-    // HvacCooldown
-}
-
-fn start_timeout_thread<F>(mut timeout: Duration, timeout_reached: F) -> Sender<Duration>
-    where F: Fn() + Send + 'static
-{
-    let (sender, receiver) = channel();
-
-    thread::spawn(move || {
-        loop {
-            // recv_timeout() returns Err when timeout reached
-            // using sender of the channel resets the timeout
-            match receiver.recv_timeout(timeout) {
-                Ok(new_timeout) => timeout = new_timeout,
-                Err(RecvTimeoutError::Timeout) => {
-                    timeout_reached();
-                    break;
-                }
-                Err(RecvTimeoutError::Disconnected) => {
-                    warn!("Timeout thread sender disconnected");
-                    break;
-                }
-            }
-        }
-    });
-
-    sender
+    HvacLockout
 }
 
 pub struct Timers<S> {
@@ -73,31 +47,96 @@ impl<S: EventSender + Clone + Send + 'static> Timers<S> {
         }
     }
 
-    fn start_timer(&self, id: TimerId, timeout: Duration) -> Sender<Duration> {
-        let timeout_sender = self.event_sender.clone();
-        let timers = self.timers.clone();
+    fn start_timeout_thread(&self, id: TimerId, timeout: Duration) {
+        let (sender, receiver) = channel();
 
-        start_timeout_thread(timeout, move || {
-            debug!("{:?} timeout reached", id);
+        let timers = self.timers.clone();
+        let event_sender = self.event_sender.clone();
+
+        thread::spawn(move || {
+            let mut timeout = timeout;
+
+            loop {
+                // recv_timeout() returns Err when timeout reached
+                // using sender of the channel resets the timeout
+                match receiver.recv_timeout(timeout) {
+                    Ok(new_timeout) => timeout = new_timeout,
+                    Err(RecvTimeoutError::Timeout) => {
+                        timers.lock().unwrap().remove(&id);
+                        event_sender.send_event(Event::TimeoutReached(id)).unwrap();
+                        break;
+                    }
+                    Err(RecvTimeoutError::Disconnected) => {
+                        warn!("Timeout thread sender disconnected");
+                        break;
+                    }
+                }
+            }
+        });
+
+        self.timers.lock().unwrap().insert(id, sender);
+    }
+
+    fn start_tick_thread(&self, id: TimerId, timeout: Duration, tick_duration: Duration) {
+        fn duration_ticks(duration: Duration, tick: Duration) -> i32 {
+            let ticks = duration.div_duration_f32(tick);
+            ticks.round() as i32
+        }
+
+        let (sender, receiver) = channel();
+
+        let timers = self.timers.clone();
+        let event_sender = self.event_sender.clone();
+
+        thread::spawn(move || {
+            let mut ticks = 0;
+            let mut timeout_ticks = duration_ticks(timeout, tick_duration);
+
+            while ticks < timeout_ticks {
+                thread::sleep(tick_duration);
+
+                match receiver.try_recv() {
+                    Ok(new_timeout) => {
+                        timeout_ticks = duration_ticks(new_timeout, tick_duration);
+                        ticks = 0;
+                    }
+                    Err(TryRecvError::Empty) => {
+                        ticks += 1;
+                        let remaining = timeout_ticks - ticks;
+                        let remaining = tick_duration.mul_f32(remaining as f32);
+                        event_sender.send_event(Event::TimerTick(id, remaining)).unwrap();
+                    }
+                    Err(TryRecvError::Disconnected) => {
+                        warn!("Tick thread sender disconnected");
+                        return;
+                    }
+                }
+            }
+
             timers.lock().unwrap().remove(&id);
-            timeout_sender.send_event(Event::TimeoutReached(id)).unwrap();
-        })
+            event_sender.send_event(Event::TimeoutReached(id)).unwrap();
+        });
+
+        self.timers.lock().unwrap().insert(id, sender);
     }
 }
 
 impl<S: EventSender + Clone + Send + 'static> EventHandler for Timers<S> {
     fn handle_event(&mut self, event: &Event) -> anyhow::Result<()> {
         match *event {
-            Event::TimeoutReset(id, timeout) => {
-                if timeout > Duration::ZERO {
-                    let mut timers = self.timers.lock().unwrap();
-                    if let Some(sender) = timers.get(&id) {
-                        sender.send(timeout).unwrap();
-                    } else {
-                        timers.insert(id, self.start_timer(id, timeout));
-                    }
+            Event::TimeoutReset(id, timeout) if timeout > Duration::ZERO => {
+                if let Some(sender) = self.timers.lock().unwrap().get(&id) {
+                    sender.send(timeout).unwrap();
                 } else {
-                    warn!("Skipping timer {:?} with zero timeout", id);
+                    self.start_timeout_thread(id, timeout);
+                }
+            }
+            Event::StartTickTimer(id, timeout) => {
+                if !self.timers.lock().unwrap().contains_key(&id) {
+                    let tick_duration = Duration::from_secs(1);
+                    // drop fraction of second so timer ticks predictably on first iter
+                    let timeout = Duration::from_secs(timeout.as_secs());
+                    self.start_tick_thread(id, timeout, tick_duration);
                 }
             }
             _ => { }
@@ -126,7 +165,7 @@ mod tests {
     {
         thread::spawn(move || {
             while let Ok(event) = event_source.wait_event() {
-                debug!("{:?}", event);
+                log::debug!("{:?}", event);
 
                 if event == Event::Quit {
                     break;
