@@ -1,7 +1,7 @@
 export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER := "arm-nest-linux-gnueabihf-gcc"
 TOOLCHAIN_IMAGE_NAME := "retherm-toolchain"
 
-export PATH := ".toolchain/arm-nest-linux-gnueabihf/bin:" + env("PATH")
+export PATH := x".toolchain/arm-nest-linux-gnueabihf/bin:${PATH}"
 
 # Build with host toolchain
 @build:
@@ -15,9 +15,9 @@ export PATH := ".toolchain/arm-nest-linux-gnueabihf/bin:" + env("PATH")
        cargo build --no-default-features --features device --target=armv7-unknown-linux-gnueabihf --release
 
 # Push build to nest
-push nest_host=env("NEST_HOST", "nest-dev"): build
-    echo "Sending to {{nest_host}} with netcat"
-    @cat target/armv7-unknown-linux-gnueabihf/release/retherm | nc -q0 {{nest_host}} 51234
+push host=env("NEST_HOST", "nest-dev"): build
+    echo "Sending to {{host}} with netcat"
+    @cat target/armv7-unknown-linux-gnueabihf/release/retherm | nc -q0 {{host}} 51234
 
 # Build toolchain docker image
 [working-directory: "toolchain"]
