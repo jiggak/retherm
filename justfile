@@ -40,7 +40,7 @@ get-toolchain:
     cat content/configuration.tmpl > content/configuration.md
     cat content/theme.tmpl > content/theme.md
 
-     # At this time, json output is an unstable feature; requires nightly tools
+    # At this time, json output is an unstable feature; requires nightly tools
     cargo +nightly doc --no-deps
 
     cargo run -p docgen ../target/doc/retherm.json \
