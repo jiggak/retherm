@@ -78,7 +78,7 @@ fn main() -> Result<()> {
 
     let mut event_source = window::new_event_source()?;
 
-    let mut storage = storage::Storage::new(&config);
+    let mut storage = storage::Storage::new(&config)?;
     let state = storage.read_state()?;
 
     let mut state_manager = state::StateManager::new(

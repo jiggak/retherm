@@ -18,20 +18,28 @@
 
 use std::{fs, path::PathBuf};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 
-use crate::{config::Config, events::{Event, EventHandler}, state::{HvacMode, ThermostatState}};
+use crate::{
+    config::Config,
+    events::{Event, EventHandler},
+    state::{HvacMode, ThermostatState}
+};
 
 pub struct Storage {
     state_file_path: PathBuf
 }
 
 impl Storage {
-    pub fn new(config: &Config) -> Self {
-        Self {
-            state_file_path: config.storage_dir.join("retherm_state.toml")
+    pub fn new(config: &Config) -> Result<Self> {
+        if !config.storage_dir.is_dir() {
+            Err(anyhow!("Storage dir {:?} does not exist", config.storage_dir))
+        } else {
+            Ok(Self {
+                state_file_path: config.storage_dir.join("retherm_state.toml")
+            })
         }
     }
 

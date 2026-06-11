@@ -65,8 +65,7 @@ pub struct Config {
 
     /// Directory to store app state.
     ///
-    /// Defaults to "/tmp"
-    #[serde(deserialize_with = "config_de::dir_path")]
+    /// Defaults to "/media/data"
     pub storage_dir: PathBuf,
 
     pub away_mode: AwayConfig,
@@ -117,7 +116,7 @@ impl Default for Config {
             temp_deadband: 0.6,
             temp_overrun: 0.4,
             min_off_time: Duration::from_mins(5),
-            storage_dir: PathBuf::from("/tmp"),
+            storage_dir: PathBuf::from("/media/data"),
         }
     }
 }
