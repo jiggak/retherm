@@ -34,11 +34,13 @@ pub struct Storage {
 
 impl Storage {
     pub fn new(config: &Config) -> Result<Self> {
-        if !config.storage_dir.is_dir() {
-            Err(anyhow!("Storage dir {:?} does not exist", config.storage_dir))
+        let state_dir = config.state_file_path.parent()
+            .ok_or(anyhow!("Unable to get parent of state file path"))?;
+        if !state_dir.is_dir() {
+            Err(anyhow!("Directory {:?} does not exist", state_dir))
         } else {
             Ok(Self {
-                state_file_path: config.storage_dir.join("retherm_state.toml")
+                state_file_path: config.state_file_path.clone()
             })
         }
     }
