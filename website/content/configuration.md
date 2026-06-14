@@ -43,11 +43,11 @@ Minimum off time for cooling to allow AC refrigerant pressures to equalize.
 
 Defaults to "5m"
 
-## state_file_path
+## storage_dir
 
-Path to file where retherm will store app state.
+Directory to store app state.
 
-Defaults to "/media/data/rether.state.toml"
+Defaults to "/media/data"
 
 # Away Mode
 

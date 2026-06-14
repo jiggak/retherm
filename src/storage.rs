@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{fs, path::PathBuf, sync::mpsc::{Sender, channel}, thread};
+use std::{fs, path::{Path, PathBuf}, sync::mpsc::{Sender, channel}, thread};
 
 use anyhow::{Result, anyhow};
 use log::{info, warn};
@@ -24,32 +24,31 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
     config::Config,
+    env,
     events::{Event, EventHandler},
     state::{HvacMode, ThermostatState}
 };
 
 pub struct Storage {
-    state_storage: StorageBackend,
-    write_thread: Sender<ThermostatState>
+    backend: StorageBackend,
+    write_thread: Sender<Storable>
 }
 
 impl Storage {
     pub fn new(config: &Config) -> Result<Self> {
-        let state_dir = config.state_file_path.parent()
-            .ok_or(anyhow!("Unable to get parent of state file path"))?;
-        if !state_dir.is_dir() {
-            Err(anyhow!("Directory {:?} does not exist", state_dir))
+        if !config.storage_dir.is_dir() {
+            Err(anyhow!("Directory {:?} does not exist", config.storage_dir))
         } else {
-            let state_storage = StorageBackend::new(config.state_file_path.clone());
-            let write_thread = start_write_thread(state_storage.clone());
+            let backend = StorageBackend::new(config.storage_dir.clone());
+            let write_thread = start_write_thread(backend.clone());
             Ok(Self {
-                state_storage, write_thread
+                backend, write_thread
             })
         }
     }
 
     pub fn read_state(&self) -> Result<ThermostatState> {
-        let state = if let Some(state) = self.state_storage.read()? {
+        let state = if let Some(state) = self.backend.read(env::state_file_name())? {
             ThermostatState::from(&state)
         } else {
             warn!("State does not exist, using default");
@@ -62,13 +61,17 @@ impl Storage {
     }
 }
 
-fn start_write_thread(state_storage: StorageBackend) -> Sender<ThermostatState> {
-    let (tx, rx) = channel::<ThermostatState>();
+fn start_write_thread(backend: StorageBackend) -> Sender<Storable> {
+    let (tx, rx) = channel::<Storable>();
 
     thread::spawn(move || {
-        while let Ok(state) = rx.recv() {
-            let state = StoredState::from(&state);
-            state_storage.write(state).unwrap();
+        while let Ok(data) = rx.recv() {
+            match data {
+                Storable::State(state) => {
+                    let state = StoredState::from(&state);
+                    backend.write(env::state_file_name(), state).unwrap();
+                }
+            }
         }
     });
 
@@ -78,7 +81,7 @@ fn start_write_thread(state_storage: StorageBackend) -> Sender<ThermostatState> 
 impl EventHandler for Storage {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         if let Event::State(state) = event {
-            self.write_thread.send(state.clone())?;
+            self.write_thread.send(Storable::State(state.clone()))?;
         }
 
         Ok(())
@@ -89,7 +92,7 @@ impl EventHandler for Storage {
 struct StoredState {
     target_temp: f32,
     current_temp: f32,
-    mode: HvacMode
+    mode: HvacMode,
 }
 
 impl From<&ThermostatState> for StoredState {
@@ -97,7 +100,7 @@ impl From<&ThermostatState> for StoredState {
         Self {
             target_temp: value.target_temp,
             current_temp: value.current_temp,
-            mode: value.mode
+            mode: value.mode,
         }
     }
 }
@@ -113,23 +116,28 @@ impl From<&StoredState> for ThermostatState {
     }
 }
 
+enum Storable {
+    State(ThermostatState)
+}
+
 #[derive(Clone)]
 struct StorageBackend {
-    file_path: PathBuf
+    storage_dir: PathBuf
 }
 
 impl StorageBackend {
-    fn new(file_path: PathBuf) -> Self {
-        Self { file_path }
+    fn new(storage_dir: PathBuf) -> Self {
+        Self { storage_dir }
     }
 
-    fn read<T>(&self) -> Result<Option<T>>
-        where T: DeserializeOwned
+    fn read<P, T>(&self, file_name: P) -> Result<Option<T>>
+        where P: AsRef<Path>, T: DeserializeOwned
     {
-        info!("Loading file {:?}", self.file_path);
+        let file_path = self.storage_dir.join(file_name);
+        info!("Loading file {:?}", file_path.file_name());
 
-        let state = if self.file_path.is_file() {
-            let toml_src = fs::read_to_string(&self.file_path)?;
+        let state = if file_path.is_file() {
+            let toml_src = fs::read_to_string(&file_path)?;
             Some(toml::from_str(&toml_src)?)
         } else {
             None
@@ -138,16 +146,25 @@ impl StorageBackend {
         Ok(state)
     }
 
-    fn write<T>(&self, value: T) -> Result<()>
-        where T: Serialize + DeserializeOwned + PartialEq
+    fn write<P, T>(&self, file_name: P, value: T) -> Result<()>
+        where P: AsRef<Path>, T: Serialize + DeserializeOwned + PartialEq
     {
-        if let Some(existing) = self.read::<T>()? {
-            if existing != value {
-                info!("Saving to file {:?}", self.file_path);
+        let file_path = self.storage_dir.join(file_name.as_ref());
 
-                let toml_src = toml::to_string(&value)?;
-                fs::write(&self.file_path, toml_src)?;
+        // In an attempt to avoid excessive NAND writes,
+        // serialize and write if data has changed.
+        let toml_src = match self.read::<P, T>(file_name)? {
+            None => Some(toml::to_string(&value)?),
+            Some(existing) if existing != value => {
+                Some(toml::to_string(&value)?)
             }
+            _ => None
+        };
+
+        if let Some(toml_src) = toml_src {
+            info!("Saving to file {:?}", file_path);
+
+            fs::write(&file_path, toml_src)?;
         }
 
         Ok(())

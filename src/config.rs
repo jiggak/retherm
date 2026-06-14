@@ -63,10 +63,10 @@ pub struct Config {
     #[serde(deserialize_with = "config_de::duration")]
     pub min_off_time: Duration,
 
-    /// Path to file where retherm will store app state.
+    /// Directory to store app state.
     ///
-    /// Defaults to "/media/data/rether.state.toml"
-    pub state_file_path: PathBuf,
+    /// Defaults to "/media/data"
+    pub storage_dir: PathBuf,
 
     pub away_mode: AwayConfig,
     pub backplate: BackplateConfig,
@@ -116,7 +116,7 @@ impl Default for Config {
             temp_deadband: 0.6,
             temp_overrun: 0.4,
             min_off_time: Duration::from_mins(5),
-            state_file_path: PathBuf::from("/media/data/retherm.state.toml"),
+            storage_dir: PathBuf::from("/media/data"),
         }
     }
 }
