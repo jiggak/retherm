@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{fs, path::Path, time::Duration};
+use std::{fs, path::{Path, PathBuf}, time::Duration};
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -62,6 +62,11 @@ pub struct Config {
     /// Defaults to "5m"
     #[serde(deserialize_with = "config_de::duration")]
     pub min_off_time: Duration,
+
+    /// Directory to store app state.
+    ///
+    /// Defaults to "/media/data"
+    pub storage_dir: PathBuf,
 
     pub away_mode: AwayConfig,
     pub backplate: BackplateConfig,
@@ -111,6 +116,7 @@ impl Default for Config {
             temp_deadband: 0.6,
             temp_overrun: 0.4,
             min_off_time: Duration::from_mins(5),
+            storage_dir: PathBuf::from("/media/data"),
         }
     }
 }

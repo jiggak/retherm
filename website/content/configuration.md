@@ -43,6 +43,12 @@ Minimum off time for cooling to allow AC refrigerant pressures to equalize.
 
 Defaults to "5m"
 
+## storage_dir
+
+Directory to store app state.
+
+Defaults to "/media/data"
+
 # Away Mode
 
 ```toml

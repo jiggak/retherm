@@ -57,3 +57,10 @@ pub fn get_pkg_ver() -> &'static str {
 pub fn get_pkg_name() -> &'static str {
     env!("CARGO_PKG_NAME")
 }
+
+pub fn state_file_name() -> String {
+    match std::env::var("RETHERM_STATE_FILE") {
+        Ok(file_name) => file_name,
+        Err(_) => String::from("retherm.state.toml")
+    }
+}
