@@ -25,7 +25,7 @@ use serde::Deserialize;
 pub use self::{
     fonts::{FontName, Fonts},
     font_def::FontDef,
-    gauge_style::GaugeStyle,
+    gauge_style::*,
     icon_style::IconStyle,
     list_style::ListStyle,
     primitives::RectStyle
@@ -105,24 +105,31 @@ impl Default for Theme {
                     arc_start_deg: 120.0,
                     arc_sweed_deg: 300.0,
 
-                    target_font: fonts.font_def(FontName::Bold, 100),
-                    target_decimal_font: fonts.font_def(FontName::Bold, 40),
-                    current_font: fonts.font_def(FontName::Regular, 20),
+                    font: fonts.font_def(FontName::Regular, 20),
 
                     arc_bg_colour: Bgr888::CSS_DIM_GRAY,
 
-                    arc_heat_colour: heat_dial,
-                    arc_heat_dot_colour: heat_dial_dot,
-
-                    arc_cool_colour: cool_dial,
-                    arc_cool_dot_colour: cool_dial_dot,
-
                     arc_target_dot_dia: 30,
 
-                    arc_temp_dot_dia: 12,
-                    arc_temp_dot_colour: Bgr888::CSS_SILVER,
-                    arc_temp_text_dia: 220
+                    arc_dot_dia: 12,
+                    arc_dot_colour: Bgr888::CSS_SILVER,
+                    arc_text_dia: 220
                 },
+
+                heat_gauge: GaugeAccentStyle {
+                    arc_colour: heat_dial,
+                    arc_dot_colour: heat_dial_dot,
+                    arc_fill: ArcFill::Below
+                },
+
+                cool_gauge: GaugeAccentStyle {
+                    arc_colour: cool_dial,
+                    arc_dot_colour: cool_dial_dot,
+                    arc_fill: ArcFill::Above
+                },
+
+                target_font: fonts.font_def(FontName::Bold, 100),
+                target_decimal_font: fonts.font_def(FontName::Bold, 40),
 
                 status_icon_center: Point { x: 160, y: 230 },
                 away_icon: IconStyle {
@@ -200,6 +207,20 @@ pub struct MainScreenTheme {
     pub bg_cool_colour: Bgr888,
 
     pub gauge: GaugeStyle,
+
+    /// Dial styling when in heating mode,
+    /// default `{ arc_colour: "#E65D10", arc_dot_colour: "#C4500E", arc_fill: "Below" }`
+    pub heat_gauge: GaugeAccentStyle,
+
+    /// Dial styling when in cooling mode,
+    /// default `{ arc_colour: "#1050E6", arc_dot_colour: "#0E44C4", arc_fill: "Above" }`
+    pub cool_gauge: GaugeAccentStyle,
+
+    /// Target temp decimal digit font, default "Bold:100"
+    pub target_font: FontDef<'static>,
+
+    /// Target temp fraction digit font, default "Bold:40"
+    pub target_decimal_font: FontDef<'static>,
 
     /// Position of status icon, default `[160, 230]`
     #[serde(deserialize_with = "theme_de::point")]

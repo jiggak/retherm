@@ -44,6 +44,10 @@ impl ThermostatState {
     pub const MIN_TEMP: f32 = 9.0;
     pub const MAX_TEMP: f32 = 32.0;
 
+    pub fn temp_percent(temp: f32) -> f32 {
+        (temp - Self::MIN_TEMP) / (Self::MAX_TEMP - Self::MIN_TEMP)
+    }
+
     /// Attempt to set target temp and return `true` if successful.
     /// Return `false` if value is outside of min/max range, or if value
     /// equals current target temp.

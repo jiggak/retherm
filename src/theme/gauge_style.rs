@@ -44,45 +44,43 @@ pub struct GaugeStyle {
     /// Sweep angle of arc, default 300
     pub arc_sweed_deg: f32,
 
-    /// Target temp decimal digit font, default "Bold:100"
-    pub target_font: FontDef<'static>,
-
-    /// Target temp fraction digit font, default "Bold:40"
-    pub target_decimal_font: FontDef<'static>,
-
-    /// Current temp font, default "Regular:20"
-    pub current_font: FontDef<'static>,
+    /// Current value label font, default "Regular:20"
+    pub font: FontDef<'static>,
 
     /// Background fill colour of arc, default "#696969"
     #[serde(deserialize_with = "theme_de::colour")]
     pub arc_bg_colour: Bgr888,
 
-    /// Arc background for heating, default "#E65D10"
-    #[serde(deserialize_with = "theme_de::colour")]
-    pub arc_heat_colour: Bgr888,
-
-    /// Target heat temp dot colour, default "#C4500E"
-    #[serde(deserialize_with = "theme_de::colour")]
-    pub arc_heat_dot_colour: Bgr888,
-
-    /// Arc background for cooling, default "#1050E6"
-    #[serde(deserialize_with = "theme_de::colour")]
-    pub arc_cool_colour: Bgr888,
-
-    /// Target cool temp dot colour, default "#0E44C4""
-    #[serde(deserialize_with = "theme_de::colour")]
-    pub arc_cool_dot_colour: Bgr888,
-
-    /// Diameter of target temp dot, default 30
+    /// Diameter of target value dot, default 30
     pub arc_target_dot_dia: u32,
 
-    /// Current temp dot diameter, default 12
-    pub arc_temp_dot_dia: u32,
+    /// Current value dot diameter, default 12
+    pub arc_dot_dia: u32,
 
-    /// Current temp dot colour, default "#C0C0C0"
+    /// Current value dot colour, default "#C0C0C0"
     #[serde(deserialize_with = "theme_de::colour")]
-    pub arc_temp_dot_colour: Bgr888,
+    pub arc_dot_colour: Bgr888,
 
     /// Diameter of arc current temp label position, default 220
-    pub arc_temp_text_dia: u32
+    pub arc_text_dia: u32,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct GaugeAccentStyle {
+    /// Fill colour of arc
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub arc_colour: Bgr888,
+
+    /// Target value dot colour
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub arc_dot_colour: Bgr888,
+
+    /// Fill the arc below or above the target value
+    pub arc_fill: ArcFill,
+}
+
+#[derive(Deserialize, Clone)]
+pub enum ArcFill {
+    Below,
+    Above,
 }

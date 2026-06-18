@@ -19,12 +19,16 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use embedded_graphics::{pixelcolor::Bgr888, prelude::*, text::{Alignment, Text}};
+use embedded_graphics::{
+    pixelcolor::Bgr888,
+    prelude::*,
+    text::{Alignment, Text, renderer::TextRenderer}
+};
 
 use crate::{
     drawable::{AppDrawable, AppFrameBuf},
     events::{Event, EventHandler, EventSender, TrailingEventSender},
-    state::{HvacAction, ThermostatState},
+    state::{HvacAction, HvacMode, ThermostatState},
     theme::MainScreenTheme,
     timer::TimerId,
     widgets::{GaugeWidget, IconWidget}
@@ -59,26 +63,6 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             last_click_temp: 0.0,
             scrolling: false,
         }
-    }
-}
-
-impl<S> MainScreen<S> {
-    fn draw_status_text<D>(&self, target: &mut D, bg_colour: Bgr888, s: String) -> Result<(), D::Error>
-        where D: DrawTarget<Color = Bgr888>
-    {
-        let font_style = self.theme.status_msg_font
-            .font_style(self.theme.fg_colour, bg_colour);
-
-        let text = Text::with_alignment(
-            &s,
-            self.theme.status_msg_center,
-            font_style,
-            Alignment::Center
-        );
-
-        text.draw(target)?;
-
-        Ok(())
     }
 }
 
@@ -141,7 +125,27 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
 
         target.clear(bg_colour)?;
 
-        self.gauge.draw(target, bg_colour, &self.state)?;
+        let center = target.bounding_box().center();
+        self.draw_temp_text(target, bg_colour, center, self.state.target_temp)?;
+
+        let gauge_accent = match self.state.mode {
+            HvacMode::Cool => Some(&self.theme.cool_gauge),
+            HvacMode::Heat => Some(&self.theme.heat_gauge),
+            _ => None
+        };
+
+        let target_temp_percent = ThermostatState::temp_percent(self.state.target_temp);
+        let current_temp_percent = ThermostatState::temp_percent(self.state.current_temp);
+        let current_temp_label = format!("{:.1}", self.state.current_temp);
+
+        self.gauge.draw(
+            target,
+            bg_colour,
+            gauge_accent,
+            target_temp_percent,
+            current_temp_percent,
+            current_temp_label
+        )?;
 
         if self.state.away {
             self.away_icon.draw(
@@ -166,10 +170,95 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
     }
 }
 
+impl<S> MainScreen<S> {
+    fn draw_status_text<D>(
+        &self,
+        target: &mut D,
+        bg_colour: Bgr888,
+        s: String
+    ) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let font_style = self.theme.status_msg_font
+            .font_style(self.theme.fg_colour, bg_colour);
+
+        let text = Text::with_alignment(
+            &s,
+            self.theme.status_msg_center,
+            font_style,
+            Alignment::Center
+        );
+
+        text.draw(target)?;
+
+        Ok(())
+    }
+
+    fn draw_temp_text<D>(
+        &self,
+        target: &mut D,
+        bg_color: Bgr888,
+        center: Point,
+        target_temp: f32
+    ) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let (temp_int, temp_frac) = round_temperature(target_temp);
+        let (temp_int_s, temp_frac_s) = (temp_int.to_string(), temp_frac.to_string());
+
+        let font_style = self.theme.target_font
+            .font_style(self.theme.fg_colour, bg_color);
+
+        let text_pos = Point::new(
+            center.x,
+            center.y - font_style.line_height() as i32 / 2
+        );
+
+        let text = Text::with_alignment(
+            &temp_int_s,
+            text_pos,
+            font_style,
+            Alignment::Center
+        );
+
+        text.draw(target)?;
+
+        if temp_frac > 0 {
+            let font_style = self.theme.target_decimal_font
+                .font_style(self.theme.fg_colour, bg_color);
+
+            let text_pos = Point::new(
+                center.x + (text.bounding_box().size.width / 2) as i32,
+                text_pos.y + font_style.line_height() as i32 / 2
+            );
+
+            let text = Text::with_alignment(
+                &temp_frac_s,
+                text_pos,
+                font_style,
+                Alignment::Left
+            );
+
+            text.draw(target)?;
+        }
+
+        Ok(())
+    }
+}
+
 fn format_duration(duration: Duration) -> String {
     let total_secs = duration.as_secs();
     let minutes = total_secs / 60;
     let seconds = total_secs % 60;
 
     format!("{:02}:{:02}", minutes, seconds)
+}
+
+fn round_temperature(value: f32) -> (i32, i32) {
+    let scaled = (value * 2.0).round() as i32;
+
+    let integer_part = scaled / 2;
+    let fraction_part = (scaled % 2) * 5;
+
+    (integer_part, fraction_part)
 }
