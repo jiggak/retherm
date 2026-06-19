@@ -152,13 +152,9 @@ impl From<HvacAction> for ClimateAction {
 pub struct StateManager<S: EventSender> {
     event_sender: S,
     state: ThermostatState,
+    config: Config,
     saved_target_temp: f32,
-    away_config: AwayConfig,
-    backlight_timeout: Duration,
-    temp_deadband: f32,
-    temp_overrun: f32,
     last_idle_time: Instant,
-    min_idle_time: Duration,
 }
 
 impl<S: EventSender> StateManager<S> {
@@ -173,14 +169,9 @@ impl<S: EventSender> StateManager<S> {
         Ok(Self {
             event_sender,
             state,
-            // FIXME should this be persistent?
+            config: config.clone(),
             saved_target_temp: 0.0,
-            away_config: config.away_mode.clone(),
-            backlight_timeout: config.backlight.timeout,
-            temp_deadband: config.temp_deadband,
-            temp_overrun: config.temp_overrun,
             last_idle_time: Instant::now(),
-            min_idle_time: config.min_off_time,
         })
     }
 
@@ -219,10 +210,10 @@ impl<S: EventSender> StateManager<S> {
                 self.saved_target_temp = self.state.target_temp;
                 match self.state.mode {
                     HvacMode::Heat => {
-                        self.state.target_temp = self.away_config.temp_heat;
+                        self.state.target_temp = self.config.away_mode.temp_heat;
                     }
                     HvacMode::Cool => {
-                        self.state.target_temp = self.away_config.temp_cool;
+                        self.state.target_temp = self.config.away_mode.temp_cool;
                     }
                     _ => { }
                 }
@@ -243,8 +234,8 @@ impl<S: EventSender> StateManager<S> {
 
         match self.state.mode {
             HvacMode::Heat => {
-                let target_temp_hi = self.state.target_temp + self.temp_overrun;
-                let target_temp_lo = self.state.target_temp - self.temp_deadband;
+                let target_temp_hi = self.state.target_temp + self.config.temp_overrun;
+                let target_temp_lo = self.state.target_temp - self.config.temp_deadband;
 
                 if current_temp <= target_temp_lo {
                     self.state.action = HvacAction::Heating;
@@ -253,8 +244,8 @@ impl<S: EventSender> StateManager<S> {
                 }
             }
             HvacMode::Cool => {
-                let target_temp_hi = self.state.target_temp + self.temp_deadband;
-                let target_temp_lo = self.state.target_temp - self.temp_overrun;
+                let target_temp_hi = self.state.target_temp + self.config.temp_deadband;
+                let target_temp_lo = self.state.target_temp - self.config.temp_overrun;
 
                 if current_temp >= target_temp_hi {
                     self.state.action = HvacAction::Cooling;
@@ -286,7 +277,7 @@ impl<S: EventSender> EventHandler for StateManager<S> {
             }
             Event::SetAway(false) | Event::ProximityNear | Event::ProximityFar | Event::Dial(_) => {
                 self.event_sender.send_event(
-                    Event::TimeoutReset(TimerId::Away, self.away_config.timeout)
+                    Event::TimeoutReset(TimerId::Away, self.config.away_mode.timeout)
                 )?;
                 self.set_away(false)
             }
@@ -305,14 +296,14 @@ impl<S: EventSender> EventHandler for StateManager<S> {
                 if self.state.action == HvacAction::Idle {
                     // don't reset last idle time until min idle time elapsed
                     // i.e. don't re-trigger lockout when it's already active
-                    if self.last_idle_time.elapsed() > self.min_idle_time {
+                    if self.last_idle_time.elapsed() > self.config.min_off_time {
                         self.last_idle_time = Instant::now();
                     }
 
                     self.state.lockout = None;
                 } else {
-                    if self.last_idle_time.elapsed() < self.min_idle_time {
-                        let lockout_time = self.min_idle_time - self.last_idle_time.elapsed();
+                    if self.last_idle_time.elapsed() < self.config.min_off_time {
+                        let lockout_time = self.config.min_off_time - self.last_idle_time.elapsed();
                         self.state.lockout = Some(lockout_time);
                         self.event_sender.send_event(
                             Event::StartTickTimer(TimerId::HvacLockout, lockout_time)
@@ -328,7 +319,7 @@ impl<S: EventSender> EventHandler for StateManager<S> {
 
         if event.is_wakeup_event() {
             self.event_sender.send_event(
-                Event::TimeoutReset(TimerId::Backlight, self.backlight_timeout)
+                Event::TimeoutReset(TimerId::Backlight, self.config.backlight.timeout)
             )?;
         }
 
