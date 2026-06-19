@@ -91,6 +91,10 @@ impl Default for Theme {
         let cool_dial = theme_de::colour_from_hex("#1050E6").unwrap();
         let cool_dial_dot = theme_de::colour_from_hex("#0E44C4").unwrap();
 
+        let _fan_bg = theme_de::colour_from_hex("#00E1FF").unwrap();
+        let fan_dial = theme_de::colour_from_hex("#00BCD4").unwrap();
+        let fan_dial_dot = theme_de::colour_from_hex("#0090A3").unwrap();
+
         Theme {
             thermostat: MainScreenTheme {
                 fg_colour: Bgr888::WHITE,
@@ -128,6 +132,12 @@ impl Default for Theme {
                     arc_fill: ArcFill::Above
                 },
 
+                fan_gauge: GaugeAccentStyle {
+                    arc_colour: fan_dial,
+                    arc_dot_colour: fan_dial_dot,
+                    arc_fill: ArcFill::Below
+                },
+
                 target_font: fonts.font_def(FontName::Bold, 100),
                 target_decimal_font: fonts.font_def(FontName::Bold, 40),
 
@@ -142,6 +152,11 @@ impl Default for Theme {
                     icon: "\u{f252}".to_string(),
                     colour: Bgr888::CSS_WHITE
                 },
+                fan_icon: IconStyle {
+                    icon_font: fonts.font_def(FontName::Icon, 42),
+                    icon: "\u{f863}".to_string(),
+                    colour: Bgr888::CSS_WHITE
+                },
                 status_msg_center: Point { x: 160, y: 280 },
                 status_msg_font: fonts.font_def(FontName::Regular, 20),
             },
@@ -150,6 +165,7 @@ impl Default for Theme {
 
                 icon_heat_colour: heat_dial,
                 icon_cool_colour: cool_dial,
+                icon_fan_colour: fan_dial,
                 icon_center: Point { x: 160, y: 25 },
 
                 mode_icon: IconStyle {
@@ -216,6 +232,10 @@ pub struct MainScreenTheme {
     /// default `{ arc_colour: "#1050E6", arc_dot_colour: "#0E44C4", arc_fill: "Above" }`
     pub cool_gauge: GaugeAccentStyle,
 
+    /// Dial styling when in fan mode,
+    /// default `{ arc_colour: "#00BCD4", arc_dot_colour: "#0090A3", arc_fill: "Below" }`
+    pub fan_gauge: GaugeAccentStyle,
+
     /// Target temp decimal digit font, default "Bold:100"
     pub target_font: FontDef<'static>,
 
@@ -233,6 +253,10 @@ pub struct MainScreenTheme {
     /// Lockout status icon styling,
     /// default `{ icon_font: "Icon:42", icon: "\u{f252}", colour: "#ffffff" }`
     pub lockout_icon: IconStyle,
+
+    /// Fan mode status icon styling,
+    /// default `{ icon_font: "Icon:42", icon: "\u{f863}", colour: "#ffffff" }`
+    pub fan_icon: IconStyle,
 
     /// Position of status message, default `[160, 280]`
     #[serde(deserialize_with = "theme_de::point")]
@@ -270,6 +294,10 @@ pub struct ModeSelectTheme {
     /// Cool mode icon colour, default "#1050E6"
     #[serde(deserialize_with = "theme_de::colour")]
     pub icon_cool_colour: Bgr888,
+
+    /// Fan mode icon colour, default "#00BCD4"
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub icon_fan_colour: Bgr888,
 
     /// Position of mode icon, default `[160, 25]`
     #[serde(deserialize_with = "theme_de::point")]

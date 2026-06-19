@@ -172,7 +172,8 @@ fn thermostat_entity(object_id: String) -> ListEntitiesClimateResponse {
     entity.supported_modes = vec![
         ClimateMode::Off as i32,
         ClimateMode::Heat as i32,
-        ClimateMode::Cool as i32
+        ClimateMode::Cool as i32,
+        ClimateMode::FanOnly as i32,
     ];
     entity.visual_min_temperature = ThermostatState::MIN_TEMP;
     entity.visual_max_temperature = ThermostatState::MAX_TEMP;
@@ -183,7 +184,7 @@ fn thermostat_entity(object_id: String) -> ListEntitiesClimateResponse {
         ClimateFeature::SUPPORTS_ACTION;
     entity.supported_presets = vec![
         ClimatePreset::None as i32,
-        ClimatePreset::Away as i32
+        ClimatePreset::Away as i32,
     ];
 
     entity

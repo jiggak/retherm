@@ -32,7 +32,8 @@ use super::{BackplateDevice};
 pub struct DeviceBackplateThread {
     cmd_sender: Sender<BackplateCmd>,
     heat_wire: Wire,
-    cool_wire: Wire
+    cool_wire: Wire,
+    fan_wire: Wire,
 }
 
 impl DeviceBackplateThread {
@@ -74,14 +75,14 @@ impl DeviceBackplateThread {
             }
         });
 
-        let (heat_wire, cool_wire) = match config.wiring {
-            WireConfig::HeatAndCool { heat_wire, cool_wire } => {
-                (heat_wire.into(), cool_wire.into())
+        let (heat_wire, cool_wire, fan_wire) = match config.wiring {
+            WireConfig::HeatAndCool { heat_wire, cool_wire, fan_wire } => {
+                (heat_wire.into(), cool_wire.into(), fan_wire.into())
             }
         };
 
         Ok(Self {
-            cmd_sender, heat_wire, cool_wire
+            cmd_sender, heat_wire, cool_wire, fan_wire
         })
     }
 }
@@ -149,24 +150,26 @@ impl BackplateDevice for DeviceBackplateThread {
 
     fn switch_hvac(&self, action: &HvacAction) -> Result<()> {
         let cmds = match action {
-            HvacAction::Heating => {
-                [
-                    BackplateCmd::SwitchWire(self.heat_wire, true),
-                    BackplateCmd::SwitchWire(self.cool_wire, false)
-                ]
-            }
-            HvacAction::Cooling => {
-                [
-                    BackplateCmd::SwitchWire(self.heat_wire, false),
-                    BackplateCmd::SwitchWire(self.cool_wire, true)
-                ]
-            }
-            HvacAction::Idle => {
-                [
-                    BackplateCmd::SwitchWire(self.heat_wire, false),
-                    BackplateCmd::SwitchWire(self.cool_wire, false)
-                ]
-            }
+            HvacAction::Heating => [
+                BackplateCmd::SwitchWire(self.heat_wire, true),
+                BackplateCmd::SwitchWire(self.cool_wire, false),
+                BackplateCmd::SwitchWire(self.fan_wire, false),
+            ],
+            HvacAction::Cooling => [
+                BackplateCmd::SwitchWire(self.heat_wire, false),
+                BackplateCmd::SwitchWire(self.cool_wire, true),
+                BackplateCmd::SwitchWire(self.fan_wire, false),
+            ],
+            HvacAction::Fan => [
+                BackplateCmd::SwitchWire(self.heat_wire, false),
+                BackplateCmd::SwitchWire(self.cool_wire, false),
+                BackplateCmd::SwitchWire(self.fan_wire, true),
+            ],
+            HvacAction::Idle => [
+                BackplateCmd::SwitchWire(self.heat_wire, false),
+                BackplateCmd::SwitchWire(self.cool_wire, false),
+                BackplateCmd::SwitchWire(self.fan_wire, false),
+            ]
         };
 
         for cmd in cmds {

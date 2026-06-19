@@ -39,9 +39,8 @@ impl GaugeWidget {
         target: &mut D,
         bg_colour: Bgr888,
         accent: Option<&GaugeAccentStyle>,
-        target_percent: f32,
-        current_percent: f32,
-        current_label: String
+        target_value: f32,
+        current_value: (f32, String)
     ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
@@ -53,8 +52,8 @@ impl GaugeWidget {
         // gauge accent arc
         let dot_colour = if let Some(accent) = accent {
             let (arc_start, arc_end) = match accent.arc_fill {
-                ArcFill::Below => (0.0, target_percent),
-                ArcFill::Above => (target_percent, 1.0),
+                ArcFill::Below => (0.0, target_value),
+                ArcFill::Above => (target_value, 1.0),
             };
 
             self.draw_arc(target, arc_start, arc_end, center, accent.arc_colour)?;
@@ -64,15 +63,15 @@ impl GaugeWidget {
         };
 
         // large dot for target value, with another dot inside
-        self.draw_arc_point(target, target_percent, center, self.style.arc_target_dot_dia, dot_colour)?;
-        self.draw_arc_point(target, target_percent, center, self.style.arc_width, self.style.fg_colour)?;
+        self.draw_arc_point(target, target_value, center, self.style.arc_target_dot_dia, dot_colour)?;
+        self.draw_arc_point(target, target_value, center, self.style.arc_width, self.style.fg_colour)?;
 
         // small dot for current value
-        self.draw_arc_point(target, current_percent, center, self.style.arc_dot_dia, self.style.arc_dot_colour)?;
+        self.draw_arc_point(target, current_value.0, center, self.style.arc_dot_dia, self.style.arc_dot_colour)?;
 
         // draw label near current value dot
-        let current_value_center = self.get_arc_point(center, current_percent, self.style.arc_text_dia);
-        self.draw_text(target, bg_colour, current_value_center, current_label)?;
+        let current_value_center = self.get_arc_point(center, current_value.0, self.style.arc_text_dia);
+        self.draw_text(target, bg_colour, current_value_center, current_value.1)?;
 
         Ok(())
     }

@@ -39,6 +39,7 @@ pub struct MainScreen<S> {
     gauge: GaugeWidget,
     away_icon: IconWidget,
     lockout_icon: IconWidget,
+    fan_icon: IconWidget,
     cmd_sender: TrailingEventSender,
     event_sender: S,
     theme: MainScreenTheme,
@@ -56,6 +57,7 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             gauge: GaugeWidget::new(theme.gauge.clone()),
             away_icon: IconWidget::new(theme.away_icon.clone()),
             lockout_icon: IconWidget::new(theme.lockout_icon.clone()),
+            fan_icon: IconWidget::new(theme.fan_icon.clone()),
             cmd_sender,
             event_sender,
             theme,
@@ -68,8 +70,8 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
 
 impl<S: EventSender> EventHandler for MainScreen<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
-        // Ignore button and dial events while in away mode
-        // Let state manager exit away mode before
+        // Ignore button and dial events while in away mode.
+        // Let state manager exit away mode before handling inputs.
 
         match event {
             Event::Dial(dir) if !self.state.away => {
@@ -98,10 +100,18 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
             // By handling lockout timer ticks here, instead of state manager
             // handling and sending `State` events, we avoid the `State` events
             // interfering with dial events.
+            //
+            // This is hacky. It seems more intuitive that state manager should
+            // handle timer ticking. If I implement something that ignores state
+            // changes while dial is moving, that would fix this and other weird
+            // dial behaviour when HA and backplate send state events.
             Event::TimerTick(TimerId::HvacLockout, remaining) => {
                 if self.state.lockout.is_some() {
                     self.state.lockout = Some(*remaining);
                 }
+            }
+            Event::TimerTick(TimerId::Fan, remaining) => {
+                self.state.fan_timer = Some(*remaining);
             }
             // Ignore state changes while dial scrolling to avoid contention with
             // delayed dial commit (event sent after delay of dial inactivity)
@@ -117,34 +127,33 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
 
 impl<S: EventSender> AppDrawable for MainScreen<S> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
+        let center = target.bounding_box().center();
         let bg_colour = match self.state.action {
             HvacAction::Cooling => self.theme.bg_cool_colour,
             HvacAction::Heating => self.theme.bg_heat_colour,
-            HvacAction::Idle => self.theme.bg_colour
+            _ => self.theme.bg_colour
         };
 
         target.clear(bg_colour)?;
 
-        let center = target.bounding_box().center();
         self.draw_temp_text(target, bg_colour, center, self.state.target_temp)?;
 
         let gauge_accent = match self.state.mode {
             HvacMode::Cool => Some(&self.theme.cool_gauge),
             HvacMode::Heat => Some(&self.theme.heat_gauge),
+            HvacMode::Fan => Some(&self.theme.fan_gauge),
             _ => None
         };
 
         let target_temp_percent = ThermostatState::temp_percent(self.state.target_temp);
         let current_temp_percent = ThermostatState::temp_percent(self.state.current_temp);
-        let current_temp_label = format!("{:.1}", self.state.current_temp);
 
         self.gauge.draw(
             target,
             bg_colour,
             gauge_accent,
             target_temp_percent,
-            current_temp_percent,
-            current_temp_label
+            (current_temp_percent, format!("{:.1}", self.state.current_temp))
         )?;
 
         if self.state.away {
@@ -153,6 +162,13 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
                 self.theme.status_icon_center,
                 bg_colour,
                 Some(self.theme.away_icon.colour)
+            )?;
+        } else if self.state.mode == HvacMode::Fan {
+            self.fan_icon.draw(
+                target,
+                self.theme.status_icon_center,
+                bg_colour,
+                Some(self.theme.fan_icon.colour)
             )?;
         } else if let Some(lockout_duration) = self.state.lockout {
             self.lockout_icon.draw(

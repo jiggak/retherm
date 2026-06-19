@@ -52,6 +52,7 @@ pub enum Event {
     StartTickTimer(TimerId, Duration),
     /// Dispatched for every "tick" of ticking timer
     TimerTick(TimerId, Duration),
+    CancelTimer(TimerId),
     DialCommit,
 }
 
@@ -91,6 +92,7 @@ impl PartialEq for Event {
             Self::TimeoutReached(_) => matches!(other, Self::TimeoutReached(_)),
             Self::StartTickTimer(_, _) => matches!(other, Self::StartTickTimer(_, _)),
             Self::TimerTick(_, _) => matches!(other, Self::TimerTick(_, _)),
+            Self::CancelTimer(_) => matches!(other, Self::CancelTimer(_)),
             Self::DialCommit => matches!(other, Self::DialCommit),
         }
     }
