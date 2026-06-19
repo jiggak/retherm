@@ -146,7 +146,7 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
                 target,
                 self.theme.status_icon_center,
                 bg_colour,
-                Some(self.theme.away_icon.colour)
+                Some(self.theme.lockout_icon.colour)
             )?;
 
             let dur_text = format_duration(lockout_duration);
