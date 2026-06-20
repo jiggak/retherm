@@ -91,9 +91,9 @@ impl Default for Theme {
         let cool_dial = theme_de::colour_from_hex("#1050E6").unwrap();
         let cool_dial_dot = theme_de::colour_from_hex("#0E44C4").unwrap();
 
-        let _fan_bg = theme_de::colour_from_hex("#00E1FF").unwrap();
-        let fan_dial = theme_de::colour_from_hex("#00BCD4").unwrap();
-        let fan_dial_dot = theme_de::colour_from_hex("#0090A3").unwrap();
+        let fan_bg = theme_de::colour_from_hex("#0EAEC4").unwrap();
+        let fan_dial = theme_de::colour_from_hex("#0B8899").unwrap();
+        let fan_dial_dot = theme_de::colour_from_hex("#086975").unwrap();
 
         Theme {
             thermostat: MainScreenTheme {
@@ -101,6 +101,7 @@ impl Default for Theme {
                 bg_colour: Bgr888::BLACK,
                 bg_heat_colour: heat_bg,
                 bg_cool_colour: cool_bg,
+                bg_fan_colour: fan_bg,
 
                 gauge: GaugeStyle {
                     fg_colour: Bgr888::WHITE,
@@ -140,6 +141,7 @@ impl Default for Theme {
 
                 target_font: fonts.font_def(FontName::Bold, 100),
                 target_decimal_font: fonts.font_def(FontName::Bold, 40),
+                fan_timer_font: fonts.font_def(FontName::Bold, 80),
 
                 status_icon_center: Point { x: 160, y: 230 },
                 away_icon: IconStyle {
@@ -222,6 +224,10 @@ pub struct MainScreenTheme {
     #[serde(deserialize_with = "theme_de::colour")]
     pub bg_cool_colour: Bgr888,
 
+    /// Background colour when fan is turned on, default "#0EAEC4"
+    #[serde(deserialize_with = "theme_de::colour")]
+    pub bg_fan_colour: Bgr888,
+
     pub gauge: GaugeStyle,
 
     /// Dial styling when in heating mode,
@@ -241,6 +247,9 @@ pub struct MainScreenTheme {
 
     /// Target temp fraction digit font, default "Bold:40"
     pub target_decimal_font: FontDef<'static>,
+
+    /// Fan timer font, default "Bold:80"
+    pub fan_timer_font: FontDef<'static>,
 
     /// Position of status icon, default `[160, 230]`
     #[serde(deserialize_with = "theme_de::point")]

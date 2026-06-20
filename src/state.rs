@@ -38,7 +38,6 @@ pub struct ThermostatState {
     pub action: HvacAction,
     pub away: bool,
     pub lockout: Option<Duration>,
-    pub fan_timer: Option<Duration>,
 }
 
 impl ThermostatState {
@@ -88,7 +87,6 @@ impl Default for ThermostatState {
             mode: HvacMode::Heat,
             away: false,
             lockout: None,
-            fan_timer: None,
         }
     }
 }

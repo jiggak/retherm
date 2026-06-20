@@ -40,7 +40,7 @@ impl GaugeWidget {
         bg_colour: Bgr888,
         accent: Option<&GaugeAccentStyle>,
         target_value: f32,
-        current_value: (f32, String)
+        current_value: Option<(f32, String)>
     ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
@@ -66,12 +66,14 @@ impl GaugeWidget {
         self.draw_arc_point(target, target_value, center, self.style.arc_target_dot_dia, dot_colour)?;
         self.draw_arc_point(target, target_value, center, self.style.arc_width, self.style.fg_colour)?;
 
-        // small dot for current value
-        self.draw_arc_point(target, current_value.0, center, self.style.arc_dot_dia, self.style.arc_dot_colour)?;
+        if let Some((current_value, current_label)) = current_value {
+            // small dot for current value
+            self.draw_arc_point(target, current_value, center, self.style.arc_dot_dia, self.style.arc_dot_colour)?;
 
-        // draw label near current value dot
-        let current_value_center = self.get_arc_point(center, current_value.0, self.style.arc_text_dia);
-        self.draw_text(target, bg_colour, current_value_center, current_value.1)?;
+            // draw label near current value dot
+            let current_value_center = self.get_arc_point(center, current_value, self.style.arc_text_dia);
+            self.draw_text(target, bg_colour, current_value_center, current_label)?;
+        }
 
         Ok(())
     }

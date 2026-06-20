@@ -44,8 +44,9 @@ pub struct MainScreen<S> {
     event_sender: S,
     theme: MainScreenTheme,
     state: ThermostatState,
-    last_click_temp: f32,
+    last_click_val: f32,
     scrolling: bool,
+    fan_timer: Duration,
 }
 
 impl<S: EventSender> Screen for MainScreen<S> { }
@@ -62,8 +63,9 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             event_sender,
             theme,
             state,
-            last_click_temp: 0.0,
+            last_click_val: 0.0,
             scrolling: false,
+            fan_timer: Duration::from_secs(0),
         }
     }
 }
@@ -76,17 +78,12 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
         match event {
             Event::Dial(dir) if !self.state.away => {
                 self.scrolling = true;
-
-                let temp_inc = *dir as f32 * 0.01;
-                let target_temp = self.state.target_temp + temp_inc;
-
-                if (self.last_click_temp - target_temp).abs() >= 0.5 {
-                    self.last_click_temp = target_temp;
-                    self.event_sender.send_event(Event::ClickSound)?;
-                }
-
-                if self.state.set_target_temp(target_temp) {
-                    self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;
+                if self.state.mode == HvacMode::Fan {
+                    let sec_inc = *dir as f32 * 0.5;
+                    self.set_fan_timeout(sec_inc)?;
+                } else {
+                    let temp_inc = *dir as f32 * 0.01;
+                    self.set_target_temp(temp_inc)?;
                 }
             }
             Event::ButtonDown if !self.state.away => {
@@ -94,8 +91,11 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                     current_mode: self.state.mode
                 }))?;
             }
-            Event::DialCommit => {
+            Event::DialCommit | Event::TimeoutReached(TimerId::Fan) => {
                 self.scrolling = false;
+            }
+            Event::StartTickTimer(TimerId::Fan, duration) => {
+                self.fan_timer = *duration;
             }
             // By handling lockout timer ticks here, instead of state manager
             // handling and sending `State` events, we avoid the `State` events
@@ -110,8 +110,8 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                     self.state.lockout = Some(*remaining);
                 }
             }
-            Event::TimerTick(TimerId::Fan, remaining) => {
-                self.state.fan_timer = Some(*remaining);
+            Event::TimerTick(TimerId::Fan, remaining) if !self.scrolling => {
+                self.fan_timer = *remaining;
             }
             // Ignore state changes while dial scrolling to avoid contention with
             // delayed dial commit (event sent after delay of dial inactivity)
@@ -125,18 +125,60 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
     }
 }
 
+impl<S: EventSender> MainScreen<S> {
+    fn set_target_temp(&mut self, inc: f32) -> Result<()> {
+        let target_temp = self.state.target_temp + inc;
+
+        // click every half degree
+        if (self.last_click_val - target_temp).abs() >= 0.5 {
+            self.last_click_val = target_temp;
+            self.event_sender.send_event(Event::ClickSound)?;
+        }
+
+        if self.state.set_target_temp(target_temp) {
+            self.cmd_sender.send_event(Event::SetTargetTemp(target_temp))?;
+        }
+
+        Ok(())
+    }
+
+    fn set_fan_timeout(&mut self, inc: f32) -> Result<()> {
+        let fan_timeout = self.fan_timer.as_secs_f32() + inc;
+
+        // click every at every 1/6th of a minute (e.g xx:10 xx:20)
+        // OR if scroll distance > 10 to account for fast movements
+        if fan_timeout % 10.0 == 0.0 || (self.last_click_val - fan_timeout).abs() >= 10.0 {
+            self.last_click_val = fan_timeout;
+            self.event_sender.send_event(Event::ClickSound)?;
+        }
+
+        if fan_timeout > 0.0 {
+            let timeout = Duration::from_secs_f32(fan_timeout);
+            self.cmd_sender.send_event(Event::TimeoutReset(TimerId::Fan, timeout))?;
+            self.fan_timer = timeout;
+        }
+
+        Ok(())
+    }
+}
+
 impl<S: EventSender> AppDrawable for MainScreen<S> {
     fn draw(&self, target: &mut AppFrameBuf) -> Result<()> {
         let center = target.bounding_box().center();
         let bg_colour = match self.state.action {
             HvacAction::Cooling => self.theme.bg_cool_colour,
             HvacAction::Heating => self.theme.bg_heat_colour,
+            HvacAction::Fan => self.theme.bg_fan_colour,
             _ => self.theme.bg_colour
         };
 
         target.clear(bg_colour)?;
 
-        self.draw_temp_text(target, bg_colour, center, self.state.target_temp)?;
+        if self.state.mode == HvacMode::Fan {
+            self.draw_fan_timer(target, bg_colour, center)?;
+        } else {
+            self.draw_temp_text(target, bg_colour, center)?;
+        }
 
         let gauge_accent = match self.state.mode {
             HvacMode::Cool => Some(&self.theme.cool_gauge),
@@ -145,15 +187,24 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
             _ => None
         };
 
-        let target_temp_percent = ThermostatState::temp_percent(self.state.target_temp);
-        let current_temp_percent = ThermostatState::temp_percent(self.state.current_temp);
+        let (gauge_target, gauge_current) = if self.state.mode == HvacMode::Fan {
+            (duration_percent(self.fan_timer), None)
+        } else {
+            (
+                ThermostatState::temp_percent(self.state.target_temp),
+                Some((
+                    ThermostatState::temp_percent(self.state.current_temp),
+                    format!("{:.1}", self.state.current_temp)
+                ))
+            )
+        };
 
         self.gauge.draw(
             target,
             bg_colour,
             gauge_accent,
-            target_temp_percent,
-            (current_temp_percent, format!("{:.1}", self.state.current_temp))
+            gauge_target,
+            gauge_current
         )?;
 
         if self.state.away {
@@ -214,12 +265,11 @@ impl<S> MainScreen<S> {
         &self,
         target: &mut D,
         bg_color: Bgr888,
-        center: Point,
-        target_temp: f32
+        center: Point
     ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let (temp_int, temp_frac) = round_temperature(target_temp);
+        let (temp_int, temp_frac) = round_temperature(self.state.target_temp);
         let (temp_int_s, temp_frac_s) = (temp_int.to_string(), temp_frac.to_string());
 
         let font_style = self.theme.target_font
@@ -260,6 +310,36 @@ impl<S> MainScreen<S> {
 
         Ok(())
     }
+
+    fn draw_fan_timer<D>(
+        &self,
+        target: &mut D,
+        bg_color: Bgr888,
+        center: Point
+    ) -> Result<(), D::Error>
+        where D: DrawTarget<Color = Bgr888>
+    {
+        let duration_label = format_duration(self.fan_timer);
+
+        let font_style = self.theme.fan_timer_font
+            .font_style(self.theme.fg_colour, bg_color);
+
+        let text_pos = Point::new(
+            center.x,
+            center.y - font_style.line_height() as i32 / 2
+        );
+
+        let text = Text::with_alignment(
+            &duration_label,
+            text_pos,
+            font_style,
+            Alignment::Center
+        );
+
+        text.draw(target)?;
+
+        Ok(())
+    }
 }
 
 fn format_duration(duration: Duration) -> String {
@@ -277,4 +357,10 @@ fn round_temperature(value: f32) -> (i32, i32) {
     let fraction_part = (scaled % 2) * 5;
 
     (integer_part, fraction_part)
+}
+
+fn duration_percent(duration: Duration) -> f32 {
+    const MAX_SEC: f32 = Duration::from_hours(2).as_secs_f32();
+    let duration = duration.as_secs_f32();
+    duration / MAX_SEC
 }

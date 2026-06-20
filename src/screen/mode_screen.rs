@@ -100,6 +100,7 @@ impl<S: EventSender> AppDrawable for ModeScreen<S> {
         let icon_color = match self.mode_list.get_highlighted_value() {
             HvacMode::Heat => Some(self.theme.icon_heat_colour),
             HvacMode::Cool => Some(self.theme.icon_cool_colour),
+            HvacMode::Fan => Some(self.theme.icon_fan_colour),
             _ => None
         };
         self.mode_icon.draw(target, self.theme.icon_center, self.theme.bg_colour, icon_color)?;
