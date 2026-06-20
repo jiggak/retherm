@@ -30,7 +30,7 @@ mod screen_manager;
 
 pub trait Screen: AppDrawable + EventHandler { }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ScreenId {
     ModeSelect {
         current_mode: HvacMode

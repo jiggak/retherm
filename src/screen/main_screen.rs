@@ -38,15 +38,16 @@ pub struct MainScreen<S> {
     cmd_sender: TrailingEventSender,
     event_sender: S,
     theme: MainScreenTheme,
-    last_click_temp: f32,
     state: ThermostatState,
+    last_click_temp: f32,
+    scrolling: bool,
 }
 
 impl<S: EventSender> Screen for MainScreen<S> { }
 
 impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
     pub fn new(theme: MainScreenTheme, state: ThermostatState, event_sender: S) -> Self {
-        let cmd_sender = TrailingEventSender::new(event_sender.clone(), 250);
+        let cmd_sender = TrailingEventSender::new(event_sender.clone(), 250, Event::DialCommit);
         Self {
             gauge: GaugeWidget::new(theme.gauge.clone()),
             away_icon: IconWidget::new(theme.away_icon.clone()),
@@ -54,8 +55,9 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             cmd_sender,
             event_sender,
             theme,
-            last_click_temp: 0.0,
             state,
+            last_click_temp: 0.0,
+            scrolling: false,
         }
     }
 }
@@ -87,6 +89,8 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
 
         match event {
             Event::Dial(dir) if !self.state.away => {
+                self.scrolling = true;
+
                 let temp_inc = *dir as f32 * 0.01;
                 let target_temp = self.state.target_temp + temp_inc;
 
@@ -104,6 +108,9 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                     current_mode: self.state.mode
                 }))?;
             }
+            Event::DialCommit => {
+                self.scrolling = false;
+            }
             // By handling lockout timer ticks here, instead of state manager
             // handling and sending `State` events, we avoid the `State` events
             // interfering with dial events.
@@ -112,7 +119,9 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                     self.state.lockout = Some(*remaining);
                 }
             }
-            Event::State(state) => {
+            // Ignore state changes while dial scrolling to avoid contention with
+            // delayed dial commit (event sent after delay of dial inactivity)
+            Event::State(state) if !self.scrolling => {
                 self.state = state.clone();
             }
             _ => { }

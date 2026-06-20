@@ -28,7 +28,7 @@ use throttle::Throttle;
 
 use crate::{screen::ScreenId, state::{HvacMode, ThermostatState}, timer::TimerId};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Event {
     Quit,
     ButtonDown,
@@ -52,6 +52,7 @@ pub enum Event {
     StartTickTimer(TimerId, Duration),
     /// Dispatched for every "tick" of ticking timer
     TimerTick(TimerId, Duration),
+    DialCommit,
 }
 
 impl Event {
@@ -90,6 +91,7 @@ impl PartialEq for Event {
             Self::TimeoutReached(_) => matches!(other, Self::TimeoutReached(_)),
             Self::StartTickTimer(_, _) => matches!(other, Self::StartTickTimer(_, _)),
             Self::TimerTick(_, _) => matches!(other, Self::TimerTick(_, _)),
+            Self::DialCommit => matches!(other, Self::DialCommit),
         }
     }
 
@@ -182,13 +184,14 @@ pub struct TrailingEventSender {
 }
 
 impl TrailingEventSender {
-    pub fn new<S>(event_sender: S, delay_ms: u64) -> Self
+    pub fn new<S>(event_sender: S, delay_ms: u64, commit: Event) -> Self
         where S: EventSender + Send + 'static
     {
         let delay = Duration::from_millis(delay_ms);
-        let event_debounce = EventDebouncer::new(delay, move |e: Event|
-            event_sender.send_event(e).unwrap()
-        );
+        let event_debounce = EventDebouncer::new(delay, move |e: Event| {
+            event_sender.send_event(e).unwrap();
+            event_sender.send_event(commit.clone()).unwrap();
+        });
         Self { event_debounce }
     }
 }
