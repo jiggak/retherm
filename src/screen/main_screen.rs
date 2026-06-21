@@ -46,6 +46,7 @@ pub struct MainScreen<S> {
     state: ThermostatState,
     last_click_val: f32,
     fan_timer: Duration,
+    lockout_timer: Duration,
 }
 
 impl<S: EventSender> Screen for MainScreen<S> { }
@@ -64,6 +65,7 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             state,
             last_click_val: 0.0,
             fan_timer: Duration::from_secs(0),
+            lockout_timer: Duration::from_secs(0),
         }
     }
 }
@@ -88,21 +90,14 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                     current_mode: self.state.mode
                 }))?;
             }
+            Event::StartTickTimer(TimerId::HvacLockout, duration) => {
+                self.lockout_timer = *duration;
+            }
             Event::StartTickTimer(TimerId::Fan, duration) => {
                 self.fan_timer = *duration;
             }
-            // By handling lockout timer ticks here, instead of state manager
-            // handling and sending `State` events, we avoid the `State` events
-            // interfering with dial events.
-            //
-            // This is hacky. It seems more intuitive that state manager should
-            // handle timer ticking. If I implement something that ignores state
-            // changes while dial is moving, that would fix this and other weird
-            // dial behaviour when HA and backplate send state events.
             Event::TimerTick(TimerId::HvacLockout, remaining) => {
-                if self.state.lockout.is_some() {
-                    self.state.lockout = Some(*remaining);
-                }
+                self.lockout_timer = * remaining;
             }
             Event::TimerTick(TimerId::Fan, remaining) if !self.cmd_sender.is_pending() => {
                 self.fan_timer = *remaining;
@@ -215,7 +210,7 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
                 bg_colour,
                 Some(self.theme.fan_icon.colour)
             )?;
-        } else if let Some(lockout_duration) = self.state.lockout {
+        } else if self.state.lockout {
             self.lockout_icon.draw(
                 target,
                 self.theme.status_icon_center,
@@ -223,7 +218,7 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
                 Some(self.theme.lockout_icon.colour)
             )?;
 
-            let dur_text = format_duration(lockout_duration);
+            let dur_text = format_duration(self.lockout_timer);
             self.draw_status_text(target, bg_colour, dur_text)?;
         }
 

@@ -37,7 +37,7 @@ pub struct ThermostatState {
     pub mode: HvacMode,
     pub action: HvacAction,
     pub away: bool,
-    pub lockout: Option<Duration>,
+    pub lockout: bool,
 }
 
 impl ThermostatState {
@@ -86,7 +86,7 @@ impl Default for ThermostatState {
             action: HvacAction::Idle,
             mode: HvacMode::Heat,
             away: false,
-            lockout: None,
+            lockout: false,
         }
     }
 }
@@ -308,7 +308,7 @@ impl<S: EventSender> EventHandler for StateManager<S> {
                 self.set_away(true)
             }
             Event::TimeoutReached(TimerId::HvacLockout) => {
-                self.state.lockout = None;
+                self.state.lockout = false;
                 true
             }
             Event::TimeoutReached(TimerId::Fan) => {
@@ -327,16 +327,16 @@ impl<S: EventSender> EventHandler for StateManager<S> {
                         self.last_idle_time = Instant::now();
                     }
 
-                    self.state.lockout = None;
+                    self.state.lockout = false;
                 } else {
                     if self.last_idle_time.elapsed() < self.config.min_off_time {
                         let lockout_time = self.config.min_off_time - self.last_idle_time.elapsed();
-                        self.state.lockout = Some(lockout_time);
+                        self.state.lockout = true;
                         self.event_sender.send_event(
                             Event::StartTickTimer(TimerId::HvacLockout, lockout_time)
                         )?;
                     } else {
-                        self.state.lockout = None;
+                        self.state.lockout = false;
                     }
                 }
             }
@@ -496,33 +496,33 @@ mod tests {
         // idle -> cooling = lockout
         mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
         assert!(mgr.state.action == HvacAction::Cooling);
-        assert!(mgr.state.lockout.is_some());
+        assert!(mgr.state.lockout);
 
         // lockout timer elapsed = no lockout
         mgr.handle_event(&Event::TimeoutReached(TimerId::HvacLockout))?;
         assert!(mgr.state.action == HvacAction::Cooling);
-        assert!(mgr.state.lockout.is_none());
+        assert!(!mgr.state.lockout);
 
         // cooling -> idle = no lockout
         mgr.handle_event(&Event::SetCurrentTemp(19.0))?;
         assert!(mgr.state.action == HvacAction::Idle);
-        assert!(mgr.state.lockout.is_none());
+        assert!(!mgr.state.lockout);
 
         // idle -> cooling = lockout
         mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
         assert!(mgr.state.action == HvacAction::Cooling);
-        assert!(mgr.state.lockout.is_some());
+        assert!(mgr.state.lockout);
 
         // cooling -> idle = no lockout
         mgr.handle_event(&Event::SetCurrentTemp(19.0))?;
         assert!(mgr.state.action == HvacAction::Idle);
-        assert!(mgr.state.lockout.is_none());
+        assert!(!mgr.state.lockout);
 
         // idle -> long delay -> cooling = no lockout
         mgr.last_idle_time = Instant::now() - Duration::from_mins(10);
         mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
         assert!(mgr.state.action == HvacAction::Cooling);
-        assert!(mgr.state.lockout.is_none());
+        assert!(!mgr.state.lockout);
 
         Ok(())
     }

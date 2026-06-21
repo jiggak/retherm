@@ -59,7 +59,7 @@ impl Backplate<BackplateImpl> {
 impl<D: BackplateDevice> EventHandler for Backplate<D> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         if let Event::State(state) = event {
-            if state.lockout.is_none() {
+            if !state.lockout {
                 self.device.switch_hvac(&state.action)?;
             }
         }
