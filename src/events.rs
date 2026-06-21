@@ -18,7 +18,7 @@
 
 use std::{
     cell::RefCell,
-    sync::mpsc::{Receiver, Sender, TryRecvError, channel},
+    sync::{Arc, atomic::{AtomicBool, Ordering}, mpsc::{Receiver, Sender, TryRecvError, channel}},
     time::{Duration, Instant}
 };
 
@@ -53,7 +53,6 @@ pub enum Event {
     /// Dispatched for every "tick" of ticking timer
     TimerTick(TimerId, Duration),
     CancelTimer(TimerId),
-    DialCommit,
 }
 
 impl Event {
@@ -93,7 +92,6 @@ impl PartialEq for Event {
             Self::StartTickTimer(_, _) => matches!(other, Self::StartTickTimer(_, _)),
             Self::TimerTick(_, _) => matches!(other, Self::TimerTick(_, _)),
             Self::CancelTimer(_) => matches!(other, Self::CancelTimer(_)),
-            Self::DialCommit => matches!(other, Self::DialCommit),
         }
     }
 
@@ -182,24 +180,37 @@ impl<S: EventSender> EventSender for ThrottledEventSender<S> {
 
 /// Emit the last event that occurred within a debounce interval
 pub struct TrailingEventSender {
-    event_debounce: EventDebouncer<Event>
+    event_debounce: EventDebouncer<Event>,
+    pending: Arc<AtomicBool>,
 }
 
 impl TrailingEventSender {
-    pub fn new<S>(event_sender: S, delay_ms: u64, commit: Event) -> Self
+    pub fn new<S>(event_sender: S, delay_ms: u64) -> Self
         where S: EventSender + Send + 'static
     {
         let delay = Duration::from_millis(delay_ms);
+        let pending = Arc::new(AtomicBool::new(false));
+        let pending_clone = pending.clone();
+
         let event_debounce = EventDebouncer::new(delay, move |e: Event| {
             event_sender.send_event(e).unwrap();
-            event_sender.send_event(commit.clone()).unwrap();
+            pending.store(false, Ordering::Relaxed);
         });
-        Self { event_debounce }
+
+        Self {
+            event_debounce,
+            pending: pending_clone,
+        }
+    }
+
+    pub fn is_pending(&self) -> bool {
+        self.pending.load(Ordering::Relaxed)
     }
 }
 
 impl EventSender for TrailingEventSender {
     fn send_event(&self, event: Event) -> Result<()> {
+        self.pending.store(true, Ordering::Relaxed);
         self.event_debounce.put(event);
         Ok(())
     }

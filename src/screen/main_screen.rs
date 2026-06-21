@@ -45,7 +45,6 @@ pub struct MainScreen<S> {
     theme: MainScreenTheme,
     state: ThermostatState,
     last_click_val: f32,
-    scrolling: bool,
     fan_timer: Duration,
 }
 
@@ -53,7 +52,7 @@ impl<S: EventSender> Screen for MainScreen<S> { }
 
 impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
     pub fn new(theme: MainScreenTheme, state: ThermostatState, event_sender: S) -> Self {
-        let cmd_sender = TrailingEventSender::new(event_sender.clone(), 250, Event::DialCommit);
+        let cmd_sender = TrailingEventSender::new(event_sender.clone(), 250);
         Self {
             gauge: GaugeWidget::new(theme.gauge.clone()),
             away_icon: IconWidget::new(theme.away_icon.clone()),
@@ -64,7 +63,6 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             theme,
             state,
             last_click_val: 0.0,
-            scrolling: false,
             fan_timer: Duration::from_secs(0),
         }
     }
@@ -77,7 +75,6 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
 
         match event {
             Event::Dial(dir) if !self.state.away => {
-                self.scrolling = true;
                 if self.state.mode == HvacMode::Fan {
                     let sec_inc = *dir as f32 * 0.5;
                     self.set_fan_timeout(sec_inc)?;
@@ -90,9 +87,6 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                 self.event_sender.send_event(Event::NavigateTo(ScreenId::ModeSelect {
                     current_mode: self.state.mode
                 }))?;
-            }
-            Event::DialCommit | Event::TimeoutReached(TimerId::Fan) => {
-                self.scrolling = false;
             }
             Event::StartTickTimer(TimerId::Fan, duration) => {
                 self.fan_timer = *duration;
@@ -110,12 +104,12 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                     self.state.lockout = Some(*remaining);
                 }
             }
-            Event::TimerTick(TimerId::Fan, remaining) if !self.scrolling => {
+            Event::TimerTick(TimerId::Fan, remaining) if !self.cmd_sender.is_pending() => {
                 self.fan_timer = *remaining;
             }
             // Ignore state changes while dial scrolling to avoid contention with
             // delayed dial commit (event sent after delay of dial inactivity)
-            Event::State(state) if !self.scrolling => {
+            Event::State(state) if !self.cmd_sender.is_pending() => {
                 self.state = state.clone();
             }
             _ => { }
