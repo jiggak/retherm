@@ -43,6 +43,12 @@ Minimum off time for cooling to allow AC refrigerant pressures to equalize.
 
 Defaults to "5m"
 
+## default_fan_timeout
+
+Default amount of time to run fan, when fan mode is activated.
+
+Defaults to "15m"
+
 ## storage_dir
 
 Directory to store app state.
