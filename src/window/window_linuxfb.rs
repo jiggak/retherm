@@ -95,6 +95,10 @@ impl EventHandler for FramebufferWindow {
             Event::TimeoutReached(TimerId::Backlight) => {
                 self.backlight.turn_off()?;
             }
+            Event::LightSensor(val) => {
+                let val = *val as f32 * 0.1;
+                self.backlight.set_on_brightness(val as u32)?;
+            }
             _ => { }
         }
 

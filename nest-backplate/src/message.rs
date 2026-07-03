@@ -206,7 +206,14 @@ pub enum BackplateResponse {
         val1: u16,
         val2: u16
     },
-    AmbientLightSensor(u16),
+    /// Repeats every second.
+    /// The brightness field appears to increase when exposed to light.
+    /// However, this field also increases when the dial input is moved without
+    /// any exposure to increased light. Function of second field is unknown.
+    AmbientLightSensor {
+        brightness: u16,
+        unknown: u8,
+    },
     PowerState {
         charging: bool,
         volts_in: f32,
@@ -351,18 +358,21 @@ impl TryFrom<Message> for BackplateResponse {
             }
             Message { command_id: 0x000a, payload } => {
                 // 4 byte payload
-                // 16 bit light intensity
-                // 16 bit aperture value? voltage reference?
-                let lux = match payload.as_slice() {
-                    [b0, b1, ..] => {
-                        Ok(u16::from_le_bytes([*b0, *b1]))
+                // 16 bit light intensity?
+                // 8 bit aperture value? voltage reference?
+                // 8 bit always zero in my tests
+                let (brightness, unknown) = match payload.as_slice() {
+                    [b0, b1, b2, _b3, ..] => {
+                        Ok((u16::from_le_bytes([*b0, *b1]), *b2))
                     },
                     _ => Err(BackplateError::PayloadLength {
-                        id: 0x000a, expected: 2, found: payload.len()
+                        id: 0x000a, expected: 4, found: payload.len()
                     })
                 }?;
 
-                BackplateResponse::AmbientLightSensor(lux)
+                BackplateResponse::AmbientLightSensor {
+                    brightness, unknown
+                }
             }
             Message { command_id: 0x000b, payload } => {
                 if payload.len() < 14 {

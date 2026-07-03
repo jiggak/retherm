@@ -44,6 +44,7 @@ pub enum Event {
     ClickSound,
     ProximityNear,
     ProximityFar,
+    LightSensor(u16),
     /// Start or reset a timeout timer
     TimeoutReset(TimerId, Duration),
     /// Timer reached timeout
@@ -87,6 +88,7 @@ impl PartialEq for Event {
             Self::ClickSound => matches!(other, Self::ClickSound),
             Self::ProximityNear => matches!(other, Self::ProximityNear),
             Self::ProximityFar => matches!(other, Self::ProximityFar),
+            Self::LightSensor(_) => matches!(other, Self::LightSensor(_)),
             Self::TimeoutReset(_, _) => matches!(other, Self::TimeoutReset(_, _)),
             Self::TimeoutReached(_) => matches!(other, Self::TimeoutReached(_)),
             Self::StartTickTimer(_, _) => matches!(other, Self::StartTickTimer(_, _)),

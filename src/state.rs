@@ -25,7 +25,7 @@ use esphome_api::proto::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::{AwayConfig, Config},
+    config::Config,
     events::{Event, EventHandler, EventSender},
     timer::TimerId
 };

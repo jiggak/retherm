@@ -16,7 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{sync::mpsc::{Receiver, Sender, channel}, thread, time::{Duration, Instant}};
+use std::{
+    collections::VecDeque,
+    sync::mpsc::{Receiver, Sender, channel},
+    thread,
+    time::{Duration, Instant}
+};
 
 use anyhow::Result;
 use log::{debug, info, error};
@@ -99,6 +104,8 @@ fn backplate_main_loop<S: EventSender>(
     backplate.send_command(BackplateCmd::StatusRequest)?;
     let mut last_status_request = Instant::now();
 
+    let mut als_filter = MedianFilter::new(5);
+
     loop {
         match backplate.read_message()? {
             BackplateResponse::Climate(c) => {
@@ -116,6 +123,10 @@ fn backplate_main_loop<S: EventSender>(
             }
             BackplateResponse::WireSwitched(wire, state) => {
                 info!("WireSwitched:{:?} state:{}", wire, state);
+            }
+            BackplateResponse::AmbientLightSensor { brightness, .. } => {
+                let val = als_filter.filter(brightness);
+                event_sender.send_event(Event::LightSensor(val))?;
             }
             msg => {
                 debug!("{:?}", msg);
@@ -188,5 +199,33 @@ impl From<WireId> for Wire {
             WireId::Y2 => Self::Y2,
             WireId::Star => Self::Star
         }
+    }
+}
+
+struct MedianFilter {
+    max_samples: usize,
+    samples: VecDeque<u16>,
+}
+
+impl MedianFilter {
+    fn new(capacity: usize) -> Self {
+        Self {
+            max_samples: capacity,
+            samples: VecDeque::with_capacity(capacity),
+        }
+    }
+
+    fn filter(&mut self, val: u16) -> u16 {
+        self.samples.push_back(val);
+
+        while self.samples.len() > self.max_samples {
+            self.samples.pop_front();
+        }
+
+        let mut sorted: Vec<u16> = self.samples
+            .iter().copied().collect();
+        sorted.sort();
+
+        sorted[sorted.len() / 2]
     }
 }

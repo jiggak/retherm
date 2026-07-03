@@ -24,8 +24,8 @@ use anyhow::Result;
 pub struct Backlight {
     device: BacklightDirectory,
     max_brightness: u32,
-    default_brightness: u32,
-    current_brightness: u32
+    on_brightness: u32,
+    current_brightness: u32,
 }
 
 impl Backlight {
@@ -42,8 +42,8 @@ impl Backlight {
         Ok(Self {
             device,
             max_brightness,
-            default_brightness,
-            current_brightness
+            on_brightness: default_brightness,
+            current_brightness,
         })
     }
 
@@ -58,8 +58,18 @@ impl Backlight {
         Ok(())
     }
 
+    pub fn set_on_brightness(&mut self, value: u32) -> Result<()> {
+        self.on_brightness = min(value, self.max_brightness);
+
+        if self.current_brightness > 0 {
+            self.set_brightness(self.on_brightness)?;
+        }
+
+        Ok(())
+    }
+
     pub fn turn_on(&mut self) -> Result<()> {
-        self.set_brightness(self.default_brightness)
+        self.set_brightness(self.on_brightness)
     }
 
     pub fn turn_off(&mut self) -> Result<()> {
