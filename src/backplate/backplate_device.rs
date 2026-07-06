@@ -52,6 +52,9 @@ impl DeviceBackplateThread {
         // seems to constanty send messages.
         thread::spawn(move || {
             loop {
+                // drain cmd_receiver incase cmds sent while disconnected
+                while let Ok(_) = cmd_receiver.try_recv() { }
+
                 let result = backplate_main_loop(
                     &serial_port,
                     near_pir_threshold,
@@ -63,6 +66,8 @@ impl DeviceBackplateThread {
                 match result {
                     Ok(_) => unreachable!("Backplate message loop should not return Ok"),
                     Err(error) => {
+                        event_sender.send_event(Event::BackplateDisconnected).unwrap();
+
                         error!(
                             "Backplate thread error `{}`, reconnect in {:?}",
                             error, Self::RECONNECT_TIMEOUT
@@ -95,6 +100,10 @@ fn backplate_main_loop<S: EventSender>(
 ) -> Result<()> {
     let mut backplate = BackplateConnection::open(dev_path)?;
 
+    event_sender.send_event(Event::BackplateConnected)?;
+
+    backplate.send_command(BackplateCmd::GetTfeBuildInfo)?;
+
     // This triggers a constant stream of messages
     backplate.send_command(BackplateCmd::StatusRequest)?;
     let mut last_status_request = Instant::now();
@@ -115,7 +124,10 @@ fn backplate_main_loop<S: EventSender>(
                 }
             }
             BackplateResponse::WireSwitched(wire, state) => {
-                info!("WireSwitched:{:?} state:{}", wire, state);
+                debug!("WireSwitched:{:?} state:{}", wire, state);
+            }
+            BackplateResponse::TfeBuildInfo(s) => {
+                info!("{}", s);
             }
             msg => {
                 debug!("{:?}", msg);
