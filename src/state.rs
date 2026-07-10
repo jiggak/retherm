@@ -177,6 +177,7 @@ impl<S: EventSender> StateManager<S> {
     }
 
     fn set_target_temp(&mut self, temp: f32) -> bool {
+        let temp = (temp * 10.0).round() / 10.0;
         if temp != self.state.target_temp {
             self.state.target_temp = temp;
             true
@@ -186,6 +187,7 @@ impl<S: EventSender> StateManager<S> {
     }
 
     fn set_current_temp(&mut self, temp: f32) -> bool {
+        let temp = (temp * 10.0).round() / 10.0;
         if temp != self.state.current_temp {
             self.state.current_temp = temp;
             true
