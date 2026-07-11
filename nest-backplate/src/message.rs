@@ -548,7 +548,7 @@ pub struct BackplateWires<T> {
     pub rh: T
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wire {
     W1, Y1, G, OB, W2, Y2, Star
 }
