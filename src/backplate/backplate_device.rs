@@ -16,7 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{sync::mpsc::{Receiver, Sender, channel}, thread, time::{Duration, Instant}};
+use std::{
+    sync::{Arc, Mutex, mpsc::{Receiver, Sender, channel}},
+    thread,
+    time::{Duration, Instant}
+};
 
 use anyhow::Result;
 use log::{debug, info, error};
@@ -31,8 +35,7 @@ use super::{BackplateDevice};
 
 pub struct DeviceBackplateThread {
     cmd_sender: Sender<BackplateCmd>,
-    heat_wire: Wire,
-    cool_wire: Wire
+    wire_state: Arc<Mutex<SwitchState>>,
 }
 
 impl DeviceBackplateThread {
@@ -46,23 +49,41 @@ impl DeviceBackplateThread {
         let serial_port = config.serial_port.clone();
         let near_pir_threshold = config.near_pir_threshold;
 
+        let (heat_wire, cool_wire) = match config.wiring {
+            WireConfig::HeatAndCool { heat_wire, cool_wire } => {
+                (heat_wire.into(), cool_wire.into())
+            }
+        };
+        let wire_state = SwitchState::new(heat_wire, cool_wire);
+        let wire_state = Arc::new(Mutex::new(wire_state));
+        let wire_state_clone = wire_state.clone();
+
         // Should I have spearate read/write threads?
         // With a single thread, I am relying on the backplate to send a message
         // before I can send one back. Maybe that's OK though, since the backplate
         // seems to constanty send messages.
         thread::spawn(move || {
             loop {
+                // drain cmd_receiver incase cmds sent while disconnected
+                while let Ok(_) = cmd_receiver.try_recv() { }
+
+                // reset back to "Idle" since that's the state on backplate connect
+                wire_state.lock().unwrap().clear();
+
                 let result = backplate_main_loop(
                     &serial_port,
                     near_pir_threshold,
                     Self::KEEPALIVE_PERIOD,
                     &event_sender,
-                    &cmd_receiver
+                    &cmd_receiver,
+                    &wire_state
                 );
 
                 match result {
                     Ok(_) => unreachable!("Backplate message loop should not return Ok"),
                     Err(error) => {
+                        event_sender.send_event(Event::BackplateDisconnected).unwrap();
+
                         error!(
                             "Backplate thread error `{}`, reconnect in {:?}",
                             error, Self::RECONNECT_TIMEOUT
@@ -74,14 +95,9 @@ impl DeviceBackplateThread {
             }
         });
 
-        let (heat_wire, cool_wire) = match config.wiring {
-            WireConfig::HeatAndCool { heat_wire, cool_wire } => {
-                (heat_wire.into(), cool_wire.into())
-            }
-        };
-
         Ok(Self {
-            cmd_sender, heat_wire, cool_wire
+            cmd_sender,
+            wire_state: wire_state_clone,
         })
     }
 }
@@ -91,9 +107,15 @@ fn backplate_main_loop<S: EventSender>(
     near_pir_threshold: u16,
     keepalive_period: Duration,
     event_sender: &S,
-    cmd_receiver: &Receiver<BackplateCmd>
+    cmd_receiver: &Receiver<BackplateCmd>,
+    wire_state: &Arc<Mutex<SwitchState>>
 ) -> Result<()> {
     let mut backplate = BackplateConnection::open(dev_path)?;
+
+    event_sender.send_event(Event::BackplateConnected)?;
+
+    // Log backplate version details
+    backplate.send_command(BackplateCmd::GetTfeBuildInfo)?;
 
     // This triggers a constant stream of messages
     backplate.send_command(BackplateCmd::StatusRequest)?;
@@ -115,7 +137,11 @@ fn backplate_main_loop<S: EventSender>(
                 }
             }
             BackplateResponse::WireSwitched(wire, state) => {
-                info!("WireSwitched:{:?} state:{}", wire, state);
+                info!("WireSwitched {wire:?}: {state}");
+                wire_state.lock().unwrap().set_wire_state(wire, state);
+            }
+            BackplateResponse::TfeBuildInfo(s) => {
+                info!("{}", s);
             }
             msg => {
                 debug!("{:?}", msg);
@@ -148,29 +174,13 @@ impl BackplateDevice for DeviceBackplateThread {
     }
 
     fn switch_hvac(&self, action: &HvacAction) -> Result<()> {
-        let cmds = match action {
-            HvacAction::Heating => {
-                [
-                    BackplateCmd::SwitchWire(self.heat_wire, true),
-                    BackplateCmd::SwitchWire(self.cool_wire, false)
-                ]
-            }
-            HvacAction::Cooling => {
-                [
-                    BackplateCmd::SwitchWire(self.heat_wire, false),
-                    BackplateCmd::SwitchWire(self.cool_wire, true)
-                ]
-            }
-            HvacAction::Idle => {
-                [
-                    BackplateCmd::SwitchWire(self.heat_wire, false),
-                    BackplateCmd::SwitchWire(self.cool_wire, false)
-                ]
-            }
-        };
+        let state = self.wire_state.lock().unwrap();
 
-        for cmd in cmds {
-            self.cmd_sender.send(cmd)?;
+        if !state.is_active(action) {
+            for cmd in state.commands(action) {
+                info!("Command {cmd:?}");
+                self.cmd_sender.send(cmd)?;
+            }
         }
 
         Ok(())
@@ -188,5 +198,71 @@ impl From<WireId> for Wire {
             WireId::Y2 => Self::Y2,
             WireId::Star => Self::Star
         }
+    }
+}
+
+struct SwitchState {
+    heat_wire: (Wire, bool),
+    cool_wire: (Wire, bool),
+}
+
+impl SwitchState {
+    fn new(heat_wire: Wire, cool_wire: Wire) -> Self {
+        Self {
+            heat_wire: (heat_wire, false),
+            cool_wire: (cool_wire, false),
+        }
+    }
+
+    fn commands(&self, action: &HvacAction) -> [BackplateCmd; 2] {
+        match action {
+            HvacAction::Heating => {
+                [
+                    BackplateCmd::SwitchWire(self.heat_wire.0, true),
+                    BackplateCmd::SwitchWire(self.cool_wire.0, false)
+                ]
+            }
+            HvacAction::Cooling => {
+                [
+                    BackplateCmd::SwitchWire(self.heat_wire.0, false),
+                    BackplateCmd::SwitchWire(self.cool_wire.0, true)
+                ]
+            }
+            HvacAction::Idle => {
+                [
+                    BackplateCmd::SwitchWire(self.heat_wire.0, false),
+                    BackplateCmd::SwitchWire(self.cool_wire.0, false)
+                ]
+            }
+        }
+    }
+
+    fn is_active(&self, action: &HvacAction) -> bool {
+        match action {
+            HvacAction::Heating => {
+                self.heat_wire.1
+            }
+            HvacAction::Cooling => {
+                self.cool_wire.1
+            }
+            HvacAction::Idle => {
+                !self.cool_wire.1 && !self.heat_wire.1
+            }
+        }
+    }
+
+    fn set_wire_state(&mut self, wire: Wire, val: bool) {
+        if wire == self.cool_wire.0 {
+            self.cool_wire.1 = val;
+        } else if wire == self.heat_wire.0 {
+            self.heat_wire.1 = val;
+        } else {
+            panic!("Unexpected wire {:?}", wire);
+        }
+    }
+
+    fn clear(&mut self) {
+        self.heat_wire.1 = false;
+        self.cool_wire.1 = false;
     }
 }

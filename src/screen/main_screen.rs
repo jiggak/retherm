@@ -35,6 +35,7 @@ pub struct MainScreen<S> {
     gauge: GaugeWidget,
     away_icon: IconWidget,
     lockout_icon: IconWidget,
+    disconnect_icon: IconWidget,
     cmd_sender: TrailingEventSender,
     event_sender: S,
     theme: MainScreenTheme,
@@ -52,6 +53,7 @@ impl<S: EventSender + Clone + Send + 'static> MainScreen<S> {
             gauge: GaugeWidget::new(theme.gauge.clone()),
             away_icon: IconWidget::new(theme.away_icon.clone()),
             lockout_icon: IconWidget::new(theme.lockout_icon.clone()),
+            disconnect_icon: IconWidget::new(theme.disconnect_icon.clone()),
             cmd_sender,
             event_sender,
             theme,
@@ -143,7 +145,14 @@ impl<S: EventSender> AppDrawable for MainScreen<S> {
 
         self.gauge.draw(target, bg_colour, &self.state)?;
 
-        if self.state.away {
+        if !self.state.backplate {
+            self.disconnect_icon.draw(
+                target,
+                self.theme.status_icon_center,
+                bg_colour,
+                Some(self.theme.disconnect_icon.colour)
+            )?;
+        } else if self.state.away {
             self.away_icon.draw(
                 target,
                 self.theme.status_icon_center,

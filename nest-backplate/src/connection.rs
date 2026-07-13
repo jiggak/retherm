@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{io::{BufReader, Read}};
+use std::io::{BufReader, Read};
 
 use bytes::{BufMut, Bytes};
 use log::trace;
@@ -145,7 +145,7 @@ impl MessageReader {
 
         // search for preamble in buffer
         let preamble_pos = self.buffer
-            .windows(4)
+            .windows(4) // 4-byte chunks; size of preamble
             .enumerate()
             .find(|(_, data)| *data == &Message::PREAMBLE_READ)
             .map(|(idx, _)| idx);
