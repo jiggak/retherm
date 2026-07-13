@@ -88,7 +88,7 @@ fn main() -> Result<()> {
     )?;
 
     let mut schedule = schedule::ScheduleManager::new(&config, event_source.event_sender());
-    schedule.start_schedule(&state::HvacMode::Heat);
+    schedule.start_schedule(&state.mode);
 
     let mut backplate = backplate::Backplate::new(&config, event_source.event_sender())?;
     let mut timers = timer::Timers::new(event_source.event_sender());

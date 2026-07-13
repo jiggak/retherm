@@ -25,9 +25,7 @@ use esphome_api::proto::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::Config,
-    events::{Event, EventHandler, EventSender},
-    timer::TimerId
+    config::Config, events::{Event, EventHandler, EventSender}, timer::TimerId
 };
 
 #[derive(Debug, Clone)]
@@ -38,6 +36,8 @@ pub struct ThermostatState {
     pub action: HvacAction,
     pub away: bool,
     pub lockout: bool,
+    /// Backplate connected flag
+    pub backplate: bool,
 }
 
 impl ThermostatState {
@@ -87,6 +87,7 @@ impl Default for ThermostatState {
             mode: HvacMode::Heat,
             away: false,
             lockout: false,
+            backplate: false,
         }
     }
 }
@@ -184,6 +185,7 @@ impl<S: EventSender> StateManager<S> {
     }
 
     fn set_target_temp(&mut self, temp: f32) -> bool {
+        let temp = (temp * 10.0).round() / 10.0;
         if temp != self.state.target_temp {
             self.state.target_temp = temp;
             true
@@ -193,6 +195,7 @@ impl<S: EventSender> StateManager<S> {
     }
 
     fn set_current_temp(&mut self, temp: f32) -> bool {
+        let temp = (temp * 10.0).round() / 10.0;
         if temp != self.state.current_temp {
             self.state.current_temp = temp;
             true
@@ -251,6 +254,11 @@ impl<S: EventSender> StateManager<S> {
     fn apply_hvac_action(&mut self) -> bool {
         let old_action = self.state.action;
 
+        if !self.state.backplate {
+            self.state.action = HvacAction::Idle;
+            return old_action != self.state.action;
+        }
+
         let current_temp = self.state.current_temp;
 
         match self.state.mode {
@@ -284,6 +292,30 @@ impl<S: EventSender> StateManager<S> {
 
         old_action != self.state.action
     }
+
+    fn apply_lockout(&mut self) -> Result<()> {
+        if self.state.action == HvacAction::Idle {
+            // don't reset last idle time until min idle time elapsed
+            // i.e. don't re-trigger lockout when it's already active
+            if self.last_idle_time.elapsed() > self.config.min_off_time {
+                self.last_idle_time = Instant::now();
+            }
+
+            self.state.lockout = false;
+        } else {
+            if self.last_idle_time.elapsed() < self.config.min_off_time {
+                let lockout_time = self.config.min_off_time - self.last_idle_time.elapsed();
+                self.state.lockout = true;
+                self.event_sender.send_event(
+                    Event::StartTickTimer(TimerId::HvacLockout, lockout_time)
+                )?;
+            } else {
+                self.state.lockout = false;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl<S: EventSender> EventHandler for StateManager<S> {
@@ -315,30 +347,20 @@ impl<S: EventSender> EventHandler for StateManager<S> {
                 let mode = self.restore_mode.unwrap_or(HvacMode::Off);
                 self.set_mode(mode)?
             }
+            Event::BackplateConnected => {
+                self.state.backplate = true;
+                true
+            }
+            Event::BackplateDisconnected => {
+                self.state.backplate = false;
+                true
+            }
             _ => false
         };
 
         if did_change {
             if self.apply_hvac_action() {
-                if self.state.action == HvacAction::Idle {
-                    // don't reset last idle time until min idle time elapsed
-                    // i.e. don't re-trigger lockout when it's already active
-                    if self.last_idle_time.elapsed() > self.config.min_off_time {
-                        self.last_idle_time = Instant::now();
-                    }
-
-                    self.state.lockout = false;
-                } else {
-                    if self.last_idle_time.elapsed() < self.config.min_off_time {
-                        let lockout_time = self.config.min_off_time - self.last_idle_time.elapsed();
-                        self.state.lockout = true;
-                        self.event_sender.send_event(
-                            Event::StartTickTimer(TimerId::HvacLockout, lockout_time)
-                        )?;
-                    } else {
-                        self.state.lockout = false;
-                    }
-                }
+                self.apply_lockout()?;
             }
 
             self.event_sender.send_event(Event::State(self.state.clone()))?;
@@ -408,6 +430,7 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Idle,
+            backplate: true,
             ..ThermostatState::default()
         };
 
@@ -429,6 +452,7 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Heating,
+            backplate: true,
             ..ThermostatState::default()
         };
 
@@ -448,6 +472,7 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Idle,
+            backplate: true,
             ..ThermostatState::default()
         };
 
@@ -469,6 +494,7 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Cooling,
+            backplate: true,
             ..ThermostatState::default()
         };
 
@@ -488,6 +514,7 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Idle,
+            backplate: true,
             ..ThermostatState::default()
         };
 

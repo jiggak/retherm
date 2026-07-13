@@ -100,6 +100,11 @@ default `{ icon_font: "Icon:42", icon: "\u{e50b}", colour: "#ffffff" }`
 Lockout status icon styling,
 default `{ icon_font: "Icon:42", icon: "\u{f252}", colour: "#ffffff" }`
 
+## disconnect_icon
+
+Backplate disconnected status icon styling,
+default `{ icon_font: "Icon:42", icon: "\u{e560}", colour: "#ffffff" }`
+
 ## fan_icon
 
 Fan mode status icon styling,

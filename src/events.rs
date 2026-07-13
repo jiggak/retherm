@@ -53,6 +53,8 @@ pub enum Event {
     /// Dispatched for every "tick" of ticking timer
     TimerTick(TimerId, Duration),
     CancelTimer(TimerId),
+    BackplateConnected,
+    BackplateDisconnected,
 }
 
 impl Event {
@@ -92,6 +94,8 @@ impl PartialEq for Event {
             Self::StartTickTimer(_, _) => matches!(other, Self::StartTickTimer(_, _)),
             Self::TimerTick(_, _) => matches!(other, Self::TimerTick(_, _)),
             Self::CancelTimer(_) => matches!(other, Self::CancelTimer(_)),
+            Self::BackplateConnected => matches!(other, Self::BackplateConnected),
+            Self::BackplateDisconnected => matches!(other, Self::BackplateDisconnected),
         }
     }
 

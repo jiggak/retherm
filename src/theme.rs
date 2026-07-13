@@ -154,6 +154,11 @@ impl Default for Theme {
                     icon: "\u{f252}".to_string(),
                     colour: Bgr888::CSS_WHITE
                 },
+                disconnect_icon: IconStyle {
+                    icon_font: fonts.font_def(FontName::Icon, 42),
+                    icon: "\u{e560}".to_string(),
+                    colour: Bgr888::CSS_WHITE
+                },
                 fan_icon: IconStyle {
                     icon_font: fonts.font_def(FontName::Icon, 42),
                     icon: "\u{f863}".to_string(),
@@ -262,6 +267,10 @@ pub struct MainScreenTheme {
     /// Lockout status icon styling,
     /// default `{ icon_font: "Icon:42", icon: "\u{f252}", colour: "#ffffff" }`
     pub lockout_icon: IconStyle,
+
+    /// Backplate disconnected status icon styling,
+    /// default `{ icon_font: "Icon:42", icon: "\u{e560}", colour: "#ffffff" }`
+    pub disconnect_icon: IconStyle,
 
     /// Fan mode status icon styling,
     /// default `{ icon_font: "Icon:42", icon: "\u{f863}", colour: "#ffffff" }`
