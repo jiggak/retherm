@@ -19,14 +19,15 @@
 use std::io::{BufReader, Read};
 
 use bytes::{BufMut, Bytes};
-use log::trace;
+use log::{debug, trace};
 use serial2::{SerialPort, Settings};
 
-use crate::{BackplateCmd, BackplateResponse, Message, Result};
+use crate::{BackplateCmd, BackplateError, BackplateResponse, Message, Result};
 
 pub struct BackplateConnection {
     port: SerialPort,
-    reader: MessageReader
+    reader: MessageReader,
+    ack_payload: Option<Vec<u8>>,
 }
 
 impl BackplateConnection {
@@ -42,9 +43,15 @@ impl BackplateConnection {
     /// return a timeout error.
     pub fn read_message(&mut self) -> Result<BackplateResponse> {
         if let Some(message) = self.reader.read_message()? {
+            // Save payload of WirePowerPresence for sending reset sequence ACK
+            if message.command_id == Message::WIRE_POWER_PRESENCE_ID {
+                self.ack_payload = Some(message.payload.clone());
+            }
+
             Ok(message.try_into()?)
         } else {
-            // There is more data to read (parial message) when read_message() returns `None`.
+            // There is more data to read (parial message) when read_message()
+            // returns `None`.
             self.read_message()
         }
     }
@@ -70,46 +77,49 @@ impl BackplateConnection {
 
         let reader = MessageReader::new(&port)?;
 
-        let mut backplate = BackplateConnection { port, reader };
+        let mut backplate = BackplateConnection {
+            port,
+            reader,
+            ack_payload: None,
+        };
 
         backplate.send_command(BackplateCmd::Reset)?;
 
-        let mut rcv_brk = false;
-        let mut ack_payload: Option<Vec<u8>> = None;
+        loop {
+            let message = backplate.read_message()?;
+            debug!("Reset: {:?}", message);
 
-        while !rcv_brk || ack_payload.is_none() {
-            if let Some(raw_message) = backplate.reader.read_message()? {
-                let raw_payload = raw_message.payload.clone();
-                let message = raw_message.try_into()?;
-
-                match message {
-                    BackplateResponse::WirePowerPresence(_) => {
-                        ack_payload = Some(raw_payload);
-                    }
-                    BackplateResponse::Text(s) if s == "BRK" => {
-                        rcv_brk = true;
-                    }
-                    _ => { }
-                }
+            if message.is_break() {
+                break;
             }
         }
 
-        // This "Ack" command is required before messaging can be intitiated
-        backplate.send_command(BackplateCmd::ResetAck(ack_payload.unwrap()))?;
-
-        // The Cuckoo Nest implementation sends a series of commands to fetch
-        // info (e.g. GetTfeVersion) but this doesn't seem to be necessary.
-
-        // What does SetPowerStealMode do?
-        // I've tested with/without this command and I don't notice any difference.
-        // My assumption is this command has some effect on charging.
-        // With a 9V batt connected to Rh/C the voltage levels in state messages
-        // show voltage readings and a bit is flipped seemingly to indicate
-        // charging state (byte 1, bit 6 [zero based]).
-        // These values do not change with/without this command.
-        backplate.send_command(BackplateCmd::SetPowerStealMode)?;
+        backplate.reset_ack()?;
 
         Ok(backplate)
+    }
+
+    pub fn reset_ack(&mut self) -> Result<()> {
+        if let Some(ack_payload) = self.ack_payload.take() {
+            // This "Ack" command is required before messaging can be intitiated
+            self.send_command(BackplateCmd::ResetAck(ack_payload))?;
+
+            // The Cuckoo Nest implementation sends a series of commands to fetch
+            // info (e.g. GetTfeVersion) but this doesn't seem to be necessary.
+
+            // What does SetPowerStealMode do?
+            // I've tested with/without this command and I don't notice any difference.
+            // My assumption is this command has some effect on charging.
+            // With a 9V batt connected to Rh/C the voltage levels in state messages
+            // show voltage readings and a bit is flipped seemingly to indicate
+            // charging state (byte 1, bit 6 [zero based]).
+            // These values do not change with/without this command.
+            self.send_command(BackplateCmd::SetPowerStealMode)?;
+
+            Ok(())
+        } else {
+            Err(BackplateError::ResetAck)
+        }
     }
 }
 

@@ -34,6 +34,8 @@ impl Message {
     /// Preamble(4) + Cmd(2) + Len(2) + CRC(2)
     pub(crate) const MIN_RAW_LEN: usize = 10;
 
+    pub const WIRE_POWER_PRESENCE_ID: u16 = 0x0004;
+
     pub fn command(command_id: u16) -> Self {
         Self { command_id, payload: Vec::new() }
     }
@@ -241,6 +243,12 @@ pub enum BackplateResponse {
     Raw(Message)
 }
 
+impl BackplateResponse {
+    pub fn is_break(&self) -> bool {
+        matches!(self, BackplateResponse::Text(s) if s == "BRK")
+    }
+}
+
 impl TryFrom<Message> for BackplateResponse {
     type Error = BackplateError;
 
@@ -259,10 +267,10 @@ impl TryFrom<Message> for BackplateResponse {
                 let bytes = payload[..4].try_into().unwrap();
                 BackplateResponse::Climate(Climate::from_bytes(bytes))
             }
-            Message { command_id: 0x0004, payload } => {
+            Message { command_id: Message::WIRE_POWER_PRESENCE_ID, payload } => {
                 if payload.len() < 12 {
                     return Err(BackplateError::PayloadLength {
-                        id: 0x0004, expected: 12, found: payload.len()
+                        id: Message::WIRE_POWER_PRESENCE_ID, expected: 12, found: payload.len()
                     });
                 }
 
