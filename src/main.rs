@@ -46,18 +46,7 @@ fn main() -> Result<()> {
     let cli = cli::Cli::load();
 
     if let Some(log_level) = cli.syslog {
-        use syslog::{Facility, Formatter3164, BasicLogger};
-
-        let formatter = Formatter3164 {
-            facility: Facility::LOG_USER,
-            hostname: None,
-            process: env::get_pkg_name().into(),
-            pid: 0
-        };
-
-        let logger = syslog::unix(formatter)?;
-        log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
-            .map(|()| log::set_max_level(log_level))?;
+        init_syslog(log_level)?;
     } else {
         env_logger::init();
     }
@@ -153,6 +142,23 @@ fn main() -> Result<()> {
             event = event_source.poll_event()?;
         }
     }
+
+    Ok(())
+}
+
+fn init_syslog(log_level: log::LevelFilter) -> Result<()> {
+    use syslog::{Facility, Formatter3164, BasicLogger};
+
+    let formatter = Formatter3164 {
+        facility: Facility::LOG_USER,
+        hostname: None,
+        process: env::get_pkg_name().into(),
+        pid: 0
+    };
+
+    let logger = syslog::unix(formatter)?;
+    log::set_boxed_logger(Box::new(BasicLogger::new(logger)))
+        .map(|()| log::set_max_level(log_level))?;
 
     Ok(())
 }

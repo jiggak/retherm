@@ -34,7 +34,9 @@ pub enum BackplateError {
     #[error("Message `{id:x}` payload length too short; {found} < {expected}")]
     PayloadLength { id: u16, expected: usize, found: usize },
     #[error("Message buffer underrun `{0}`")]
-    BufferUnderrun(#[from] bytes::TryGetError)
+    BufferUnderrun(#[from] bytes::TryGetError),
+    #[error("Reset missing ACK payload")]
+    ResetAck,
 }
 
 pub type Result<T> = std::result::Result<T, BackplateError>;

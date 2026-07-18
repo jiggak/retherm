@@ -219,7 +219,12 @@ impl<S: EventSender> StateManager<S> {
                 self.restore_mode = Some(self.state.mode);
             }
 
+            // Clear action when switching modes to avoid action previous action
+            // persisting due to current temp being inside hysteresis band.
+            self.state.action = HvacAction::Idle;
+
             self.state.mode = mode;
+
             Ok(true)
         } else {
             Ok(false)
@@ -550,6 +555,46 @@ mod tests {
         mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
         assert!(mgr.state.action == HvacAction::Cooling);
         assert!(!mgr.state.lockout);
+
+        Ok(())
+    }
+
+    #[test]
+    fn transition_idle() -> Result<()> {
+        let state = ThermostatState {
+            mode: HvacMode::Cool,
+            target_temp: 20.0,
+            current_temp: 20.0,
+            action: HvacAction::Idle,
+            backplate: true,
+            ..ThermostatState::default()
+        };
+
+        let (_x, mut mgr) = state_manager(state);
+
+        // Begin cooling
+        mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
+        assert!(mgr.state.action == HvacAction::Cooling);
+
+        // Temp decreased inside hysteresis range, still cooling
+        mgr.handle_event(&Event::SetCurrentTemp(20.0))?;
+        assert!(mgr.state.action == HvacAction::Cooling);
+
+        // Switch mode to heat, current temp within target temp, go idle
+        mgr.handle_event(&Event::SetMode(HvacMode::Heat))?;
+        assert!(mgr.state.action == HvacAction::Idle);
+
+        // Begin heating
+        mgr.handle_event(&Event::SetCurrentTemp(19.0))?;
+        assert!(mgr.state.action == HvacAction::Heating);
+
+        // Temp decreased inside hysteresis range, still heating
+        mgr.handle_event(&Event::SetCurrentTemp(20.0))?;
+        assert!(mgr.state.action == HvacAction::Heating);
+
+        // Switch mode to cool, current temp within target temp, go idle
+        mgr.handle_event(&Event::SetMode(HvacMode::Cool))?;
+        assert!(mgr.state.action == HvacAction::Idle);
 
         Ok(())
     }
