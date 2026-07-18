@@ -23,7 +23,7 @@ use std::{
 };
 
 use anyhow::Result;
-use log::{debug, info, error};
+use log::{debug, error, info, warn};
 use nest_backplate::{BackplateCmd, BackplateConnection, BackplateResponse, Wire};
 
 use crate::{
@@ -143,6 +143,20 @@ fn backplate_main_loop<S: EventSender>(
             BackplateResponse::TfeBuildInfo(s) => {
                 info!("{}", s);
             }
+            // BackplateResponse::AmbientLightSensor(_) => { }
+            // BackplateResponse::Raw(Message { command_id: 19, .. }) => { }
+            x if x.is_break() => {
+                warn!("Break received, resetting");
+                backplate.reset_ack()?;
+
+                // Resume message stream
+                backplate.send_command(BackplateCmd::StatusRequest)?;
+
+                // Restore wire state switches
+                for cmd in wire_state.lock().unwrap().commands() {
+                    backplate.send_command(cmd)?;
+                }
+            }
             msg => {
                 debug!("{:?}", msg);
             }
@@ -177,8 +191,7 @@ impl BackplateDevice for DeviceBackplateThread {
         let state = self.wire_state.lock().unwrap();
 
         if !state.is_active(action) {
-            for cmd in state.commands(action) {
-                info!("Command {cmd:?}");
+            for cmd in state.switch_commands(action) {
                 self.cmd_sender.send(cmd)?;
             }
         }
@@ -214,7 +227,14 @@ impl SwitchState {
         }
     }
 
-    fn commands(&self, action: &HvacAction) -> [BackplateCmd; 2] {
+    fn commands(&self) -> [BackplateCmd; 2] {
+        [
+            BackplateCmd::SwitchWire(self.heat_wire.0, self.heat_wire.1),
+            BackplateCmd::SwitchWire(self.cool_wire.0, self.cool_wire.1),
+        ]
+    }
+
+    fn switch_commands(&self, action: &HvacAction) -> [BackplateCmd; 2] {
         match action {
             HvacAction::Heating => {
                 [
