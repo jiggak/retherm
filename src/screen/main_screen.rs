@@ -99,7 +99,7 @@ impl<S: EventSender> EventHandler for MainScreen<S> {
                 self.fan_timer = *duration;
             }
             Event::TimerTick(TimerId::HvacLockout, remaining) => {
-                self.lockout_timer = * remaining;
+                self.lockout_timer = *remaining;
             }
             Event::TimerTick(TimerId::Fan, remaining) if !self.cmd_sender.is_pending() => {
                 self.fan_timer = *remaining;
