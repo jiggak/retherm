@@ -35,7 +35,7 @@ pub struct ThermostatState {
     pub mode: HvacMode,
     pub action: HvacAction,
     pub away: bool,
-    pub lockout: Option<Duration>,
+    pub lockout: bool,
     /// Backplate connected flag
     pub backplate: bool,
 }
@@ -43,6 +43,10 @@ pub struct ThermostatState {
 impl ThermostatState {
     pub const MIN_TEMP: f32 = 9.0;
     pub const MAX_TEMP: f32 = 32.0;
+
+    pub fn temp_percent(temp: f32) -> f32 {
+        (temp - Self::MIN_TEMP) / (Self::MAX_TEMP - Self::MIN_TEMP)
+    }
 
     /// Attempt to set target temp and return `true` if successful.
     /// Return `false` if value is outside of min/max range, or if value
@@ -82,7 +86,7 @@ impl Default for ThermostatState {
             action: HvacAction::Idle,
             mode: HvacMode::Heat,
             away: false,
-            lockout: None,
+            lockout: false,
             backplate: false,
         }
     }
@@ -103,9 +107,9 @@ impl From<&ThermostatState> for ClimateStateResponse {
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq)]
 pub enum HvacMode {
     Off,
-    Auto,
     Heat,
-    Cool
+    Cool,
+    Fan,
 }
 
 impl TryFrom<ClimateMode> for HvacMode {
@@ -114,9 +118,9 @@ impl TryFrom<ClimateMode> for HvacMode {
     fn try_from(value: ClimateMode) -> anyhow::Result<Self> {
         Ok(match value {
             ClimateMode::Off => Self::Off,
-            ClimateMode::Auto => Self::Auto,
             ClimateMode::Heat => Self::Heat,
             ClimateMode::Cool => Self::Cool,
+            ClimateMode::FanOnly => Self::Fan,
             v => return Err(anyhow::anyhow!("Unsupported climate mode {v:?}"))
         })
     }
@@ -126,9 +130,9 @@ impl From<HvacMode> for ClimateMode {
     fn from(value: HvacMode) -> Self {
         match value {
             HvacMode::Off => Self::Off,
-            HvacMode::Auto => Self::Auto,
             HvacMode::Heat => Self::Heat,
-            HvacMode::Cool => Self::Cool
+            HvacMode::Cool => Self::Cool,
+            HvacMode::Fan => Self::FanOnly,
         }
     }
 }
@@ -137,7 +141,8 @@ impl From<HvacMode> for ClimateMode {
 pub enum HvacAction {
     Idle,
     Heating,
-    Cooling
+    Cooling,
+    Fan,
 }
 
 impl From<HvacAction> for ClimateAction {
@@ -145,7 +150,8 @@ impl From<HvacAction> for ClimateAction {
         match value {
             HvacAction::Idle => Self::Idle,
             HvacAction::Heating => Self::Heating,
-            HvacAction::Cooling => Self::Cooling
+            HvacAction::Cooling => Self::Cooling,
+            HvacAction::Fan => Self::Fan,
         }
     }
 }
@@ -155,6 +161,7 @@ pub struct StateManager<S: EventSender> {
     state: ThermostatState,
     config: Config,
     saved_target_temp: f32,
+    restore_mode: Option<HvacMode>,
     last_idle_time: Instant,
 }
 
@@ -172,6 +179,7 @@ impl<S: EventSender> StateManager<S> {
             state,
             config: config.clone(),
             saved_target_temp: 0.0,
+            restore_mode: None,
             last_idle_time: Instant::now(),
         })
     }
@@ -196,17 +204,30 @@ impl<S: EventSender> StateManager<S> {
         }
     }
 
-    fn set_mode(&mut self, mode: HvacMode) -> bool {
+    fn set_mode(&mut self, mode: HvacMode) -> Result<bool> {
         if mode != self.state.mode {
+            // switching from fan mode to some other mode
+            if self.state.mode == HvacMode::Fan {
+                self.event_sender.send_event(Event::CancelTimer(TimerId::Fan))?;
+                self.restore_mode = None;
+            }
+            // switching from some other mode to fan mode
+            if mode == HvacMode::Fan {
+                self.event_sender.send_event(
+                    Event::StartTickTimer(TimerId::Fan, self.config.default_fan_timeout)
+                )?;
+                self.restore_mode = Some(self.state.mode);
+            }
+
             // Clear action when switching modes to avoid action previous action
             // persisting due to current temp being inside hysteresis band.
             self.state.action = HvacAction::Idle;
 
             self.state.mode = mode;
 
-            true
+            Ok(true)
         } else {
-            false
+            Ok(false)
         }
     }
 
@@ -266,10 +287,12 @@ impl<S: EventSender> StateManager<S> {
                     self.state.action = HvacAction::Idle;
                 }
             }
+            HvacMode::Fan => {
+                self.state.action = HvacAction::Fan;
+            }
             HvacMode::Off => {
                 self.state.action = HvacAction::Idle;
             }
-            _ => { }
         };
 
         old_action != self.state.action
@@ -283,16 +306,16 @@ impl<S: EventSender> StateManager<S> {
                 self.last_idle_time = Instant::now();
             }
 
-            self.state.lockout = None;
+            self.state.lockout = false;
         } else {
             if self.last_idle_time.elapsed() < self.config.min_off_time {
                 let lockout_time = self.config.min_off_time - self.last_idle_time.elapsed();
-                self.state.lockout = Some(lockout_time);
+                self.state.lockout = true;
                 self.event_sender.send_event(
                     Event::StartTickTimer(TimerId::HvacLockout, lockout_time)
                 )?;
             } else {
-                self.state.lockout = None;
+                self.state.lockout = false;
             }
         }
 
@@ -304,7 +327,7 @@ impl<S: EventSender> EventHandler for StateManager<S> {
     fn handle_event(&mut self, event: &Event) -> Result<()> {
         let did_change = match event {
             Event::SetMode(mode) => {
-                self.set_mode(*mode)
+                self.set_mode(*mode)?
             }
             Event::SetTargetTemp(temp) => {
                 self.set_target_temp(*temp)
@@ -322,8 +345,12 @@ impl<S: EventSender> EventHandler for StateManager<S> {
                 self.set_away(true)
             }
             Event::TimeoutReached(TimerId::HvacLockout) => {
-                self.state.lockout = None;
+                self.state.lockout = false;
                 true
+            }
+            Event::TimeoutReached(TimerId::Fan) => {
+                let mode = self.restore_mode.unwrap_or(HvacMode::Off);
+                self.set_mode(mode)?
             }
             Event::BackplateConnected => {
                 self.state.backplate = true;
@@ -408,9 +435,8 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Idle,
-            away: false,
-            lockout: None,
             backplate: true,
+            ..ThermostatState::default()
         };
 
         let (_x, mgr) = state_manager(state);
@@ -431,9 +457,8 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Heating,
-            away: false,
-            lockout: None,
             backplate: true,
+            ..ThermostatState::default()
         };
 
         let (_x, mgr) = state_manager(state);
@@ -452,9 +477,8 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Idle,
-            away: false,
-            lockout: None,
             backplate: true,
+            ..ThermostatState::default()
         };
 
         let (_x, mgr) = state_manager(state);
@@ -475,9 +499,8 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Cooling,
-            away: false,
-            lockout: None,
             backplate: true,
+            ..ThermostatState::default()
         };
 
         let (_x, mgr) = state_manager(state);
@@ -496,9 +519,8 @@ mod tests {
             target_temp: 20.0,
             current_temp: 20.0,
             action: HvacAction::Idle,
-            away: false,
-            lockout: None,
             backplate: true,
+            ..ThermostatState::default()
         };
 
         let (_x, mut mgr) = state_manager(state);
@@ -506,33 +528,33 @@ mod tests {
         // idle -> cooling = lockout
         mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
         assert!(mgr.state.action == HvacAction::Cooling);
-        assert!(mgr.state.lockout.is_some());
+        assert!(mgr.state.lockout);
 
         // lockout timer elapsed = no lockout
         mgr.handle_event(&Event::TimeoutReached(TimerId::HvacLockout))?;
         assert!(mgr.state.action == HvacAction::Cooling);
-        assert!(mgr.state.lockout.is_none());
+        assert!(!mgr.state.lockout);
 
         // cooling -> idle = no lockout
         mgr.handle_event(&Event::SetCurrentTemp(19.0))?;
         assert!(mgr.state.action == HvacAction::Idle);
-        assert!(mgr.state.lockout.is_none());
+        assert!(!mgr.state.lockout);
 
         // idle -> cooling = lockout
         mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
         assert!(mgr.state.action == HvacAction::Cooling);
-        assert!(mgr.state.lockout.is_some());
+        assert!(mgr.state.lockout);
 
         // cooling -> idle = no lockout
         mgr.handle_event(&Event::SetCurrentTemp(19.0))?;
         assert!(mgr.state.action == HvacAction::Idle);
-        assert!(mgr.state.lockout.is_none());
+        assert!(!mgr.state.lockout);
 
         // idle -> long delay -> cooling = no lockout
         mgr.last_idle_time = Instant::now() - Duration::from_mins(10);
         mgr.handle_event(&Event::SetCurrentTemp(21.0))?;
         assert!(mgr.state.action == HvacAction::Cooling);
-        assert!(mgr.state.lockout.is_none());
+        assert!(!mgr.state.lockout);
 
         Ok(())
     }

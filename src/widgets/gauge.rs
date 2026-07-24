@@ -20,10 +20,10 @@ use embedded_graphics::{
     pixelcolor::Bgr888,
     prelude::*,
     primitives::{Arc, Circle, PrimitiveStyle},
-    text::{Alignment, Text, renderer::TextRenderer}
+    text::{Alignment, Text}
 };
 
-use crate::{theme::GaugeStyle, state::{HvacMode, ThermostatState}};
+use crate::theme::{ArcFill, GaugeAccentStyle, GaugeStyle};
 
 pub struct GaugeWidget {
     style: GaugeStyle
@@ -38,41 +38,42 @@ impl GaugeWidget {
         &self,
         target: &mut D,
         bg_colour: Bgr888,
-        state: &ThermostatState
+        accent: Option<&GaugeAccentStyle>,
+        target_value: f32,
+        current_value: Option<(f32, String)>
     ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
         let center = target.bounding_box().center();
-        let target_temp_percent = get_temp_percent(state.target_temp);
-        let current_temp_percent = get_temp_percent(state.current_temp);
 
-        self.draw_temp_text(target, bg_colour, center, state.target_temp)?;
-
-        // gauge background
+        // gauge background arc
         self.draw_arc(target, 0.0, 1.0, center, self.style.arc_bg_colour)?;
 
-        // gauge foreground
-        let dot_colour = if matches!(state.mode, HvacMode::Heat) {
-            self.draw_arc(target, 0.0, target_temp_percent, center, self.style.arc_heat_colour)?;
-            self.style.arc_heat_dot_colour
-        } else if matches!(state.mode, HvacMode::Cool) {
-            self.draw_arc(target, target_temp_percent, 1.0, center, self.style.arc_cool_colour)?;
-            self.style.arc_cool_dot_colour
+        // gauge accent arc
+        let dot_colour = if let Some(accent) = accent {
+            let (arc_start, arc_end) = match accent.arc_fill {
+                ArcFill::Below => (0.0, target_value),
+                ArcFill::Above => (target_value, 1.0),
+            };
+
+            self.draw_arc(target, arc_start, arc_end, center, accent.arc_colour)?;
+            accent.arc_dot_colour
         } else {
             self.style.arc_bg_colour
         };
 
-        // large dot for target temp, with another dot inside
-        self.draw_arc_point(target, target_temp_percent, center, self.style.arc_target_dot_dia, dot_colour)?;
-        self.draw_arc_point(target, target_temp_percent, center, self.style.arc_width, self.style.fg_colour)?;
+        // large dot for target value, with another dot inside
+        self.draw_arc_point(target, target_value, center, self.style.arc_target_dot_dia, dot_colour)?;
+        self.draw_arc_point(target, target_value, center, self.style.arc_width, self.style.fg_colour)?;
 
-        // small dot for current temp
-        self.draw_arc_point(target, current_temp_percent, center, self.style.arc_temp_dot_dia, self.style.arc_temp_dot_colour)?;
+        if let Some((current_value, current_label)) = current_value {
+            // small dot for current value
+            self.draw_arc_point(target, current_value, center, self.style.arc_dot_dia, self.style.arc_dot_colour)?;
 
-        // draw current temp label along the current temp angle
-        let current_temp = format!("{:.1}", state.current_temp);
-        let current_temp_center = self.get_arc_point(center, current_temp_percent, self.style.arc_temp_text_dia);
-        self.draw_sm_text(target, bg_colour, current_temp_center, current_temp)?;
+            // draw label near current value dot
+            let current_value_center = self.get_arc_point(center, current_value, self.style.arc_text_dia);
+            self.draw_text(target, bg_colour, current_value_center, current_label)?;
+        }
 
         Ok(())
     }
@@ -87,58 +88,7 @@ impl GaugeWidget {
         )
     }
 
-    fn draw_temp_text<D>(
-        &self,
-        target: &mut D,
-        bg_color: Bgr888,
-        center: Point,
-        target_temp: f32
-    ) -> Result<(), D::Error>
-        where D: DrawTarget<Color = Bgr888>
-    {
-        let (temp_int, temp_frac) = round_temperature(target_temp);
-        let (temp_int_s, temp_frac_s) = (temp_int.to_string(), temp_frac.to_string());
-
-        let font_style = self.style.target_font
-            .font_style(self.style.fg_colour, bg_color);
-
-        let text_pos = Point::new(
-            center.x,
-            center.y - font_style.line_height() as i32 / 2
-        );
-
-        let text = Text::with_alignment(
-            &temp_int_s,
-            text_pos,
-            font_style,
-            Alignment::Center
-        );
-
-        text.draw(target)?;
-
-        if temp_frac > 0 {
-            let font_style = self.style.target_decimal_font
-                .font_style(self.style.fg_colour, bg_color);
-
-            let text_pos = Point::new(
-                center.x + (text.bounding_box().size.width / 2) as i32,
-                text_pos.y + font_style.line_height() as i32 / 2
-            );
-
-            let text = Text::with_alignment(
-                &temp_frac_s,
-                text_pos,
-                font_style,
-                Alignment::Left
-            );
-
-            text.draw(target)?;
-        }
-
-        Ok(())
-    }
-
-    fn draw_sm_text<D>(
+    fn draw_text<D>(
         &self,
         target: &mut D,
         bg_color: Bgr888,
@@ -147,7 +97,7 @@ impl GaugeWidget {
     ) -> Result<(), D::Error>
         where D: DrawTarget<Color = Bgr888>
     {
-        let font_style = self.style.current_font
+        let font_style = self.style.font
             .font_style(self.style.fg_colour, bg_color);
 
         let text = Text::with_alignment(
@@ -211,17 +161,4 @@ impl GaugeWidget {
 
         Ok(())
     }
-}
-
-fn round_temperature(value: f32) -> (i32, i32) {
-    let scaled = (value * 2.0).round() as i32;
-
-    let integer_part = scaled / 2;
-    let fraction_part = (scaled % 2) * 5;
-
-    (integer_part, fraction_part)
-}
-
-fn get_temp_percent(temp: f32) -> f32 {
-    (temp - ThermostatState::MIN_TEMP) / (ThermostatState::MAX_TEMP - ThermostatState::MIN_TEMP)
 }

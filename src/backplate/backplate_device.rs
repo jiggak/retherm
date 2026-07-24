@@ -49,12 +49,11 @@ impl DeviceBackplateThread {
         let serial_port = config.serial_port.clone();
         let near_pir_threshold = config.near_pir_threshold;
 
-        let (heat_wire, cool_wire) = match config.wiring {
-            WireConfig::HeatAndCool { heat_wire, cool_wire } => {
-                (heat_wire.into(), cool_wire.into())
+        let wire_state = match config.wiring {
+            WireConfig::HeatAndCool { heat_wire, cool_wire, fan_wire } => {
+                SwitchState::new(heat_wire.into(), cool_wire.into(), fan_wire.into())
             }
         };
-        let wire_state = SwitchState::new(heat_wire, cool_wire);
         let wire_state = Arc::new(Mutex::new(wire_state));
         let wire_state_clone = wire_state.clone();
 
@@ -217,41 +216,54 @@ impl From<WireId> for Wire {
 struct SwitchState {
     heat_wire: (Wire, bool),
     cool_wire: (Wire, bool),
+    fan_wire: (Wire, bool),
 }
 
 impl SwitchState {
-    fn new(heat_wire: Wire, cool_wire: Wire) -> Self {
+    fn new(heat_wire: Wire, cool_wire: Wire, fan_wire: Wire) -> Self {
         Self {
             heat_wire: (heat_wire, false),
             cool_wire: (cool_wire, false),
+            fan_wire: (fan_wire, false),
         }
     }
 
-    fn commands(&self) -> [BackplateCmd; 2] {
+    fn commands(&self) -> [BackplateCmd; 3] {
         [
             BackplateCmd::SwitchWire(self.heat_wire.0, self.heat_wire.1),
             BackplateCmd::SwitchWire(self.cool_wire.0, self.cool_wire.1),
+            BackplateCmd::SwitchWire(self.fan_wire.0, self.fan_wire.1),
         ]
     }
 
-    fn switch_commands(&self, action: &HvacAction) -> [BackplateCmd; 2] {
+    fn switch_commands(&self, action: &HvacAction) -> [BackplateCmd; 3] {
         match action {
             HvacAction::Heating => {
                 [
                     BackplateCmd::SwitchWire(self.heat_wire.0, true),
-                    BackplateCmd::SwitchWire(self.cool_wire.0, false)
+                    BackplateCmd::SwitchWire(self.cool_wire.0, false),
+                    BackplateCmd::SwitchWire(self.fan_wire.0, false),
                 ]
             }
             HvacAction::Cooling => {
                 [
                     BackplateCmd::SwitchWire(self.heat_wire.0, false),
-                    BackplateCmd::SwitchWire(self.cool_wire.0, true)
+                    BackplateCmd::SwitchWire(self.cool_wire.0, true),
+                    BackplateCmd::SwitchWire(self.fan_wire.0, false),
+                ]
+            }
+            HvacAction::Fan => {
+                [
+                    BackplateCmd::SwitchWire(self.heat_wire.0, false),
+                    BackplateCmd::SwitchWire(self.cool_wire.0, false),
+                    BackplateCmd::SwitchWire(self.fan_wire.0, true),
                 ]
             }
             HvacAction::Idle => {
                 [
                     BackplateCmd::SwitchWire(self.heat_wire.0, false),
-                    BackplateCmd::SwitchWire(self.cool_wire.0, false)
+                    BackplateCmd::SwitchWire(self.cool_wire.0, false),
+                    BackplateCmd::SwitchWire(self.fan_wire.0, false),
                 ]
             }
         }
@@ -259,14 +271,11 @@ impl SwitchState {
 
     fn is_active(&self, action: &HvacAction) -> bool {
         match action {
-            HvacAction::Heating => {
-                self.heat_wire.1
-            }
-            HvacAction::Cooling => {
-                self.cool_wire.1
-            }
+            HvacAction::Heating => self.heat_wire.1,
+            HvacAction::Cooling => self.cool_wire.1,
+            HvacAction::Fan => self.fan_wire.1,
             HvacAction::Idle => {
-                !self.cool_wire.1 && !self.heat_wire.1
+                !self.cool_wire.1 && !self.heat_wire.1 && !self.fan_wire.1
             }
         }
     }
@@ -276,6 +285,8 @@ impl SwitchState {
             self.cool_wire.1 = val;
         } else if wire == self.heat_wire.0 {
             self.heat_wire.1 = val;
+        } else if wire == self.fan_wire.0 {
+            self.fan_wire.1 = val;
         } else {
             panic!("Unexpected wire {:?}", wire);
         }
@@ -284,5 +295,6 @@ impl SwitchState {
     fn clear(&mut self) {
         self.heat_wire.1 = false;
         self.cool_wire.1 = false;
+        self.fan_wire.1 = false;
     }
 }

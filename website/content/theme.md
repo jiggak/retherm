@@ -55,6 +55,37 @@ Background colour when heating is turned on, default "#F17E3B"
 
 Background colour when cooling is turned on, default "#3B72F1"
 
+## bg_fan_colour
+
+Background colour when fan is turned on, default "#0EAEC4"
+
+## heat_gauge
+
+Dial styling when in heating mode,
+default `{ arc_colour: "#E65D10", arc_dot_colour: "#C4500E", arc_fill: "Below" }`
+
+## cool_gauge
+
+Dial styling when in cooling mode,
+default `{ arc_colour: "#1050E6", arc_dot_colour: "#0E44C4", arc_fill: "Above" }`
+
+## fan_gauge
+
+Dial styling when in fan mode,
+default `{ arc_colour: "#00BCD4", arc_dot_colour: "#0090A3", arc_fill: "Below" }`
+
+## target_font
+
+Target temp decimal digit font, default "Bold:100"
+
+## target_decimal_font
+
+Target temp fraction digit font, default "Bold:40"
+
+## fan_timer_font
+
+Fan timer font, default "Bold:80"
+
 ## status_icon_center
 
 Position of status icon, default `[160, 230]`
@@ -73,6 +104,11 @@ default `{ icon_font: "Icon:42", icon: "\u{f252}", colour: "#ffffff" }`
 
 Backplate disconnected status icon styling,
 default `{ icon_font: "Icon:42", icon: "\u{e560}", colour: "#ffffff" }`
+
+## fan_icon
+
+Fan mode status icon styling,
+default `{ icon_font: "Icon:42", icon: "\u{f863}", colour: "#ffffff" }`
 
 ## status_msg_center
 
@@ -109,51 +145,27 @@ Arc start angle; 0 degrees at 3'oclock, default 120
 
 Sweep angle of arc, default 300
 
-## target_font
+## font
 
-Target temp decimal digit font, default "Bold:100"
-
-## target_decimal_font
-
-Target temp fraction digit font, default "Bold:40"
-
-## current_font
-
-Current temp font, default "Regular:20"
+Current value label font, default "Regular:20"
 
 ## arc_bg_colour
 
 Background fill colour of arc, default "#696969"
 
-## arc_heat_colour
-
-Arc background for heating, default "#E65D10"
-
-## arc_heat_dot_colour
-
-Target heat temp dot colour, default "#C4500E"
-
-## arc_cool_colour
-
-Arc background for cooling, default "#1050E6"
-
-## arc_cool_dot_colour
-
-Target cool temp dot colour, default "#0E44C4""
-
 ## arc_target_dot_dia
 
-Diameter of target temp dot, default 30
+Diameter of target value dot, default 30
 
-## arc_temp_dot_dia
+## arc_dot_dia
 
-Current temp dot diameter, default 12
+Current value dot diameter, default 12
 
-## arc_temp_dot_colour
+## arc_dot_colour
 
-Current temp dot colour, default "#C0C0C0"
+Current value dot colour, default "#C0C0C0"
 
-## arc_temp_text_dia
+## arc_text_dia
 
 Diameter of arc current temp label position, default 220
 
@@ -177,6 +189,10 @@ Heat mode icon colour, default "#E65D10"
 ## icon_cool_colour
 
 Cool mode icon colour, default "#1050E6"
+
+## icon_fan_colour
+
+Fan mode icon colour, default "#00BCD4"
 
 ## icon_center
 

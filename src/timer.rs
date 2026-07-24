@@ -18,7 +18,7 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, mpsc::{RecvTimeoutError, Sender, TryRecvError, channel}},
+    sync::{Arc, Mutex, mpsc::{RecvTimeoutError, Sender, channel}},
     thread,
     time::Duration
 };
@@ -31,7 +31,8 @@ use crate::events::{Event, EventHandler, EventSender};
 pub enum TimerId {
     Away,
     Backlight,
-    HvacLockout
+    HvacLockout,
+    Fan,
 }
 
 pub struct Timers<S> {
@@ -93,20 +94,18 @@ impl<S: EventSender + Clone + Send + 'static> Timers<S> {
             let mut timeout_ticks = duration_ticks(timeout, tick_duration);
 
             while ticks < timeout_ticks {
-                thread::sleep(tick_duration);
-
-                match receiver.try_recv() {
+                match receiver.recv_timeout(tick_duration) {
                     Ok(new_timeout) => {
                         timeout_ticks = duration_ticks(new_timeout, tick_duration);
                         ticks = 0;
                     }
-                    Err(TryRecvError::Empty) => {
+                    Err(RecvTimeoutError::Timeout) => {
                         ticks += 1;
                         let remaining = timeout_ticks - ticks;
                         let remaining = tick_duration.mul_f32(remaining as f32);
                         event_sender.send_event(Event::TimerTick(id, remaining)).unwrap();
                     }
-                    Err(TryRecvError::Disconnected) => {
+                    Err(RecvTimeoutError::Disconnected) => {
                         warn!("Tick thread sender disconnected");
                         return;
                     }
@@ -138,6 +137,9 @@ impl<S: EventSender + Clone + Send + 'static> EventHandler for Timers<S> {
                     let timeout = Duration::from_secs(timeout.as_secs());
                     self.start_tick_thread(id, timeout, tick_duration);
                 }
+            }
+            Event::CancelTimer(id) => {
+                self.timers.lock().unwrap().remove(&id);
             }
             _ => { }
         }

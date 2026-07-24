@@ -41,6 +41,7 @@ impl<S: EventSender> ModeScreen<S> {
         let modes = [
             HvacMode::Heat,
             HvacMode::Cool,
+            HvacMode::Fan,
             HvacMode::Off
         ];
 
@@ -99,6 +100,7 @@ impl<S: EventSender> AppDrawable for ModeScreen<S> {
         let icon_color = match self.mode_list.get_highlighted_value() {
             HvacMode::Heat => Some(self.theme.icon_heat_colour),
             HvacMode::Cool => Some(self.theme.icon_cool_colour),
+            HvacMode::Fan => Some(self.theme.icon_fan_colour),
             _ => None
         };
         self.mode_icon.draw(target, self.theme.icon_center, self.theme.bg_colour, icon_color)?;
@@ -131,10 +133,6 @@ impl From<HvacMode> for ListItem<HvacMode> {
                 value: value.clone(),
                 label: String::from("Off")
             },
-            HvacMode::Auto => ListItem {
-                value: value.clone(),
-                label: String::from("Auto")
-            },
             HvacMode::Heat => ListItem {
                 value: value.clone(),
                 label: String::from("Heat")
@@ -142,7 +140,11 @@ impl From<HvacMode> for ListItem<HvacMode> {
             HvacMode::Cool => ListItem {
                 value: value.clone(),
                 label: String::from("Cool")
-            }
+            },
+            HvacMode::Fan => ListItem {
+                value: value.clone(),
+                label: String::from("Fan")
+            },
         }
     }
 }

@@ -97,10 +97,17 @@ struct StoredState {
 
 impl From<&ThermostatState> for StoredState {
     fn from(value: &ThermostatState) -> Self {
+        // I don't think it makes sense to save/restore state to fan mode?
+        // If desired, the remainder of the fan timer needs to be saved/restored.
+        let mode = match value.mode {
+            HvacMode::Fan => HvacMode::Off,
+            m => m
+        };
+
         Self {
             target_temp: value.target_temp,
             current_temp: value.current_temp,
-            mode: value.mode,
+            mode,
         }
     }
 }

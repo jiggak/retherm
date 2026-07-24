@@ -63,6 +63,12 @@ pub struct Config {
     #[serde(deserialize_with = "config_de::duration")]
     pub min_off_time: Duration,
 
+    /// Default amount of time to run fan, when fan mode is activated.
+    ///
+    /// Defaults to "15m"
+    #[serde(deserialize_with = "config_de::duration")]
+    pub default_fan_timeout: Duration,
+
     /// Directory to store app state.
     ///
     /// Defaults to "/media/data"
@@ -116,6 +122,7 @@ impl Default for Config {
             temp_deadband: 0.6,
             temp_overrun: 0.4,
             min_off_time: Duration::from_mins(5),
+            default_fan_timeout: Duration::from_mins(15),
             storage_dir: PathBuf::from("/media/data"),
         }
     }
@@ -319,7 +326,8 @@ impl Default for BackplateConfig {
             serial_port: String::from("/dev/ttyO2"),
             wiring: WireConfig::HeatAndCool {
                 heat_wire: WireId::W1,
-                cool_wire: WireId::Y1
+                cool_wire: WireId::Y1,
+                fan_wire: WireId::G,
             }
         }
     }
@@ -335,6 +343,7 @@ pub enum WireId {
 pub enum WireConfig {
     HeatAndCool {
         heat_wire: WireId,
-        cool_wire: WireId
+        cool_wire: WireId,
+        fan_wire: WireId,
     }
 }
