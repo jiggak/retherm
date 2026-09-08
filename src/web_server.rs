@@ -1,4 +1,4 @@
-use std::thread;
+use std::{sync::Mutex, thread};
 
 use anyhow::{Result, anyhow};
 use rouille::{Request, Response, Server, extension_to_mime, router, try_or_400};
@@ -11,12 +11,16 @@ static WEB: include_dir::Dir =
 pub fn start_server<S>(settings: ClimateSettings, event_sender: S) -> Result<()>
     where S: EventSender + Send + Sync + 'static
 {
-    let handler = RequestHandler::new(settings, event_sender);
+    let handler = Mutex::new(RequestHandler::new(settings, event_sender));
 
     let server = Server::new("0.0.0.0:8000", move |request| {
         router!(request,
-            (GET) (/api/settings) => { handler.get_settings() },
-            (POST) (/api/settings) => { handler.post_settings(request) },
+            (GET) (/api/settings) => {
+                handler.lock().unwrap().get_settings()
+            },
+            (POST) (/api/settings) => {
+                handler.lock().unwrap().post_settings(request)
+            },
             _ => asset_response(request.url())
         )
     });
@@ -47,9 +51,9 @@ impl<S: EventSender + Send + Sync + 'static> RequestHandler<S> {
         Response::json(&self.settings)
     }
 
-    fn post_settings(&self, request: &Request) -> Response {
-        let settings: ClimateSettings = try_or_400!(rouille::input::json_input(request));
-        self.event_sender.send_event(Event::SettingsUpdate(settings)).unwrap();
+    fn post_settings(&mut self, request: &Request) -> Response {
+        self.settings = try_or_400!(rouille::input::json_input(request));
+        self.event_sender.send_event(Event::SettingsUpdate(self.settings.clone())).unwrap();
         Response::empty_204()
     }
 }
