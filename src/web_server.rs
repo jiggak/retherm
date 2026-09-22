@@ -6,7 +6,7 @@ use rouille::{Request, Response, Server, extension_to_mime, router, try_or_400};
 use crate::{config::ClimateSettings, events::{Event, EventSender}};
 
 static WEB: include_dir::Dir =
-    include_dir::include_dir!("$CARGO_MANIFEST_DIR/src/web");
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/retherm-webui/build");
 
 pub fn start_server<S>(settings: ClimateSettings, event_sender: S) -> Result<()>
     where S: EventSender + Send + Sync + 'static

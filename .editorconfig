@@ -9,3 +9,6 @@ trim_trailing_whitespace = true
 
 [*.rs]
 indent_size = 4
+
+[*.{ts,js,html,css,svelte}]
+indent_size = 3
