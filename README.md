@@ -6,6 +6,13 @@ Home Assistant setup.
 This project aims to provide a completely new UI for a rooted Gen 2 Nest
 Thermostat.
 
+## Home Assistant
+
+ReTherm exposes an ESPHome Native API interface directly from the thermostat,
+allowing Home Assistant to connect without Google's Nest API or MQTT. See the
+[installation guide](https://retherm.kropf.io/install/#connect-home-assistant-with-esphome)
+for setup instructions.
+
 ## Highlevel list of features for MVP
 
 - [x] Bi-directional Home Assistant connection using esphome API
