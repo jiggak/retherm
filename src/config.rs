@@ -138,14 +138,14 @@ impl Default for Config {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct HomeAssistantConfig {
-    /// Object ID used internall by home assistant.
-    /// Defaults to "climage.{node_name}".
+    /// Object ID used internall by Home Assistant.
+    /// Defaults to "climate.{node_name}".
     pub object_id: Option<String>,
 
     /// Listen address for ESP Home API server, default "0.0.0.0:6053"
     pub listen_addr: String,
 
-    /// Encryption key as 32 byte base64 string. When not provided, the
+    /// Encryption key as a 32 byte base64 string. When not provided, the
     /// connection uses plaintext messages.
     /// See [ESP Home Native API](https://esphome.io/components/api/)
     /// for a tool that generates a random key.
@@ -155,19 +155,22 @@ pub struct HomeAssistantConfig {
     /// Defaults to "ReTherm {version}".
     pub server_info: String,
 
-    /// Node name, defaults to the system hostname
+    /// ESPHome node name. Defaults to the system hostname, or "retherm" if the
+    /// hostname cannot be read.
     pub node_name: Option<String>,
 
-    /// Friendly name displayed in as label for thermostat control
+    /// Friendly device name displayed in Home Assistant.
+    /// Defaults to "ReTherm Thermostat".
     pub friendly_name: String,
 
-    /// Manufactuer name, defaults to "Nest"
+    /// Manufacturer name, defaults to "Nest".
     pub manufacturer: String,
 
-    /// Model name, defaults to "Gen2 Thermostat"
+    /// Model name, defaults to "Gen2 Thermostat".
     pub model: String,
 
-    /// Mac address, defaults to address of system interface address
+    /// MAC address, defaults to an address found on a system interface. A
+    /// fallback value is used if no address can be read.
     pub mac_address: Option<String>
 }
 
@@ -303,7 +306,7 @@ impl Default for AwayConfig {
 /// [backplate]
 /// near_pir_threshold = 15
 /// serial_port = "/dev/ttyO2"
-/// wiring = { heat_wire: "W1", cool_wire: "Y1" }
+/// wiring = { type = "HeatAndCool", heat_wire = "W1", cool_wire = "Y1", fan_wire = "G" }
 /// ```
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -314,7 +317,8 @@ pub struct BackplateConfig {
     /// Path to backplate serial device file, default "/dev/ttyO2"
     pub serial_port: String,
 
-    /// HVAC wiring configuration, default `{ heat_wire: "W1", cool_wire: "Y1" }`.
+    /// HVAC wiring configuration. Defaults to
+    /// `{ type = "HeatAndCool", heat_wire = "W1", cool_wire = "Y1", fan_wire = "G" }`.
     /// Valid wire names: W1, Y1, G, OB, W2, Y2, Star.
     pub wiring: WireConfig
 }

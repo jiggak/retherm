@@ -83,7 +83,7 @@ or set to zero to disable away mode. Default "30m".
 [backplate]
 near_pir_threshold = 15
 serial_port = "/dev/ttyO2"
-wiring = { heat_wire: "W1", cool_wire: "Y1" }
+wiring = { type = "HeatAndCool", heat_wire = "W1", cool_wire = "Y1", fan_wire = "G" }
 ```
 
 ## near_pir_threshold
@@ -96,7 +96,8 @@ Path to backplate serial device file, default "/dev/ttyO2"
 
 ## wiring
 
-HVAC wiring configuration, default `{ heat_wire: "W1", cool_wire: "Y1" }`.
+HVAC wiring configuration. Defaults to
+`{ type = "HeatAndCool", heat_wire = "W1", cool_wire = "Y1", fan_wire = "G" }`.
 Valid wire names: W1, Y1, G, OB, W2, Y2, Star.
 
 # Home Assistant
@@ -109,8 +110,8 @@ encryption_key = "..."
 
 ## object_id
 
-Object ID used internall by home assistant.
-Defaults to "climage.{node_name}".
+Object ID used internall by Home Assistant.
+Defaults to "climate.{node_name}".
 
 ## listen_addr
 
@@ -118,7 +119,7 @@ Listen address for ESP Home API server, default "0.0.0.0:6053"
 
 ## encryption_key
 
-Encryption key as 32 byte base64 string. When not provided, the
+Encryption key as a 32 byte base64 string. When not provided, the
 connection uses plaintext messages.
 See [ESP Home Native API](https://esphome.io/components/api/)
 for a tool that generates a random key.
@@ -130,23 +131,26 @@ Defaults to "ReTherm {version}".
 
 ## node_name
 
-Node name, defaults to the system hostname
+ESPHome node name. Defaults to the system hostname, or "retherm" if the
+hostname cannot be read.
 
 ## friendly_name
 
-Friendly name displayed in as label for thermostat control
+Friendly device name displayed in Home Assistant.
+Defaults to "ReTherm Thermostat".
 
 ## manufacturer
 
-Manufactuer name, defaults to "Nest"
+Manufacturer name, defaults to "Nest".
 
 ## model
 
-Model name, defaults to "Gen2 Thermostat"
+Model name, defaults to "Gen2 Thermostat".
 
 ## mac_address
 
-Mac address, defaults to address of system interface address
+MAC address, defaults to an address found on a system interface. A
+fallback value is used if no address can be read.
 
 # Backlight
 
@@ -180,7 +184,7 @@ set_points = [
 
 You can define more than one schedule entry, and it will overlap the
 previous. In the example below, the temperature will be set to 20.0
-at 8am everyday, and set down to 16.0 at 9am Monday and Wednsday.
+at 8am every day, and set down to 16.0 at 9am Monday and Wednesday.
 
 ```toml
 [[schedule_heat]]
@@ -190,7 +194,7 @@ set_points = [
 ]
 
 [[schedule_heat]]
-days_of_week = ["Monday", "Wednsday"]
+days_of_week = ["Mon", "Wed"]
 set_points = [
    { time = "09:00", temp = 16.0 }
 ]
@@ -204,7 +208,7 @@ One of "EveryDay", "WeekDays", "WeekEnd"
 
 Or...
 
-List of weekdays ["Monday", "Tuesday", ...]
+List of weekday values: "Mon", "Tue", "Wed", "Thur", "Fri", "Sat", "Sun".
 
 ## set_points
 
