@@ -54,6 +54,25 @@ next time the device reboots.
 > It's crutial the Nest app starts at boot so that you maintain some means
 > to set network settings (i.e. SSH access).
 
+## Connect Home Assistant with ESPHome
+
+ReTherm does not currently provide mDNS/zeroconf discovery, so add it manually:
+
+1. Make sure ReTherm is running on the thermostat.
+2. Find the thermostat's IP address in your router's DHCP client list.
+3. In Home Assistant, go to **Settings → Devices & services → Add Integration →
+   ESPHome**.
+4. Enter the thermostat's IP address as the host.
+5. Use port `6053` unless `home_assistant.listen_addr` was changed in
+   `/retherm/config.toml`.
+6. Leave the password blank. Leave the Noise PSK blank unless encryption was
+   configured; if it was, enter the same key used by ReTherm.
+7. Complete the integration.
+
+`0.0.0.0` in the default listen address means that ReTherm listens on every
+network interface. Enter the thermostat's actual IP address in Home Assistant,
+not `0.0.0.0`.
+
 ## Logging to syslogd
 
 Optionally, ReTherm can output logs to `syslogd`. Log messages will be written

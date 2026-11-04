@@ -37,7 +37,7 @@ use super::config_de;
 ///
 /// You can define more than one schedule entry, and it will overlap the
 /// previous. In the example below, the temperature will be set to 20.0
-/// at 8am everyday, and set down to 16.0 at 9am Monday and Wednsday.
+/// at 8am every day, and set down to 16.0 at 9am Monday and Wednesday.
 ///
 /// ```toml
 /// [[schedule_heat]]
@@ -47,7 +47,7 @@ use super::config_de;
 /// ]
 ///
 /// [[schedule_heat]]
-/// days_of_week = ["Monday", "Wednsday"]
+/// days_of_week = ["Mon", "Wed"]
 /// set_points = [
 ///    { time = "09:00", temp = 16.0 }
 /// ]
@@ -60,7 +60,7 @@ pub struct ScheduleConfig {
     ///
     /// Or...
     ///
-    /// List of weekdays ["Monday", "Tuesday", ...]
+    /// List of weekday values: "Mon", "Tue", "Wed", "Thur", "Fri", "Sat", "Sun".
     pub days_of_week: DaysOfWeek,
 
     /// List of set points with time of day and temperature

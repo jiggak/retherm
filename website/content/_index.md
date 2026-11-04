@@ -18,7 +18,7 @@ content = "Dial interface similar to stock Nest UI with mode select"
 title = "Home Assistant"
 content = '''
 Integrates with <a href="configuration#home-assistant">Home Assistant</a>
-seamlessly using ESPHome API, no additional services required'''
+seamlessly using the ESPHome Native API; no cloud API, MQTT, or bridge required'''
 
 [[extra.list]]
 title = "Away mode"
